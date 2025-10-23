@@ -1,0 +1,4 @@
+# Golang vendoring: regen with `go mod tidy ; go mod vendor`
+go.sum                              linguist-generated merge=ours
+*.gen.go                            linguist-generated merge=ours
+vendor/**                           linguist-vendored
