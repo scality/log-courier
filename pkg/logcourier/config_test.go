@@ -86,7 +86,10 @@ var _ = Describe("Configuration", Ordered, func() {
 
 	Describe("ValidateConfig", func() {
 		It("should accept valid log level: info", func() {
-			err := logcourier.ValidateConfig()
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
