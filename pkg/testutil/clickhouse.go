@@ -77,6 +77,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			httpCode               UInt16,
 			httpURL                String,
 			errorCode              String,
+			objectKey              String,
 
 			versionId              String,
 
@@ -175,6 +176,7 @@ type TestLogRecord struct {
 	BucketName     string
 	ReqID          string
 	Action         string
+	ObjectKey      string
 	BytesSent      uint64
 	RaftSessionID  uint16
 	HttpCode       uint16
@@ -187,12 +189,12 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		INSERT INTO %s.access_logs_ingest
 		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
-		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, versionId,
+		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
 		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
 		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
 		 loggingTargetBucket, loggingTargetPrefix)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName)
 
 	return h.Client.Exec(ctx, query,
@@ -215,6 +217,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		"",                // httpMethod
 		"",                // httpURL
 		"",                // errorCode
+		log.ObjectKey,     // objectKey
 		"",                // versionId
 		uint64(0),         // bytesDeleted
 		uint64(0),         // bytesReceived
