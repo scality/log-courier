@@ -19,10 +19,11 @@ const (
 
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
 type ClickHouseTestHelper struct {
-	Client *clickhouse.Client
+	Client       *clickhouse.Client
+	DatabaseName string
 }
 
-// NewClickHouseTestHelper creates a new test helper
+// NewClickHouseTestHelper creates a new test helper with a unique database
 func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error) {
 	url := os.Getenv("LOG_COURIER_CLICKHOUSE_URL")
 	if url == "" {
@@ -41,13 +42,19 @@ func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error)
 		return nil, fmt.Errorf("failed to connect to test ClickHouse: %w", err)
 	}
 
-	return &ClickHouseTestHelper{Client: client}, nil
+	// Generate unique database name for test isolation
+	dbName := fmt.Sprintf("logs_test_%d", time.Now().UnixNano())
+
+	return &ClickHouseTestHelper{
+		Client:       client,
+		DatabaseName: dbName,
+	}, nil
 }
 
 // SetupSchema creates schema for testing (simplified single-node version)
 func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	// Create database
-	if err := h.Client.Exec(ctx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", clickhouse.DatabaseName)); err != nil {
+	if err := h.Client.Exec(ctx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", h.DatabaseName)); err != nil {
 		return fmt.Errorf("failed to create database: %w", err)
 	}
 
@@ -104,7 +111,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			insertedAt             DateTime DEFAULT now()
 		)
 		ENGINE = Null()
-	`, clickhouse.DatabaseName)
+	`, h.DatabaseName)
 	if err := h.Client.Exec(ctx, ingestTableSQL); err != nil {
 		return fmt.Errorf("failed to create ingest table: %w", err)
 	}
@@ -116,7 +123,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
 		ORDER BY (raftSessionId, bucketName, insertedAt, req_id)
-	`, clickhouse.DatabaseName, clickhouse.DatabaseName)
+	`, h.DatabaseName, h.DatabaseName)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
 	}
@@ -129,7 +136,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		SELECT *
 		FROM %s.access_logs_ingest
 		WHERE loggingEnabled = true
-	`, clickhouse.DatabaseName, clickhouse.DatabaseName, clickhouse.DatabaseName)
+	`, h.DatabaseName, h.DatabaseName, h.DatabaseName)
 	if err := h.Client.Exec(ctx, mvSQL); err != nil {
 		return fmt.Errorf("failed to create materialized view: %w", err)
 	}
@@ -144,7 +151,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionId)
-	`, clickhouse.DatabaseName)
+	`, h.DatabaseName)
 	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
 		return fmt.Errorf("failed to create offsets table: %w", err)
 	}
@@ -152,19 +159,11 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	return nil
 }
 
-// TeardownSchema drops all test tables
+// TeardownSchema drops all test tables and database
 func (h *ClickHouseTestHelper) TeardownSchema(ctx context.Context) error {
-	queries := []string{
-		fmt.Sprintf("DROP VIEW IF EXISTS %s.access_logs_ingest_mv", clickhouse.DatabaseName),
-		fmt.Sprintf("DROP TABLE IF EXISTS %s.access_logs", clickhouse.DatabaseName),
-		fmt.Sprintf("DROP TABLE IF EXISTS %s.access_logs_ingest", clickhouse.DatabaseName),
-		fmt.Sprintf("DROP TABLE IF EXISTS %s.offsets", clickhouse.DatabaseName),
-	}
-
-	for _, query := range queries {
-		if err := h.Client.Exec(ctx, query); err != nil {
-			return fmt.Errorf("failed to drop table/view: %w", err)
-		}
+	// Drop the entire test database (which drops all tables and views)
+	if err := h.Client.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", h.DatabaseName)); err != nil {
+		return fmt.Errorf("failed to drop database: %w", err)
 	}
 
 	return nil
@@ -194,7 +193,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
 		 loggingTargetBucket, loggingTargetPrefix)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, clickhouse.DatabaseName)
+	`, h.DatabaseName)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,
