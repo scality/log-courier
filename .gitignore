@@ -1,0 +1,8 @@
+bin/
+__pycache__/
+*~
+cover.out
+covdata.out
+covdatafiles/
+*.pem
+.DS_Store

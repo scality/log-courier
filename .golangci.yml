@@ -1,0 +1,107 @@
+version: "2"
+
+linters:
+  enable:
+    # Bug detection
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+
+    # Security
+    - gosec
+    - bodyclose
+    - noctx          # Ensure contexts are passed
+
+    # Error handling
+    - errorlint      # Go 1.13+ error wrapping
+    - errchkjson     # JSON encoding errors
+
+    # Code quality
+    - gocognit       # Cognitive complexity
+    - cyclop         # Cyclomatic complexity
+    - gocyclo        # Cyclomatic complexity
+    - funlen         # Function length
+    - gochecknoglobals
+    - goconst        # Repeated strings
+    - gocritic       # Opinionated checks
+
+    # Code clarity
+    - revive         # Configurable linting rules
+    - unconvert      # Unnecessary conversions
+    - unparam        # Unused function parameters
+    - misspell       # Spelling mistakes
+
+    # Testing
+    - ginkgolinter   # Ginkgo/Gomega best practices
+    - testpackage    # Blackbox testing
+
+  settings:
+    govet:
+      enable-all: true
+
+    gocognit:
+      min-complexity: 20
+
+    cyclop:
+      max-complexity: 30
+      package-average: 10.0
+
+    funlen:
+      lines: 100
+      statements: 50
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam  # Often unavoidable with AWS SDK
+
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+        - name: package-comments
+          disabled: true
+
+  exclusions:
+    generated: lax
+
+    paths:
+      - third_party/
+      - builtin/
+      - examples/
+      - vendor/
+
+    rules:
+      # Allow complex setup in test files
+      - linters:
+          - funlen
+          - gocognit
+          - cyclop
+        path: _test\.go$
+
+      # Allow globals in main packages
+      - linters:
+          - gochecknoglobals
+        path: cmd/
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+
+output:
+  sort-order:
+    - linter
+    - severity
+    - file
+  show-stats: true

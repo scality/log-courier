@@ -1,0 +1,26 @@
+comment:
+  layout: newheader, reach, files, diff, flags
+  hide_comment_details: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        removed_code_behavior: adjust_base
+    patch:
+      default:
+        target: 60%
+        threshold: 5%
+
+github_checks:
+  annotations: true
+
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses: []
+
+ignore:
+  - "**/*.gen.go"
