@@ -67,21 +67,22 @@ var _ = Describe("ClickHouse Client", func() {
 
 			// Verify database exists
 			var dbCount uint64
-			err = helper.Client.QueryRow(ctx, "SELECT count() FROM system.databases WHERE name = 'logs'").Scan(&dbCount)
+			query := fmt.Sprintf("SELECT count() FROM system.databases WHERE name = '%s'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&dbCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dbCount).To(Equal(uint64(1)))
 
 			// Verify tables exist
 			var tableCount uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT count() FROM system.tables WHERE database = 'logs' AND name IN ('access_logs_ingest', 'access_logs', 'offsets')").Scan(&tableCount)
+			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_ingest', 'access_logs', 'offsets')", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&tableCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(tableCount).To(Equal(uint64(3)))
 
 			// Verify materialized view exists
 			var mvCount uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT count() FROM system.tables WHERE database = 'logs' AND name = 'access_logs_ingest_mv'").Scan(&mvCount)
+			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name = 'access_logs_ingest_mv'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&mvCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(mvCount).To(Equal(uint64(1)))
 		})
@@ -93,12 +94,12 @@ var _ = Describe("ClickHouse Client", func() {
 			err = helper.TeardownSchema(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify tables are gone
-			var tableCount uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT count() FROM system.tables WHERE database = 'logs' AND name IN ('access_logs_ingest', 'access_logs', 'access_logs_ingest_mv', 'offsets')").Scan(&tableCount)
+			// Verify database is gone
+			var dbCount uint64
+			query := fmt.Sprintf("SELECT count() FROM system.databases WHERE name = '%s'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&dbCount)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(tableCount).To(Equal(uint64(0)))
+			Expect(dbCount).To(Equal(uint64(0)))
 		})
 	})
 
@@ -160,29 +161,28 @@ var _ = Describe("ClickHouse Client", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Wait for materialized view to process
-			err = helper.WaitForMaterializedView(ctx,
-				"SELECT COUNT(*) FROM logs.access_logs WHERE req_id = 'req-enabled'",
-				5*time.Second)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE req_id = 'req-enabled'", helper.DatabaseName)
+			err = helper.WaitForMaterializedView(ctx, query, 5*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify only loggingEnabled=true record is in access_logs table
 			var count uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT COUNT(*) FROM logs.access_logs WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')").Scan(&count)
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(1)))
 
 			// Verify it's the correct record
 			var reqID string
-			err = helper.Client.QueryRow(ctx,
-				"SELECT req_id FROM logs.access_logs WHERE bucketName = 'test-bucket-enabled'").Scan(&reqID)
+			query = fmt.Sprintf("SELECT req_id FROM %s.access_logs WHERE bucketName = 'test-bucket-enabled'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&reqID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(reqID).To(Equal("req-enabled"))
 
 			// Verify disabled record is NOT in access_logs
 			var disabledCount uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT COUNT(*) FROM logs.access_logs WHERE bucketName = 'test-bucket-disabled'").Scan(&disabledCount)
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-disabled'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&disabledCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(disabledCount).To(Equal(uint64(0)))
 		})
@@ -207,15 +207,14 @@ var _ = Describe("ClickHouse Client", func() {
 			}
 
 			// Wait for materialized view to process all records
-			err := helper.WaitForMaterializedView(ctx,
-				"SELECT COUNT(*) FROM logs.access_logs WHERE bucketName = 'test-bucket-multi'",
-				5*time.Second)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
+			err := helper.WaitForMaterializedView(ctx, query, 5*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify all 5 records are present
 			var count uint64
-			err = helper.Client.QueryRow(ctx,
-				"SELECT COUNT(*) FROM logs.access_logs WHERE bucketName = 'test-bucket-multi'").Scan(&count)
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
+			err = helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(5)))
 		})

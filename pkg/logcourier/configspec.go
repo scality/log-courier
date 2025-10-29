@@ -28,6 +28,18 @@ var ConfigSpec = util.ConfigSpec{
 		EnvVar:       "LOG_COURIER_CLICKHOUSE_TIMEOUT_SECONDS",
 	},
 
+	// Consumer thresholds
+	"consumer.count-threshold": util.ConfigVarSpec{
+		Help:         "Minimum number of unprocessed logs to trigger batch processing",
+		DefaultValue: 1000,
+		EnvVar:       "LOG_COURIER_CONSUMER_COUNT_THRESHOLD",
+	},
+	"consumer.time-threshold-seconds": util.ConfigVarSpec{
+		Help:         "Age in seconds after which logs should be processed regardless of count",
+		DefaultValue: 900,
+		EnvVar:       "LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS",
+	},
+
 	// General
 	"log-level": util.ConfigVarSpec{
 		Help:         "Log level (error|warn|info|debug)",

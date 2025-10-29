@@ -14,6 +14,8 @@ var _ = Describe("Configuration", Ordered, func() {
 		logcourier.ConfigSpec.Reset()
 		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
 		_ = os.Unsetenv("LOG_COURIER_LOG_LEVEL")
+		_ = os.Unsetenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD")
+		_ = os.Unsetenv("LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS")
 	})
 
 	Describe("ConfigSpec", func() {
@@ -22,7 +24,8 @@ var _ = Describe("Configuration", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			logLevel := logcourier.ConfigSpec.GetString("log-level")
-			Expect(logLevel).To(Equal("info"))
+			expectedDefault := logcourier.ConfigSpec["log-level"].DefaultValue.(string)
+			Expect(logLevel).To(Equal(expectedDefault))
 		})
 
 		It("should load log-level from environment variable", func() {
@@ -84,6 +87,65 @@ var _ = Describe("Configuration", Ordered, func() {
 		})
 	})
 
+	Describe("Consumer Configuration", func() {
+		It("should have default count threshold", func() {
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			countThreshold := logcourier.ConfigSpec.GetInt("consumer.count-threshold")
+			expectedDefault := logcourier.ConfigSpec["consumer.count-threshold"].DefaultValue.(int)
+			Expect(countThreshold).To(Equal(expectedDefault))
+		})
+
+		It("should have default time threshold", func() {
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			timeThreshold := logcourier.ConfigSpec.GetInt("consumer.time-threshold-seconds")
+			expectedDefault := logcourier.ConfigSpec["consumer.time-threshold-seconds"].DefaultValue.(int)
+			Expect(timeThreshold).To(Equal(expectedDefault))
+		})
+
+		It("should load count threshold from environment variable", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD", "500")).To(Succeed())
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			countThreshold := logcourier.ConfigSpec.GetInt("consumer.count-threshold")
+			Expect(countThreshold).To(Equal(500))
+		})
+
+		It("should load time threshold from environment variable", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS", "300")).To(Succeed())
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			timeThreshold := logcourier.ConfigSpec.GetInt("consumer.time-threshold-seconds")
+			Expect(timeThreshold).To(Equal(300))
+		})
+
+		It("should load thresholds from file", func() {
+			tmpFile, err := os.CreateTemp("", "config-*.yaml")
+			Expect(err).NotTo(HaveOccurred())
+			defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+			_, err = tmpFile.WriteString("consumer:\n  count-threshold: 2000\n  time-threshold-seconds: 600\n")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(tmpFile.Close()).To(Succeed())
+
+			err = logcourier.ConfigSpec.LoadConfiguration(tmpFile.Name(), "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			countThreshold := logcourier.ConfigSpec.GetInt("consumer.count-threshold")
+			Expect(countThreshold).To(Equal(2000))
+
+			timeThreshold := logcourier.ConfigSpec.GetInt("consumer.time-threshold-seconds")
+			Expect(timeThreshold).To(Equal(600))
+		})
+	})
+
 	Describe("ValidateConfig", func() {
 		It("should accept valid log level: info", func() {
 			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
@@ -129,6 +191,46 @@ var _ = Describe("Configuration", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid log-level"))
 			Expect(err.Error()).To(ContainSubstring("invalid"))
+		})
+
+		It("should reject zero count threshold", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD", "0")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be positive"))
+		})
+
+		It("should reject negative count threshold", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD", "-10")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be positive"))
+		})
+
+		It("should reject zero time threshold", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS", "0")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.time-threshold-seconds must be positive"))
+		})
+
+		It("should reject negative time threshold", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS", "-60")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.time-threshold-seconds must be positive"))
 		})
 	})
 })
