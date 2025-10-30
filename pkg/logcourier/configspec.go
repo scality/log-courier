@@ -40,6 +40,33 @@ var ConfigSpec = util.ConfigSpec{
 		EnvVar:       "LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS",
 	},
 
+	// S3 configuration
+	"s3.endpoint": util.ConfigVarSpec{
+		Help:         "S3 endpoint URL",
+		DefaultValue: "127.0.0.1:8000",
+		EnvVar:       "S3_ENDPOINT",
+	},
+	"s3.access-key-id": util.ConfigVarSpec{
+		Help:         "S3 access key ID",
+		DefaultValue: "",
+		EnvVar:       "S3_ACCESS_KEY_ID",
+	},
+	"s3.secret-access-key": util.ConfigVarSpec{
+		Help:         "S3 secret access key",
+		DefaultValue: "",
+		EnvVar:       "S3_SECRET_ACCESS_KEY",
+	},
+	"s3.max-retry-attempts": util.ConfigVarSpec{
+		Help:         "Maximum number of retry attempts for S3 operations (including initial request)",
+		DefaultValue: 3,
+		EnvVar:       "S3_MAX_RETRY_ATTEMPTS",
+	},
+	"s3.max-backoff-delay-seconds": util.ConfigVarSpec{
+		Help:         "Maximum backoff delay in seconds between S3 retry attempts",
+		DefaultValue: 20,
+		EnvVar:       "S3_MAX_BACKOFF_DELAY_SECONDS",
+	},
+
 	// General
 	"log-level": util.ConfigVarSpec{
 		Help:         "Log level (error|warn|info|debug)",

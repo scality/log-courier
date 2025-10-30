@@ -29,5 +29,15 @@ func ValidateConfig() error {
 		return fmt.Errorf("consumer.time-threshold-seconds must be positive, got %d", timeThreshold)
 	}
 
+	maxRetryAttempts := ConfigSpec.GetInt("s3.max-retry-attempts")
+	if maxRetryAttempts <= 0 {
+		return fmt.Errorf("s3.max-retry-attempts must be positive, got %d", maxRetryAttempts)
+	}
+
+	maxBackoffDelay := ConfigSpec.GetInt("s3.max-backoff-delay-seconds")
+	if maxBackoffDelay <= 0 {
+		return fmt.Errorf("s3.max-backoff-delay-seconds must be positive, got %d", maxBackoffDelay)
+	}
+
 	return nil
 }
