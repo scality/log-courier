@@ -9,7 +9,7 @@ var ConfigSpec = util.ConfigSpec{
 	// ClickHouse connection
 	"clickhouse.url": util.ConfigVarSpec{
 		Help:         "ClickHouse connection URL",
-		DefaultValue: "localhost:9000",
+		DefaultValue: "localhost:9002",
 		EnvVar:       "LOG_COURIER_CLICKHOUSE_URL",
 	},
 	"clickhouse.username": util.ConfigVarSpec{
