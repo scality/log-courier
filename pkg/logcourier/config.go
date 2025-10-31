@@ -2,6 +2,11 @@ package logcourier
 
 import "fmt"
 
+const (
+	// MaxRecordsPerBatch is the hard limit to prevent OOM
+	MaxRecordsPerBatch = 100_000
+)
+
 // ValidateConfig performs additional validation beyond required field checks
 func ValidateConfig() error {
 	logLevel := ConfigSpec.GetString("log-level")
@@ -13,6 +18,10 @@ func ValidateConfig() error {
 	countThreshold := ConfigSpec.GetInt("consumer.count-threshold")
 	if countThreshold <= 0 {
 		return fmt.Errorf("consumer.count-threshold must be positive, got %d", countThreshold)
+	}
+
+	if countThreshold > MaxRecordsPerBatch {
+		return fmt.Errorf("consumer.count-threshold (%d) exceeds maximum allowed (%d)", countThreshold, MaxRecordsPerBatch)
 	}
 
 	timeThreshold := ConfigSpec.GetInt("consumer.time-threshold-seconds")

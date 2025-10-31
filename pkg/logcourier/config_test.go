@@ -232,5 +232,24 @@ var _ = Describe("Configuration", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("consumer.time-threshold-seconds must be positive"))
 		})
+
+		It("should accept count threshold at maximum limit", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD", "100000")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should reject count threshold exceeding maximum", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_COUNT_THRESHOLD", "100001")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("exceeds maximum allowed"))
+		})
 	})
 })
