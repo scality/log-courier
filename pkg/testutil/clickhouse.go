@@ -17,6 +17,12 @@ const (
 
 	// DefaultMaterializedViewTimeout is how long to wait for materialized view before timing out
 	DefaultMaterializedViewTimeout = 5 * time.Second
+
+	// DefaultOffsetPollInterval is how often to check for offset changes when waiting for ClickHouse eventual consistency
+	DefaultOffsetPollInterval = 10 * time.Millisecond
+
+	// DefaultOffsetTimeout is the maximum time to wait for an offset to appear in ClickHouse
+	DefaultOffsetTimeout = 5 * time.Second
 )
 
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
@@ -286,4 +292,44 @@ func (h *ClickHouseTestHelper) Close() error {
 		return h.Client.Close()
 	}
 	return nil
+}
+
+// WaitForOffset polls ClickHouse until the offset appears or times out.
+// Polling is necessary due to ClickHouse ReplacingMergeTree eventual consistency.
+func WaitForOffset(
+	ctx context.Context,
+	om *logcourier.OffsetManager,
+	bucket string,
+	raftSessionId uint16,
+	expectedUnix int64,
+	timeout time.Duration,
+) error {
+	if timeout == 0 {
+		timeout = DefaultOffsetTimeout
+	}
+
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(DefaultOffsetPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			offset, err := om.GetOffset(ctx, bucket, raftSessionId)
+			if err != nil {
+				return fmt.Errorf("failed to get offset: %w", err)
+			}
+
+			if offset.Unix() == expectedUnix {
+				return nil
+			}
+
+			if time.Now().After(deadline) {
+				return fmt.Errorf("timeout waiting for offset %d after %v, got %d",
+					expectedUnix, timeout, offset.Unix())
+			}
+		}
+	}
 }
