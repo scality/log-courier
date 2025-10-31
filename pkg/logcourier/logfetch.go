@@ -54,12 +54,12 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			loggingTargetBucket,
 			loggingTargetPrefix,
 			timestamp
-		FROM %s.access_logs
+		FROM %s.%s
 		WHERE bucketName = ?
 		  AND insertedAt >= ?
 		  AND insertedAt <= ?
 		ORDER BY timestamp ASC
-	`, lf.database)
+	`, lf.database, clickhouse.TableAccessLogs)
 
 	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)
 	if err != nil {

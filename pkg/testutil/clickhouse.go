@@ -64,7 +64,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 
 	// Create ingest table (Null engine - doesn't store data)
 	ingestTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.access_logs_ingest
+		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			timestamp              DateTime,
 			startTime              DateTime,
@@ -116,39 +116,39 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			insertedAt             DateTime DEFAULT now()
 		)
 		ENGINE = Null()
-	`, h.DatabaseName)
+	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, ingestTableSQL); err != nil {
 		return fmt.Errorf("failed to create ingest table: %w", err)
 	}
 
 	// Create access logs table (MergeTree - simplified from ReplicatedMergeTree for single-node)
 	logsTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.access_logs
-		AS %s.access_logs_ingest
+		CREATE TABLE IF NOT EXISTS %s.%s
+		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
 		ORDER BY (raftSessionId, bucketName, insertedAt, req_id)
-	`, h.DatabaseName, h.DatabaseName)
+	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
 	}
 
 	// Create materialized view that filters loggingEnabled = true
 	mvSQL := fmt.Sprintf(`
-		CREATE MATERIALIZED VIEW IF NOT EXISTS %s.access_logs_ingest_mv
-		TO %s.access_logs
+		CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s
+		TO %s.%s
 		AS
 		SELECT *
-		FROM %s.access_logs_ingest
+		FROM %s.%s
 		WHERE loggingEnabled = true
-	`, h.DatabaseName, h.DatabaseName, h.DatabaseName)
+	`, h.DatabaseName, clickhouse.ViewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, mvSQL); err != nil {
 		return fmt.Errorf("failed to create materialized view: %w", err)
 	}
 
 	// Create offsets table (MergeTree - simplified for single-node)
 	offsetsTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.offsets
+		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			bucketName            String,
 			raftSessionId         UInt16,
@@ -156,7 +156,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionId)
-	`, h.DatabaseName)
+	`, h.DatabaseName, clickhouse.TableOffsets)
 	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
 		return fmt.Errorf("failed to create offsets table: %w", err)
 	}
@@ -190,7 +190,7 @@ type TestLogRecord struct {
 // InsertTestLog inserts a test log record into the ingest table
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
-		INSERT INTO %s.access_logs_ingest
+		INSERT INTO %s.%s
 		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
 		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
@@ -199,7 +199,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
 		 loggingTargetBucket, loggingTargetPrefix)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, h.DatabaseName)
+	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,

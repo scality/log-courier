@@ -34,7 +34,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                 SELECT
                     bucketName,
                     max(last_processed_ts) as last_processed_ts
-                FROM %s.offsets
+                FROM %s.%s
                 GROUP BY bucketName
             ),
 
@@ -45,7 +45,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
                     max(l.insertedAt) as max_ts
-                FROM %s.access_logs AS l
+                FROM %s.%s AS l
                 LEFT JOIN bucket_offsets AS o ON l.bucketName = o.bucketName
                 WHERE l.insertedAt > COALESCE(o.last_processed_ts, toDateTime64('1970-01-01 00:00:00', 3))
                 GROUP BY l.bucketName
@@ -59,7 +59,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
             OR min_ts <= now() - INTERVAL ? SECOND
-    `, bf.database, bf.database)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogs)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
 	if err != nil {
