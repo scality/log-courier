@@ -59,11 +59,6 @@ var _ = Describe("BatchFinder", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Wait for materialized view to process records
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			batches, err := finder.FindBatches(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(batches).To(HaveLen(1))
@@ -112,11 +107,6 @@ var _ = Describe("BatchFinder", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Wait for materialized view to process records
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			batches, err := finder.FindBatches(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(batches).To(BeEmpty())
@@ -135,15 +125,10 @@ var _ = Describe("BatchFinder", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Wait for materialized view to process records
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			// Commit offset at current time
 			offsetTime := time.Now()
 			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionId, last_processed_ts) VALUES (?, ?, ?)", helper.DatabaseName)
-			err = helper.Client.Exec(ctx, offsetQuery,
+			err := helper.Client.Exec(ctx, offsetQuery,
 				"test-bucket", uint16(0), offsetTime)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -177,11 +162,6 @@ var _ = Describe("BatchFinder", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 			}
-
-			// Wait for materialized view to process records from both buckets
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName IN ('bucket-1', 'bucket-2')", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
 
 			batches, err := finder.FindBatches(ctx)
 			Expect(err).NotTo(HaveOccurred())

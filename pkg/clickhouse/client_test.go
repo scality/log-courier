@@ -160,14 +160,9 @@ var _ = Describe("ClickHouse Client", func() {
 			err = helper.InsertTestLog(ctx, testLog2)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Wait for materialized view to process
-			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE req_id = 'req-enabled'", helper.DatabaseName)
-			err = helper.WaitForMaterializedView(ctx, query, 5*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-
 			// Verify only loggingEnabled=true record is in access_logs table
 			var count uint64
-			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName)
 			err = helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(1)))
@@ -206,15 +201,10 @@ var _ = Describe("ClickHouse Client", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Wait for materialized view to process all records
-			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 5*time.Second)
-			Expect(err).NotTo(HaveOccurred())
-
 			// Verify all 5 records are present
 			var count uint64
-			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
-			err = helper.Client.QueryRow(ctx, query).Scan(&count)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
+			err := helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(5)))
 		})

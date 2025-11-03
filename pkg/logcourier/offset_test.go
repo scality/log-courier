@@ -90,9 +90,6 @@ var _ = Describe("OffsetManager", func() {
 			err := om.CommitOffset(ctx, "test-bucket", 0, now)
 			Expect(err).NotTo(HaveOccurred())
 
-			err = testutil.WaitForOffset(ctx, om, "test-bucket", 0, now.Unix(), 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			offset, err := om.GetOffset(ctx, "test-bucket", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(offset.Unix()).To(Equal(now.Unix()))
@@ -110,9 +107,6 @@ var _ = Describe("OffsetManager", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			err = om.CommitOffset(ctx, "test-bucket", 0, t3)
-			Expect(err).NotTo(HaveOccurred())
-
-			err = testutil.WaitForOffset(ctx, om, "test-bucket", 0, t3.Unix(), 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			offset, err := om.GetOffset(ctx, "test-bucket", 0)

@@ -250,41 +250,6 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 	)
 }
 
-// WaitForMaterializedView polls until the expected record appears in the target table
-func (h *ClickHouseTestHelper) WaitForMaterializedView(
-	ctx context.Context,
-	conditionQuery string,
-	timeout time.Duration,
-) error {
-	if timeout == 0 {
-		timeout = DefaultMaterializedViewTimeout
-	}
-
-	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(DefaultMaterializedViewPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			var count uint64
-			err := h.Client.QueryRow(ctx, conditionQuery).Scan(&count)
-			if err != nil {
-				return fmt.Errorf("failed to query condition: %w", err)
-			}
-
-			if count > 0 {
-				return nil // Condition met
-			}
-
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for materialized view after %v", timeout)
-			}
-		}
-	}
-}
 
 // Close closes the test helper
 func (h *ClickHouseTestHelper) Close() error {
@@ -294,42 +259,3 @@ func (h *ClickHouseTestHelper) Close() error {
 	return nil
 }
 
-// WaitForOffset polls ClickHouse until the offset appears or times out.
-// Polling is necessary due to ClickHouse ReplacingMergeTree eventual consistency.
-func WaitForOffset(
-	ctx context.Context,
-	om *logcourier.OffsetManager,
-	bucket string,
-	raftSessionId uint16,
-	expectedUnix int64,
-	timeout time.Duration,
-) error {
-	if timeout == 0 {
-		timeout = DefaultOffsetTimeout
-	}
-
-	deadline := time.Now().Add(timeout)
-	ticker := time.NewTicker(DefaultOffsetPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			offset, err := om.GetOffset(ctx, bucket, raftSessionId)
-			if err != nil {
-				return fmt.Errorf("failed to get offset: %w", err)
-			}
-
-			if offset.Unix() == expectedUnix {
-				return nil
-			}
-
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for offset %d after %v, got %d",
-					expectedUnix, timeout, offset.Unix())
-			}
-		}
-	}
-}
