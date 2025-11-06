@@ -1,0 +1,17 @@
+global:
+  log_level: info
+
+features:
+  scuba:
+    enabled: false
+    enable_service_user: false
+
+
+cloudserver:
+  image: ghcr.io/scality/cloudserver:7.70.77
+
+vault:
+  image: ghcr.io/scality/vault:7.81.0
+
+s3_metadata:
+  image: ghcr.io/scality/metadata:8.19.0-standalone

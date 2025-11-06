@@ -5,7 +5,7 @@ services:
     image: docker.io/clickhouse/clickhouse-server:24.3.2.23-alpine
     container_name: log-courier-clickhouse
     ports:
-      - "9000:9000"  # Native protocol
+      - "9002:9000"  # Native protocol
       - "8123:8123"  # HTTP interface
     environment:
       CLICKHOUSE_DB: logs
