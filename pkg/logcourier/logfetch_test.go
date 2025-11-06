@@ -55,11 +55,6 @@ var _ = Describe("LogFetcher", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			// Wait for materialized view to process records
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			batch := logcourier.LogBatch{
 				Bucket:       "test-bucket",
 				MinTimestamp: now.Add(-1 * time.Second),
@@ -92,11 +87,6 @@ var _ = Describe("LogFetcher", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 			}
-
-			// Wait for materialized view
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err := helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
 
 			batch := logcourier.LogBatch{
 				Bucket:       "test-bucket",
@@ -141,11 +131,6 @@ var _ = Describe("LogFetcher", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			// Wait for materialized view
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs", helper.DatabaseName)
-			err = helper.WaitForMaterializedView(ctx, query, 0)
-			Expect(err).NotTo(HaveOccurred())
-
 			// Fetch only bucket-1
 			batch := logcourier.LogBatch{
 				Bucket:       "bucket-1",
@@ -171,11 +156,6 @@ var _ = Describe("LogFetcher", func() {
 				Action:         "GetObject",
 				ObjectKey:      "key-old",
 			})
-			Expect(err).NotTo(HaveOccurred())
-
-			// Wait for it to be processed
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err = helper.WaitForMaterializedView(ctx, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Query with a future time window (should get no results)
@@ -217,11 +197,6 @@ var _ = Describe("LogFetcher", func() {
 				BytesSent: 12345,
 				HttpCode:  200,
 			})
-			Expect(err).NotTo(HaveOccurred())
-
-			// Wait for materialized view
-			query := fmt.Sprintf("SELECT count() FROM %s.access_logs WHERE bucketName = 'test-bucket'", helper.DatabaseName)
-			err = helper.WaitForMaterializedView(ctx, query, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			batch := logcourier.LogBatch{
