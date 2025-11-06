@@ -39,11 +39,11 @@ jobs:
         uses: scality/workbench@v0.5.0
 
       - name: Start ClickHouse
-        run: docker compose up -d
+        run: docker compose -f .github/e2e_tests/docker-compose.yml up -d
 
       - name: Wait for ClickHouse to be ready
         run: |
-          timeout 30 bash -c 'until docker compose exec -T clickhouse clickhouse-client --query "SELECT 1" > /dev/null 2>&1; do sleep 1; done'
+          timeout 30 bash -c 'until docker compose -f .github/e2e_tests/docker-compose.yml exec -T clickhouse clickhouse-client --query "SELECT 1" > /dev/null 2>&1; do sleep 1; done'
 
       - name: Run GolangCI linter
         uses: golangci/golangci-lint-action@v9
@@ -78,5 +78,5 @@ jobs:
       - name: Stop ClickHouse
         if: always()
         run: |
-          docker compose logs
-          docker compose down
+          docker compose -f .github/e2e_tests/docker-compose.yml logs
+          docker compose -f .github/e2e_tests/docker-compose.yml down
