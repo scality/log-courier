@@ -194,8 +194,9 @@ var _ = Describe("LogFetcher", func() {
 				ReqID:          "test-req-id",
 				Action:         "PutObject",
 				ObjectKey:      "test-key",
-				BytesSent: 12345,
-				HttpCode:  200,
+				BytesSent:      12345,
+				HttpCode:       200,
+				RaftSessionID:  42,
 			})
 			Expect(err).NotTo(HaveOccurred())
 
@@ -216,6 +217,7 @@ var _ = Describe("LogFetcher", func() {
 			Expect(rec.ObjectKey).To(Equal("test-key"))
 			Expect(rec.BytesSent).To(Equal(uint64(12345)))
 			Expect(rec.HttpCode).To(Equal(uint16(200)))
+			Expect(rec.RaftSessionID).To(Equal(uint16(42)))
 		})
 	})
 })
