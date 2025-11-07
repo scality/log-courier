@@ -38,5 +38,6 @@ type LogRecord struct {
 	ElapsedMs      float32 `ch:"elapsed_ms"`     // AWS field 14: Total Time
 	TurnAroundTime float32 `ch:"turnAroundTime"` // AWS field 15: Turn-Around Time
 
-	HttpCode uint16 `ch:"httpCode"` // AWS field 10: HTTP Status
+	HttpCode      uint16 `ch:"httpCode"`      // AWS field 10: HTTP Status
+	RaftSessionID uint16 `ch:"raftSessionId"` // Bucket raft session ID
 }
