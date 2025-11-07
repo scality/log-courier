@@ -74,9 +74,8 @@ var _ = Describe("OffsetManager", func() {
 		It("should return zero time for bucket with no offset", func() {
 			offset, err := om.GetOffset(ctx, "nonexistent-bucket", 0)
 			Expect(err).NotTo(HaveOccurred())
-			// ClickHouse returns Unix epoch (1970-01-01) as "zero" for DateTime
-			// when max() returns NULL on an empty result set
-			Expect(offset.Unix()).To(Equal(int64(0)))
+			// Should return Go's zero time when no offset exists
+			Expect(offset.IsZero()).To(BeTrue())
 		})
 
 		It("should reject empty bucket name", func() {
