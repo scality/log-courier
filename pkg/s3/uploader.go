@@ -9,6 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// UploaderInterface defines the interface for uploading to S3
+type UploaderInterface interface {
+	Upload(ctx context.Context, bucket, key string, content []byte) error
+}
+
 // Uploader uploads log objects to S3
 type Uploader struct {
 	client *Client

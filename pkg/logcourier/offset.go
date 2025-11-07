@@ -25,6 +25,12 @@ import (
 //    - Eventually consistent (ClickHouse merges may be delayed)
 //    - Work discovery query uses max(last_processed_ts) to get latest offset
 
+// OffsetManagerInterface defines the interface for offset management
+type OffsetManagerInterface interface {
+	CommitOffset(ctx context.Context, bucket string, raftSessionId uint16, timestamp time.Time) error
+	GetOffset(ctx context.Context, bucket string, raftSessionId uint16) (time.Time, error)
+}
+
 // OffsetManager manages offsets
 type OffsetManager struct {
 	client   *clickhouse.Client
