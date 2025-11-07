@@ -39,5 +39,15 @@ func ValidateConfig() error {
 		return fmt.Errorf("s3.max-backoff-delay-seconds must be positive, got %d", maxBackoffDelay)
 	}
 
+	backoffJitterFactor := ConfigSpec.GetFloat64("retry.backoff-jitter-factor")
+	if backoffJitterFactor < 0.0 || backoffJitterFactor > 1.0 {
+		return fmt.Errorf("retry.backoff-jitter-factor must be between 0.0 and 1.0, got %f", backoffJitterFactor)
+	}
+
+	discoveryIntervalJitterFactor := ConfigSpec.GetFloat64("consumer.discovery-interval-jitter-factor")
+	if discoveryIntervalJitterFactor < 0.0 || discoveryIntervalJitterFactor > 1.0 {
+		return fmt.Errorf("consumer.discovery-interval-jitter-factor must be between 0.0 and 1.0, got %f", discoveryIntervalJitterFactor)
+	}
+
 	return nil
 }
