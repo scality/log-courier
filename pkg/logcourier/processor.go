@@ -161,7 +161,14 @@ func (p *Processor) Close() error {
 // - Tracks consecutive failures and exits if threshold exceeded
 //
 func (p *Processor) Run(ctx context.Context) error {
-	p.logger.Info("processor starting")
+	p.logger.Info("processor starting",
+		"discovery_interval_seconds", p.discoveryInterval.Seconds(),
+		"num_workers", p.numWorkers,
+		"count_threshold", p.workDiscovery.countThreshold,
+		"time_threshold_seconds", p.workDiscovery.timeThresholdSec,
+		"max_retries", p.maxRetries,
+		"initial_backoff_seconds", p.initialBackoff.Seconds(),
+		"max_backoff_seconds", p.maxBackoff.Seconds())
 
 	ticker := time.NewTicker(p.discoveryInterval)
 	defer ticker.Stop()
@@ -508,6 +515,12 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 	// 1. Fetch logs
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
 	if err != nil {
+		p.logger.Error("failed to fetch logs",
+			"bucketName", batch.Bucket,
+			"logCount", batch.LogCount,
+			"minTimestamp", batch.MinTimestamp,
+			"maxTimestamp", batch.MaxTimestamp,
+			"error", err)
 		return nil, time.Time{}, 0, fmt.Errorf("failed to fetch logs: %w", err)
 	}
 
@@ -526,6 +539,10 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 	// 2. Build log object
 	logObj, err := p.logBuilder.Build(records)
 	if err != nil {
+		p.logger.Error("failed to build log object",
+			"bucketName", batch.Bucket,
+			"nRecords", len(records),
+			"error", err)
 		return nil, time.Time{}, 0, fmt.Errorf("failed to build log object: %w", err)
 	}
 
@@ -545,6 +562,12 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 
 	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
 	if err != nil {
+		p.logger.Error("failed to upload log object",
+			"bucketName", batch.Bucket,
+			"destinationBucket", destinationBucket,
+			"s3Key", logObj.Key,
+			"sizeBytes", len(logObj.Content),
+			"error", err)
 		return nil, time.Time{}, 0, fmt.Errorf("failed to upload log object: %w", err)
 	}
 
