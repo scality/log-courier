@@ -15,7 +15,7 @@ coverage:
         threshold: 5%
 
 github_checks:
-  annotations: true
+  annotations: false
 
 flag_management:
   default_rules:
