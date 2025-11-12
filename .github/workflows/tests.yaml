@@ -46,7 +46,7 @@ jobs:
           timeout 30 bash -c 'until docker compose exec -T clickhouse clickhouse-client --query "SELECT 1" > /dev/null 2>&1; do sleep 1; done'
 
       - name: Run GolangCI linter
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.1.6
 
