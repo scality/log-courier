@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:24.3.2.23-alpine
@@ -18,6 +16,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  log-courier:
+    build:
+      context: .
+      dockerfile: images/svc-base/Dockerfile
+    image: ${LOG_COURIER_IMAGE:-log-courier:local}
+    container_name: log-courier
+    network_mode: host
+    profiles:
+      - full
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      SUPERVISORD_CONF: supervisord.conf
+    volumes:
+      - ./deployment/conf/supervisord.conf:/conf/supervisord.conf:ro
+      - ./deployment/conf/env:/conf/env:ro
 
 volumes:
   clickhouse-data:
