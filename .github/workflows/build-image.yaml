@@ -31,7 +31,7 @@ jobs:
         password: ${{ github.token }}
 
     - name: Build and push log-courier image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         file: images/svc-base/Dockerfile
         context: .
