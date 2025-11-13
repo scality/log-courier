@@ -72,7 +72,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 
 			httpMethod             LowCardinality(String),
 			httpCode               UInt16,
-			httpURL                String,
+			requestURI             String,
 			errorCode              String,
 			objectKey              String,
 
@@ -186,7 +186,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		INSERT INTO %s.%s
 		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
-		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
+		 bucketOwner, userName, requester, httpMethod, requestURI, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
 		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
 		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
@@ -212,7 +212,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		"",                // userName
 		"",                // requester
 		"",                // httpMethod
-		"",                // httpURL
+		"",                // requestURI
 		"",                // errorCode
 		log.ObjectKey,     // objectKey
 		"",                // versionId
@@ -252,7 +252,7 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 		INSERT INTO %s.%s
 		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
-		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
+		 bucketOwner, userName, requester, httpMethod, requestURI, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
 		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
 		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
@@ -278,7 +278,7 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 		"",                // userName
 		"",                // requester
 		"",                // httpMethod
-		"",                // httpURL
+		"",                // requestURI
 		"",                // errorCode
 		log.ObjectKey,     // objectKey
 		"",                // versionId

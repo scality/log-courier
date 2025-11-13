@@ -16,7 +16,7 @@ type LogRecord struct {
 	ReqID              string `ch:"req_id"`             // AWS field 6: Request ID
 	Action             string `ch:"action"`             // AWS field 7: Operation
 	ObjectKey          string `ch:"objectKey"`          // AWS field 8: Key
-	HttpURL            string `ch:"httpURL"`            // AWS field 9: Request-URI
+	RequestURI         string `ch:"requestURI"`         // AWS field 9: Request-URI
 	ErrorCode          string `ch:"errorCode"`          // AWS field 11: Error Code
 	Referer            string `ch:"referer"`            // AWS field 16: Referer
 	UserAgent          string `ch:"userAgent"`          // AWS field 17: User-Agent

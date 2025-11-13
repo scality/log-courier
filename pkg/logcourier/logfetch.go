@@ -35,7 +35,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			req_id,
 			action,
 			objectKey,
-			httpURL,
+			requestURI,
 			httpCode,
 			errorCode,
 			bytesSent,

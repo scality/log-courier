@@ -72,7 +72,7 @@ var _ = Describe("BatchFinder", func() {
 			oldTime := time.Now().Add(-2 * time.Hour)
 			query := fmt.Sprintf(`
 				INSERT INTO %s.access_logs
-				(insertedAt, bucketName, timestamp, req_id, action, loggingEnabled, raftSessionId, httpURL)
+				(insertedAt, bucketName, timestamp, req_id, action, loggingEnabled, raftSessionId, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName)
 			err := helper.Client.Exec(ctx, query,
@@ -83,7 +83,7 @@ var _ = Describe("BatchFinder", func() {
 				"GetObject",       // action
 				true,              // loggingEnabled
 				uint16(0),         // raftSessionId
-				"/test-bucket/key", // httpURL
+				"/test-bucket/key", // requestURI
 			)
 			Expect(err).NotTo(HaveOccurred())
 
