@@ -11,7 +11,7 @@ RUN apk add --no-cache make
 COPY . /usr/src/app/
 RUN make all
 
-FROM alpine:3.21
+FROM alpine:3.22
 
 RUN apk add --no-cache \
     bash \
