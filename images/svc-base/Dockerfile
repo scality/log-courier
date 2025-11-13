@@ -1,5 +1,5 @@
 # BUILDER: golang
-FROM golang:1.24.2-alpine3.21 AS builder-go
+FROM golang:1.25.4-alpine3.21 AS builder-go
 
 ENV GOOS=linux
 ENV GOARCH=amd64
