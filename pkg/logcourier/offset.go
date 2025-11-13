@@ -59,7 +59,14 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
         VALUES (?, ?, ?)
     `, om.database, clickhouse.TableOffsets)
 
+	// Time the ClickHouse query
+	queryStart := time.Now()
 	err := om.client.Exec(ctx, query, bucket, raftSessionId, timestamp)
+	queryDuration := time.Since(queryStart)
+
+	// Update metrics
+	Metrics.ClickHouseQueryDuration.Observe(queryDuration.Seconds())
+
 	if err != nil {
 		return fmt.Errorf("failed to commit offset for bucket %s raftSessionId %d: %w", bucket, raftSessionId, err)
 	}
@@ -84,10 +91,17 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
         WHERE bucketName = ? AND raftSessionId = ?
     `, om.database, clickhouse.TableOffsets)
 
+	// Time the ClickHouse query
+	queryStart := time.Now()
 	row := om.client.QueryRow(ctx, query, bucket, raftSessionId)
 
 	var timestamp sql.NullTime
 	err := row.Scan(&timestamp)
+	queryDuration := time.Since(queryStart)
+
+	// Update metrics
+	Metrics.ClickHouseQueryDuration.Observe(queryDuration.Seconds())
+
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to get offset for bucket %s raftSessionId %d: %w", bucket, raftSessionId, err)
 	}

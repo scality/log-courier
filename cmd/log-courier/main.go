@@ -41,6 +41,24 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 	}
 }
 
+// waitForShutdown waits for either processor to complete or shutdown timeout to expire
+func waitForShutdown(errChan <-chan error, shutdownTimeout time.Duration, logger *slog.Logger) int {
+	shutdownTimer := time.NewTimer(shutdownTimeout)
+	defer shutdownTimer.Stop()
+
+	select {
+	case <-shutdownTimer.C:
+		logger.Warn("shutdown timeout exceeded, forcing exit")
+		return 1
+	case err := <-errChan:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("processor stopped with error", "error", err)
+			return 1
+		}
+	}
+	return 0
+}
+
 func run() int {
 	// Add command-line flags
 	logcourier.ConfigSpec.AddFlag(pflag.CommandLine, "log-level", "log-level")
@@ -84,10 +102,25 @@ func run() int {
 		return 1
 	}
 	defer func() {
-		if err := processor.Close(); err != nil {
-			logger.Error("failed to close processor", "error", err)
+		if closeErr := processor.Close(); closeErr != nil {
+			logger.Error("failed to close processor", "error", closeErr)
 		}
 	}()
+
+	// Start metrics server
+	metricsServer, err := util.StartMetricsServerIfEnabled(
+		logcourier.ConfigSpec, "metrics-server", logger)
+	if err != nil {
+		logger.Error("failed to start metrics server", "error", err)
+		return 1
+	}
+	if metricsServer != nil {
+		defer func() {
+			if closeErr := metricsServer.Close(); closeErr != nil {
+				logger.Error("failed to close metrics server", "error", closeErr)
+			}
+		}()
+	}
 
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
@@ -110,19 +143,7 @@ func run() int {
 
 		// Wait for processor to stop gracefully (with timeout)
 		shutdownTimeout := time.Duration(logcourier.ConfigSpec.GetInt("shutdown-timeout-seconds")) * time.Second
-		shutdownTimer := time.NewTimer(shutdownTimeout)
-		defer shutdownTimer.Stop()
-
-		select {
-		case <-shutdownTimer.C:
-			logger.Warn("shutdown timeout exceeded, forcing exit")
-			return 1
-		case err := <-errChan:
-			if err != nil && !errors.Is(err, context.Canceled) {
-				logger.Error("processor stopped with error", "error", err)
-				return 1
-			}
-		}
+		return waitForShutdown(errChan, shutdownTimeout, logger)
 
 	case err := <-errChan:
 		if err != nil && !errors.Is(err, context.Canceled) {

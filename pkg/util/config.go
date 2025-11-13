@@ -79,6 +79,11 @@ func (configSpec *ConfigSpec) GetInt(varName string) int {
 	return viper.GetInt(varName)
 }
 
+// GetBool returns a single running configuration value of type bool
+func (configSpec *ConfigSpec) GetBool(varName string) bool {
+	return viper.GetBool(varName)
+}
+
 // Reset resets the configuration values (only for testing)
 func (configSpec *ConfigSpec) Reset() {
 	viper.Reset()

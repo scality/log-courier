@@ -3,6 +3,7 @@ package logcourier
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
 )
@@ -61,7 +62,14 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
             OR min_ts <= now() - INTERVAL ? SECOND
     `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogs)
 
+	// Time the ClickHouse query
+	queryStart := time.Now()
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
+	queryDuration := time.Since(queryStart)
+
+	// Update metrics
+	Metrics.ClickHouseQueryDuration.Observe(queryDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("batch finder query failed: %w", err)
 	}
@@ -81,6 +89,21 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating log batches: %w", err)
+	}
+
+	// Update oldest unprocessed log age metric
+	if len(batches) > 0 {
+		var oldestTimestamp time.Time
+		for _, batch := range batches {
+			if oldestTimestamp.IsZero() || batch.MinTimestamp.Before(oldestTimestamp) {
+				oldestTimestamp = batch.MinTimestamp
+			}
+		}
+		ageSeconds := time.Since(oldestTimestamp).Seconds()
+		Metrics.OldestUnprocessedLogAge.Set(ageSeconds)
+	} else {
+		// No unprocessed logs, set to 0
+		Metrics.OldestUnprocessedLogAge.Set(0)
 	}
 
 	return batches, nil

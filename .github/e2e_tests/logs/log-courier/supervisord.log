@@ -1,0 +1,37 @@
+2025-11-10 16:16:02,938 INFO RPC interface 'supervisor' initialized
+2025-11-10 16:16:02,938 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-10 16:16:02,938 INFO supervisord started with pid 1
+2025-11-10 16:16:03,941 INFO spawned: 'log-courier' with pid 7
+2025-11-10 16:16:04,965 INFO success: log-courier entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-11-10 19:41:30,843 INFO RPC interface 'supervisor' initialized
+2025-11-10 19:41:30,844 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-10 19:41:30,844 INFO supervisord started with pid 1
+2025-11-10 19:41:31,848 INFO spawned: 'log-courier' with pid 7
+2025-11-10 19:41:32,911 INFO success: log-courier entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-11-10 19:45:29,068 WARN received SIGTERM indicating exit request
+2025-11-10 19:45:29,069 INFO waiting for log-courier to die
+2025-11-10 19:45:29,071 INFO stopped: log-courier (exit status 0)
+2025-11-10 19:45:43,396 INFO RPC interface 'supervisor' initialized
+2025-11-10 19:45:43,396 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-10 19:45:43,396 INFO supervisord started with pid 1
+2025-11-10 19:45:44,399 INFO spawned: 'log-courier' with pid 7
+2025-11-10 19:45:45,444 INFO success: log-courier entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-11-10 19:47:15,506 WARN received SIGTERM indicating exit request
+2025-11-10 19:47:15,506 INFO waiting for log-courier to die
+2025-11-10 19:47:15,508 INFO stopped: log-courier (exit status 0)
+2025-11-10 19:47:29,731 INFO RPC interface 'supervisor' initialized
+2025-11-10 19:47:29,732 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-10 19:47:29,732 INFO supervisord started with pid 1
+2025-11-10 19:47:30,736 INFO spawned: 'log-courier' with pid 7
+2025-11-10 19:47:31,800 INFO success: log-courier entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-11-10 19:49:33,874 WARN received SIGTERM indicating exit request
+2025-11-10 19:49:33,874 INFO waiting for log-courier to die
+2025-11-10 19:49:33,876 INFO stopped: log-courier (exit status 0)
+2025-11-10 19:50:33,696 INFO RPC interface 'supervisor' initialized
+2025-11-10 19:50:33,696 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2025-11-10 19:50:33,696 INFO supervisord started with pid 1
+2025-11-10 19:50:34,699 INFO spawned: 'log-courier' with pid 7
+2025-11-10 19:50:35,727 INFO success: log-courier entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-11-10 19:52:28,871 WARN received SIGTERM indicating exit request
+2025-11-10 19:52:28,871 INFO waiting for log-courier to die
+2025-11-10 19:52:28,873 INFO stopped: log-courier (exit status 0)

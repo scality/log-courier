@@ -238,6 +238,9 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 
 	p.logger.Info("batch finder completed", "nBatches", len(batches))
 
+	// Update metrics
+	Metrics.BatchesDiscovered.Add(float64(len(batches)))
+
 	if len(batches) == 0 {
 		return nil
 	}
@@ -273,6 +276,9 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 				}
 				mu.Unlock()
 
+				// Update metrics
+				Metrics.BatchesProcessed.WithLabelValues("error").Inc()
+
 				p.logger.Error("batch processing failed",
 					"bucketName", batch.Bucket,
 					"logCount", batch.LogCount,
@@ -281,6 +287,9 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 				mu.Lock()
 				successCount++
 				mu.Unlock()
+
+				// Update metrics
+				Metrics.BatchesProcessed.WithLabelValues("success").Inc()
 			}
 
 			return nil // Never propagate to errgroup
@@ -536,6 +545,9 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
 
+	// Update metrics
+	Metrics.LogsProcessed.Add(float64(len(records)))
+
 	// 2. Build log object
 	logObj, err := p.logBuilder.Build(records)
 	if err != nil {
@@ -560,7 +572,11 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 	// 2. The propagation delay (one batch cycle) is acceptable for config changes
 	destinationBucket := records[0].LoggingTargetBucket
 
+	// Time the S3 upload
+	uploadStart := time.Now()
 	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
+	uploadDuration := time.Since(uploadStart)
+
 	if err != nil {
 		p.logger.Error("failed to upload log object",
 			"bucketName", batch.Bucket,
@@ -570,6 +586,10 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 			"error", err)
 		return nil, time.Time{}, 0, fmt.Errorf("failed to upload log object: %w", err)
 	}
+
+	// Update metrics
+	Metrics.S3UploadDuration.Observe(uploadDuration.Seconds())
+	Metrics.S3UploadSize.Observe(float64(len(logObj.Content)))
 
 	p.logger.Info("uploaded log object",
 		"bucketName", batch.Bucket,

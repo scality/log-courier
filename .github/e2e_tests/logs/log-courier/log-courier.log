@@ -1,0 +1,422 @@
+{"time":"2025-11-10T16:16:03.953350552Z","level":"DEBUG","msg":"starting metrics server","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T16:16:03.953721737Z","level":"INFO","msg":"metrics server started","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T16:16:03.954073055Z","level":"INFO","msg":"processor starting","discovery_interval_seconds":60,"num_workers":10,"count_threshold":1000,"time_threshold_seconds":900,"max_retries":5,"initial_backoff_seconds":1,"max_backoff_seconds":60}
+{"time":"2025-11-10T16:16:03.954199772Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:16:03.963450393Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:17:04.002757034Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:17:04.011652249Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:18:04.013999876Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:18:04.02376512Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:19:04.013143452Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:19:04.081603927Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:20:03.958951335Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:20:03.968016599Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:21:04.010762692Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:21:04.021407273Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:22:03.983613112Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:22:03.993297406Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:23:04.013181718Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:23:04.021558012Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:24:03.956246995Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:24:03.963757067Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:25:04.013816575Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:25:04.021127404Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:26:04.014153694Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:26:04.021762471Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:27:04.00656366Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:27:04.014753535Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:28:04.013179148Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:28:04.023121765Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:29:04.014162735Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:29:04.02168434Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:30:04.013699057Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:30:04.021381543Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:31:04.013173017Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:31:04.020575338Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:32:04.0131471Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:32:04.023905796Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:33:04.013919755Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:33:04.024152085Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:34:04.014153194Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:34:04.027669734Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:35:04.013715023Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:35:04.021719181Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:36:04.013151961Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:36:04.020688003Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:37:03.954386194Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:37:03.963963768Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:38:04.008476291Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:38:04.016007383Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:39:03.95436682Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:39:03.972573763Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:40:03.987321305Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:40:03.996867601Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:41:03.956176421Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:41:03.966442484Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:42:03.962856939Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:42:03.975141543Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:43:03.954475083Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:43:03.963916261Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:44:04.013509613Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:44:04.022169728Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:45:03.963474376Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:45:03.973152969Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:46:03.956698871Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:46:03.966359632Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:47:03.961175589Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:47:03.971238719Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:48:04.013337541Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:48:04.022959473Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:49:03.978830865Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:49:03.99035732Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:50:04.013183769Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:50:04.023337258Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:51:03.989007568Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:51:03.998168667Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:52:03.954395266Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:52:03.965131499Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:53:03.999189542Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:53:04.008298185Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:54:03.954372095Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:54:03.962847376Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:55:03.988898509Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:55:03.997316269Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:56:03.954379769Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:56:03.96311413Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:57:04.014149774Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:57:04.024687617Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:58:03.955160082Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:58:03.965376419Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T16:59:03.954796431Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T16:59:03.966823323Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:00:03.956304936Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:00:03.964204043Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:01:04.013146037Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:01:04.020598084Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:02:03.957103339Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:02:03.967090841Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:03:03.95861689Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:03:03.966884284Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:04:03.957540459Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:04:03.967293058Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:05:03.969643349Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:05:03.979368135Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:06:03.958624859Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:06:03.967564211Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:07:04.013747118Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:07:04.034750879Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:08:03.956751054Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:08:03.965292608Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:09:03.956794819Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:09:03.967013768Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:10:03.963732102Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:10:03.971851324Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:11:04.013929777Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:11:04.022651167Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:12:03.974448518Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:12:03.983510036Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:13:03.954880657Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:13:03.964257906Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:14:03.975930272Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:14:03.98626253Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:15:04.013338632Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:15:04.021370989Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:16:03.958750839Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:16:03.971369995Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:17:03.954328325Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:17:03.965368689Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:18:03.95759294Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:18:03.967198946Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:19:03.955451755Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:19:03.965832533Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:20:04.013189126Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:20:04.021979803Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:21:03.957217254Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:21:03.968293701Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:22:04.013180289Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:22:04.023661465Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:23:03.958011778Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:23:03.970735363Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:24:03.959984973Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:24:03.97129244Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:25:03.959398395Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:25:03.966943571Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:26:03.975026767Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:26:03.985021961Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:27:03.960698925Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:27:03.968667847Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:28:04.01386051Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:28:04.024093902Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:29:03.963321048Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:29:03.971469788Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:30:03.997434936Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:30:04.005122774Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:31:03.968563047Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:31:03.977683899Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:32:03.954965167Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:32:03.963551018Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:33:03.974817036Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:33:03.985266779Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:34:04.013511053Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:34:04.0233114Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:35:03.978523283Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:35:03.987899175Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:36:03.954323586Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:36:03.961643558Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:37:03.955262409Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:37:03.96578509Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:38:03.954516111Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:38:03.966335483Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:39:03.955313901Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:39:03.965283397Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:40:03.956587144Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:40:03.965983817Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:41:03.957341258Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:41:03.967888316Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:42:03.956930765Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:42:03.968498405Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:43:04.01392604Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:43:04.023441226Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:44:03.957948096Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:44:03.968246098Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:45:04.011403811Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:45:04.021484797Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:46:03.958720371Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:46:03.96647572Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:47:04.013344096Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:47:04.020980612Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:48:03.964432884Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:48:03.971899542Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:53:30.002656185Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:53:30.011947052Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:54:30.022887067Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:54:30.031868363Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:55:30.00264381Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:55:30.011087459Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:56:30.033194102Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:56:30.041803422Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:57:30.002654521Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:57:30.009394538Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:58:30.043221501Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:58:30.053946204Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T17:59:30.005155722Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T17:59:30.012895964Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:00:30.047194335Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:00:30.060363849Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:01:30.062151111Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:01:30.073507548Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:02:30.00964588Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:02:30.016159844Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:03:30.002662978Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:03:30.012977673Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:04:30.062101014Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:04:30.071557401Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:05:30.003940843Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:05:30.014834733Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:06:30.03617243Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:06:30.044718031Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:07:30.004293195Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:07:30.013697354Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:08:30.00709404Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:08:30.015689915Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:09:30.005223182Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:09:30.013891253Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:10:30.06239761Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:10:30.072577613Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:11:30.006015363Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:11:30.014695616Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:12:30.056166964Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:12:30.066704287Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:13:30.006980999Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:13:30.01456557Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:14:30.061867225Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:14:30.071676764Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:15:30.005031845Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:15:30.016321377Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:16:30.025905459Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:16:30.029974613Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:17:30.016910022Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:17:30.022621353Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:18:30.002649331Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:18:30.010845437Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:19:30.01784353Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:19:30.031494026Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:20:30.007875889Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:20:30.017870795Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:21:30.036943467Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:21:30.046141661Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:22:30.002668352Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:22:30.010782876Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:23:30.024876191Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:23:30.032616253Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:24:30.002703812Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:24:30.012219972Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:25:30.002836995Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:25:30.011068487Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:26:30.01278823Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:26:30.022403145Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:27:30.002681797Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:27:30.023420391Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:28:30.016805786Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:28:30.027336478Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:29:30.060120102Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:29:30.069859886Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:30:30.026944911Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:30:30.034784949Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T18:31:30.002650435Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T18:31:30.010919328Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:32:47.102436448Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:32:47.116498917Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:33:47.808568585Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:33:47.82916322Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:34:47.810084481Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:34:47.822499137Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:35:47.809089051Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:35:47.82052828Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:36:47.866621165Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:36:47.875676125Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:37:47.810428144Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:37:47.82127356Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:41:31.895797654Z","level":"DEBUG","msg":"starting metrics server","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:41:31.896179723Z","level":"INFO","msg":"metrics server started","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:41:31.89732998Z","level":"INFO","msg":"processor starting","discovery_interval_seconds":60,"num_workers":10,"count_threshold":1000,"time_threshold_seconds":900,"max_retries":5,"initial_backoff_seconds":1,"max_backoff_seconds":60}
+{"time":"2025-11-10T19:41:31.89753092Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:41:31.907366999Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:42:31.905980251Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:42:31.916527587Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:43:31.956489514Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:43:31.967623913Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:44:31.912521378Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:44:31.992935446Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:45:29.069212808Z","level":"INFO","msg":"signal received","signal":15}
+{"time":"2025-11-10T19:45:29.069478294Z","level":"INFO","msg":"processor stopping"}
+{"time":"2025-11-10T19:45:29.069497059Z","level":"INFO","msg":"log-courier stopped"}
+{"time":"2025-11-10T19:45:44.411608575Z","level":"DEBUG","msg":"starting metrics server","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:45:44.412078524Z","level":"INFO","msg":"metrics server started","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:45:44.412542242Z","level":"INFO","msg":"processor starting","discovery_interval_seconds":60,"num_workers":10,"count_threshold":10,"time_threshold_seconds":10,"max_retries":5,"initial_backoff_seconds":1,"max_backoff_seconds":5}
+{"time":"2025-11-10T19:45:44.41267458Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:45:44.424123006Z","level":"INFO","msg":"batch finder completed","nBatches":1}
+{"time":"2025-11-10T19:45:44.431598477Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:45:44.441075163Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:45:44.441207181Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-7814BAA9CEEB4402","sizeBytes":187}
+{"time":"2025-11-10T19:45:44.443394424Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-7814BAA9CEEB4402","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-7814BAA9CEEB4402: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:44.443431053Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":0,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-7814BAA9CEEB4402: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:44.443438447Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":1,"backoffSeconds":1}
+{"time":"2025-11-10T19:45:45.444010808Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:45:45.453214846Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:45:45.453287011Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-11A0FF344FDD0AB1","sizeBytes":187}
+{"time":"2025-11-10T19:45:45.453618642Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-11A0FF344FDD0AB1","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-11A0FF344FDD0AB1: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:45.453641965Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":1,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-11A0FF344FDD0AB1: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:45.453646394Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":2,"backoffSeconds":2}
+{"time":"2025-11-10T19:45:47.454783193Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:45:47.461773569Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:45:47.461834413Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-A01A5D161F8723C9","sizeBytes":187}
+{"time":"2025-11-10T19:45:47.462119016Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-A01A5D161F8723C9","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-A01A5D161F8723C9: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:47.462135076Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":2,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-A01A5D161F8723C9: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:47.462139634Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":3,"backoffSeconds":4}
+{"time":"2025-11-10T19:45:51.465285122Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:45:51.473500467Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:45:51.47353976Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-1386BB36C586B300","sizeBytes":187}
+{"time":"2025-11-10T19:45:51.47383879Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-1386BB36C586B300","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-1386BB36C586B300: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:51.47385444Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":3,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-1386BB36C586B300: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:51.473859008Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":4,"backoffSeconds":5}
+{"time":"2025-11-10T19:45:56.477969913Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:45:56.485743917Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:45:56.485877467Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-52F740A6311DD024","sizeBytes":187}
+{"time":"2025-11-10T19:45:56.486195042Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-52F740A6311DD024","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-52F740A6311DD024: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:56.48620999Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":4,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-52F740A6311DD024: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:45:56.486214649Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":5,"backoffSeconds":5}
+{"time":"2025-11-10T19:46:01.486521293Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:01.50365353Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:01.503761272Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-5E41B5C3DC988AC4","sizeBytes":187}
+{"time":"2025-11-10T19:46:01.504466263Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-5E41B5C3DC988AC4","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5E41B5C3DC988AC4: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:01.504489777Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":5,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5E41B5C3DC988AC4: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:01.504519002Z","level":"ERROR","msg":"batch processing failed","bucketName":"test-bucket","logCount":1,"error":"max retries (5) exceeded for upload: failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5E41B5C3DC988AC4: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:01.504535343Z","level":"WARN","msg":"batch processing completed with failures","totalBatches":1,"successful":0,"failed":1,"failedBuckets":["test-bucket"]}
+{"time":"2025-11-10T19:46:01.504570499Z","level":"ERROR","msg":"cycle failed","error":"batch finder failed: all 1 batches failed","consecutiveFailures":1,"maxConsecutiveCycleFailures":3}
+{"time":"2025-11-10T19:46:44.413529357Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:46:44.422735516Z","level":"INFO","msg":"batch finder completed","nBatches":1}
+{"time":"2025-11-10T19:46:44.42280128Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:44.429120177Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:44.429179729Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-39FAB5DF2D8C33A2","sizeBytes":187}
+{"time":"2025-11-10T19:46:44.429726075Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-39FAB5DF2D8C33A2","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-39FAB5DF2D8C33A2: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:44.429742686Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":0,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-39FAB5DF2D8C33A2: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:44.429747525Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":1,"backoffSeconds":1}
+{"time":"2025-11-10T19:46:45.430229445Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:45.438677291Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:45.438728267Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-D86146094DA6529A","sizeBytes":187}
+{"time":"2025-11-10T19:46:45.439067614Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-D86146094DA6529A","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-D86146094DA6529A: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:45.439088113Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":1,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-D86146094DA6529A: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:45.439094274Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":2,"backoffSeconds":2}
+{"time":"2025-11-10T19:46:47.439409439Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:47.447702154Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:47.447752719Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-6B7B73D0E2B7DA17","sizeBytes":187}
+{"time":"2025-11-10T19:46:47.448070476Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-6B7B73D0E2B7DA17","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-6B7B73D0E2B7DA17: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:47.448087428Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":2,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-6B7B73D0E2B7DA17: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:47.448091876Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":3,"backoffSeconds":4}
+{"time":"2025-11-10T19:46:51.451231721Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:51.459080214Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:51.459126531Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-5E6F3A236E23DE91","sizeBytes":187}
+{"time":"2025-11-10T19:46:51.459456301Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-5E6F3A236E23DE91","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5E6F3A236E23DE91: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:51.459472942Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":3,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5E6F3A236E23DE91: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:51.459485055Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":4,"backoffSeconds":5}
+{"time":"2025-11-10T19:46:56.463624997Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:46:56.47170116Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:46:56.471745533Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-5185E02127256E96","sizeBytes":187}
+{"time":"2025-11-10T19:46:56.472047561Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-5185E02127256E96","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5185E02127256E96: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:56.47206315Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":4,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-5185E02127256E96: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:46:56.472067228Z","level":"INFO","msg":"retrying upload after backoff","bucketName":"test-bucket","attempt":5,"backoffSeconds":5}
+{"time":"2025-11-10T19:47:01.475412092Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:47:01.48260627Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:47:01.482656234Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-8EC572113EAD532C","sizeBytes":187}
+{"time":"2025-11-10T19:47:01.482983268Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-8EC572113EAD532C","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-8EC572113EAD532C: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:47:01.482998747Z","level":"WARN","msg":"transient error, will retry upload","bucketName":"test-bucket","attempt":5,"error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-8EC572113EAD532C: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:47:01.483016971Z","level":"ERROR","msg":"batch processing failed","bucketName":"test-bucket","logCount":1,"error":"max retries (5) exceeded for upload: failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-8EC572113EAD532C: operation error S3: PutObject, resolve auth scheme: resolve endpoint: endpoint rule error, Custom endpoint `localhost:9000` was not a valid URI"}
+{"time":"2025-11-10T19:47:01.483036338Z","level":"WARN","msg":"batch processing completed with failures","totalBatches":1,"successful":0,"failed":1,"failedBuckets":["test-bucket"]}
+{"time":"2025-11-10T19:47:01.483053159Z","level":"ERROR","msg":"cycle failed","error":"batch finder failed: all 1 batches failed","consecutiveFailures":2,"maxConsecutiveCycleFailures":3}
+{"time":"2025-11-10T19:47:15.506977206Z","level":"INFO","msg":"signal received","signal":15}
+{"time":"2025-11-10T19:47:15.507113111Z","level":"INFO","msg":"processor stopping"}
+{"time":"2025-11-10T19:47:15.507125765Z","level":"INFO","msg":"log-courier stopped"}
+{"time":"2025-11-10T19:47:30.75142469Z","level":"DEBUG","msg":"starting metrics server","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:47:30.751794996Z","level":"INFO","msg":"metrics server started","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:47:30.752086784Z","level":"INFO","msg":"processor starting","discovery_interval_seconds":60,"num_workers":10,"count_threshold":10,"time_threshold_seconds":10,"max_retries":5,"initial_backoff_seconds":1,"max_backoff_seconds":5}
+{"time":"2025-11-10T19:47:30.752179118Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:47:30.761520141Z","level":"INFO","msg":"batch finder completed","nBatches":1}
+{"time":"2025-11-10T19:47:30.761639766Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:47:30.76706213Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:47:30.767142742Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-76DCCD5B893470DA","sizeBytes":187}
+{"time":"2025-11-10T19:47:30.796497724Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-76DCCD5B893470DA","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-76DCCD5B893470DA: operation error S3: PutObject, https response error StatusCode: 403, RequestID: fe12746f4b4eb46b82c0, HostID: fe12746f4b4eb46b82c0, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:47:30.796537388Z","level":"ERROR","msg":"permanent error, not retrying","bucketName":"test-bucket","error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-76DCCD5B893470DA: operation error S3: PutObject, https response error StatusCode: 403, RequestID: fe12746f4b4eb46b82c0, HostID: fe12746f4b4eb46b82c0, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:47:30.796563698Z","level":"ERROR","msg":"batch processing failed","bucketName":"test-bucket","logCount":1,"error":"permanent error uploading batch: failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-76DCCD5B893470DA: operation error S3: PutObject, https response error StatusCode: 403, RequestID: fe12746f4b4eb46b82c0, HostID: fe12746f4b4eb46b82c0, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:47:30.796585068Z","level":"WARN","msg":"batch processing completed with failures","totalBatches":1,"successful":0,"failed":1,"failedBuckets":["test-bucket"]}
+{"time":"2025-11-10T19:48:30.765966011Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:48:30.778777695Z","level":"INFO","msg":"batch finder completed","nBatches":1}
+{"time":"2025-11-10T19:48:30.778875559Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:48:30.787385138Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:48:30.787480819Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-2BFB584B4399C9C8","sizeBytes":187}
+{"time":"2025-11-10T19:48:30.803019613Z","level":"ERROR","msg":"failed to upload log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-2BFB584B4399C9C8","sizeBytes":187,"error":"failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-2BFB584B4399C9C8: operation error S3: PutObject, https response error StatusCode: 403, RequestID: e63c42a7ce49a3472a48, HostID: e63c42a7ce49a3472a48, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:48:30.803070118Z","level":"ERROR","msg":"permanent error, not retrying","bucketName":"test-bucket","error":"failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-2BFB584B4399C9C8: operation error S3: PutObject, https response error StatusCode: 403, RequestID: e63c42a7ce49a3472a48, HostID: e63c42a7ce49a3472a48, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:48:30.803095435Z","level":"ERROR","msg":"batch processing failed","bucketName":"test-bucket","logCount":1,"error":"permanent error uploading batch: failed to upload log object: failed to upload to S3: bucket=target-bucket, key=2025-11-10-19-43-03-2BFB584B4399C9C8: operation error S3: PutObject, https response error StatusCode: 403, RequestID: e63c42a7ce49a3472a48, HostID: e63c42a7ce49a3472a48, api error AccessDenied: Access Denied"}
+{"time":"2025-11-10T19:48:30.803125793Z","level":"WARN","msg":"batch processing completed with failures","totalBatches":1,"successful":0,"failed":1,"failedBuckets":["test-bucket"]}
+{"time":"2025-11-10T19:49:30.79343647Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:49:30.803954041Z","level":"INFO","msg":"batch finder completed","nBatches":1}
+{"time":"2025-11-10T19:49:30.804046984Z","level":"INFO","msg":"processing log batch","bucketName":"test-bucket","nLogs":1,"minTimestamp":"2025-11-10T19:43:03Z","maxTimestamp":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:49:30.809682334Z","level":"DEBUG","msg":"fetched logs","bucketName":"test-bucket","nRecords":1}
+{"time":"2025-11-10T19:49:30.80972886Z","level":"DEBUG","msg":"built log object","bucketName":"test-bucket","s3Key":"2025-11-10-19-43-03-A7D0C47D57AE5B34","sizeBytes":187}
+{"time":"2025-11-10T19:49:30.866590405Z","level":"INFO","msg":"uploaded log object","bucketName":"test-bucket","destinationBucket":"target-bucket","s3Key":"2025-11-10-19-43-03-A7D0C47D57AE5B34","sizeBytes":187}
+{"time":"2025-11-10T19:49:30.866623025Z","level":"INFO","msg":"upload succeeded","bucketName":"test-bucket","attempt":0}
+{"time":"2025-11-10T19:49:30.870760883Z","level":"INFO","msg":"offset commit succeeded","bucketName":"test-bucket","raftSessionID":1,"attempt":0,"maxInsertedAt":"2025-11-10T19:43:03Z"}
+{"time":"2025-11-10T19:49:30.870812589Z","level":"INFO","msg":"all batches processed successfully","totalBatches":1}
+{"time":"2025-11-10T19:49:33.874973803Z","level":"INFO","msg":"signal received","signal":15}
+{"time":"2025-11-10T19:49:33.875092845Z","level":"INFO","msg":"processor stopping"}
+{"time":"2025-11-10T19:49:33.875107311Z","level":"INFO","msg":"log-courier stopped"}
+{"time":"2025-11-10T19:50:34.713844542Z","level":"DEBUG","msg":"starting metrics server","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:50:34.71412219Z","level":"INFO","msg":"metrics server started","address":"127.0.0.1","port":9090}
+{"time":"2025-11-10T19:50:34.714594792Z","level":"INFO","msg":"processor starting","discovery_interval_seconds":60,"num_workers":10,"count_threshold":10,"time_threshold_seconds":10,"max_retries":5,"initial_backoff_seconds":1,"max_backoff_seconds":5}
+{"time":"2025-11-10T19:50:34.71475986Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:50:34.724196279Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:51:34.774393664Z","level":"DEBUG","msg":"starting batch finder"}
+{"time":"2025-11-10T19:51:34.787400747Z","level":"INFO","msg":"batch finder completed","nBatches":0}
+{"time":"2025-11-10T19:52:28.871999313Z","level":"INFO","msg":"signal received","signal":15}
+{"time":"2025-11-10T19:52:28.872162118Z","level":"INFO","msg":"processor stopping"}
+{"time":"2025-11-10T19:52:28.872177557Z","level":"INFO","msg":"log-courier stopped"}

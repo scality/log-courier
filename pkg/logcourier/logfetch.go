@@ -3,6 +3,7 @@ package logcourier
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
 )
@@ -62,7 +63,14 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		ORDER BY timestamp ASC
 	`, lf.database, clickhouse.TableAccessLogs)
 
+	// Time the ClickHouse query
+	queryStart := time.Now()
 	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)
+	queryDuration := time.Since(queryStart)
+
+	// Update metrics
+	Metrics.ClickHouseQueryDuration.Observe(queryDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}

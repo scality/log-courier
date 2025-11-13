@@ -17,6 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  clickhouse-init:
+    image: curlimages/curl:8.5.0
+    container_name: log-courier-clickhouse-init
+    profiles:
+      - full
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: 8123
+      CLICKHOUSE_DB: logs
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    volumes:
+      - ../../setup_clickhouse_schema.sh:/setup_clickhouse_schema.sh:ro
+    entrypoint: ["/bin/sh", "/setup_clickhouse_schema.sh"]
+
   log-courier:
     build:
       context: .
@@ -29,6 +47,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
     environment:
       SUPERVISORD_CONF: supervisord.conf
     volumes:
