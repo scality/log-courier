@@ -2,6 +2,7 @@ package logcourier
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -23,6 +24,12 @@ import (
 //    - Multiple offset commits for same bucket: latest timestamp wins
 //    - Eventually consistent (ClickHouse merges may be delayed)
 //    - Work discovery query uses max(last_processed_ts) to get latest offset
+
+// OffsetManagerInterface defines the interface for offset management
+type OffsetManagerInterface interface {
+	CommitOffset(ctx context.Context, bucket string, raftSessionId uint16, timestamp time.Time) error
+	GetOffset(ctx context.Context, bucket string, raftSessionId uint16) (time.Time, error)
+}
 
 // OffsetManager manages offsets
 type OffsetManager struct {
@@ -72,20 +79,23 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
 	}
 
 	query := fmt.Sprintf(`
-        SELECT max(last_processed_ts)
+        SELECT maxOrNull(last_processed_ts)
         FROM %s.%s
         WHERE bucketName = ? AND raftSessionId = ?
     `, om.database, clickhouse.TableOffsets)
 
 	row := om.client.QueryRow(ctx, query, bucket, raftSessionId)
 
-	var timestamp time.Time
+	var timestamp sql.NullTime
 	err := row.Scan(&timestamp)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to get offset for bucket %s raftSessionId %d: %w", bucket, raftSessionId, err)
 	}
 
-	// If no offset exists for this bucket/raftSession, max() returns NULL
-	// which the ClickHouse driver scans as zero time
-	return timestamp, nil
+	// If no offset exists for this bucket/raftSession, maxOrNull() returns NULL
+	// Use sql.NullTime so NULL is properly detected via the Valid field
+	if !timestamp.Valid {
+		return time.Time{}, nil
+	}
+	return timestamp.Time, nil
 }
