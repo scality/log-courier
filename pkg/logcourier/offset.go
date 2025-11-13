@@ -55,7 +55,7 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
 	}
 
 	query := fmt.Sprintf(`
-        INSERT INTO %s.%s (bucketName, raftSessionId, last_processed_ts)
+        INSERT INTO %s.%s (bucketName, raftSessionID, last_processed_ts)
         VALUES (?, ?, ?)
     `, om.database, clickhouse.TableOffsets)
 
@@ -88,7 +88,7 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
 	query := fmt.Sprintf(`
         SELECT maxOrNull(last_processed_ts)
         FROM %s.%s
-        WHERE bucketName = ? AND raftSessionId = ?
+        WHERE bucketName = ? AND raftSessionID = ?
     `, om.database, clickhouse.TableOffsets)
 
 	// Time the ClickHouse query

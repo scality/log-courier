@@ -93,7 +93,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			turnAroundTime         Float32,
 
 			req_id                 String,
-			raftSessionId          UInt16,
+			raftSessionID          UInt16,
 
 			signatureVersion       LowCardinality(String),
 			cipherSuite            LowCardinality(String),
@@ -120,7 +120,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
-		ORDER BY (raftSessionId, bucketName, insertedAt, req_id)
+		ORDER BY (raftSessionID, bucketName, insertedAt, req_id)
 	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
@@ -144,11 +144,11 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			bucketName            String,
-			raftSessionId         UInt16,
+			raftSessionID         UInt16,
 			last_processed_ts     DateTime
 		)
 		ENGINE = MergeTree()
-		ORDER BY (bucketName, raftSessionId)
+		ORDER BY (bucketName, raftSessionID)
 	`, h.DatabaseName, clickhouse.TableOffsets)
 	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
 		return fmt.Errorf("failed to create offsets table: %w", err)
@@ -184,7 +184,7 @@ type TestLogRecord struct {
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
+		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
 		 bucketOwner, userName, requester, httpMethod, requestURI, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
@@ -250,7 +250,7 @@ func (h *ClickHouseTestHelper) Close() error {
 func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context, log TestLogRecord, targetBucket, targetPrefix string) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
+		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
 		 bucketOwner, userName, requester, httpMethod, requestURI, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
