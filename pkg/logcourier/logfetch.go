@@ -53,7 +53,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			insertedAt,
 			loggingTargetBucket,
 			loggingTargetPrefix,
-			raftSessionId,
+			raftSessionID,
 			timestamp
 		FROM %s.%s
 		WHERE bucketName = ?

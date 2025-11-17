@@ -27,8 +27,8 @@ import (
 
 // OffsetManagerInterface defines the interface for offset management
 type OffsetManagerInterface interface {
-	CommitOffset(ctx context.Context, bucket string, raftSessionId uint16, timestamp time.Time) error
-	GetOffset(ctx context.Context, bucket string, raftSessionId uint16) (time.Time, error)
+	CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error
+	GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error)
 }
 
 // OffsetManager manages offsets
@@ -46,7 +46,7 @@ func NewOffsetManager(client *clickhouse.Client, database string) *OffsetManager
 }
 
 // CommitOffset commits the processing offset for a bucket
-func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionId uint16, timestamp time.Time) error {
+func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error {
 	if bucket == "" {
 		return fmt.Errorf("bucket name cannot be empty")
 	}
@@ -55,13 +55,13 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
 	}
 
 	query := fmt.Sprintf(`
-        INSERT INTO %s.%s (bucketName, raftSessionId, last_processed_ts)
+        INSERT INTO %s.%s (bucketName, raftSessionID, last_processed_ts)
         VALUES (?, ?, ?)
     `, om.database, clickhouse.TableOffsets)
 
-	err := om.client.Exec(ctx, query, bucket, raftSessionId, timestamp)
+	err := om.client.Exec(ctx, query, bucket, raftSessionID, timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to commit offset for bucket %s raftSessionId %d: %w", bucket, raftSessionId, err)
+		return fmt.Errorf("failed to commit offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
 	}
 
 	return nil
@@ -69,11 +69,11 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
 
 // GetOffset retrieves the current offset for a bucket and raft session
 //
-// Both bucket and raftSessionId are used so that there are two separate offsets for migrated buckets,
+// Both bucket and raftSessionID are used so that there are two separate offsets for migrated buckets,
 // one for the source and one for the destination raft session.
 //
 // Returns zero time if bucket has no offset
-func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionId uint16) (time.Time, error) {
+func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error) {
 	if bucket == "" {
 		return time.Time{}, fmt.Errorf("bucket name cannot be empty")
 	}
@@ -81,15 +81,15 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
 	query := fmt.Sprintf(`
         SELECT maxOrNull(last_processed_ts)
         FROM %s.%s
-        WHERE bucketName = ? AND raftSessionId = ?
+        WHERE bucketName = ? AND raftSessionID = ?
     `, om.database, clickhouse.TableOffsets)
 
-	row := om.client.QueryRow(ctx, query, bucket, raftSessionId)
+	row := om.client.QueryRow(ctx, query, bucket, raftSessionID)
 
 	var timestamp sql.NullTime
 	err := row.Scan(&timestamp)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get offset for bucket %s raftSessionId %d: %w", bucket, raftSessionId, err)
+		return time.Time{}, fmt.Errorf("failed to get offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
 	}
 
 	// If no offset exists for this bucket/raftSession, maxOrNull() returns NULL
