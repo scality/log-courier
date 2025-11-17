@@ -97,7 +97,7 @@ func run() int {
 	signal.Notify(signalsChan, unix.SIGINT, unix.SIGTERM)
 
 	// Start processor in goroutine
-	errChan := make(chan error, 1)
+	errChan := make(chan error)
 	go func() {
 		errChan <- processor.Run(ctx)
 	}()
