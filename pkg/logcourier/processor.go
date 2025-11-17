@@ -275,14 +275,16 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 	_ = g.Wait()
 
 	if len(failedBatches) > 0 {
-		p.logger.Warn("batch processing completed with failures",
+		p.logger.Warn("batch processing completed",
 			"totalBatches", len(batches),
 			"successful", successCount,
 			"failed", len(failedBatches),
 			"failedBuckets", failedBatches)
 	} else {
-		p.logger.Info("all batches processed successfully",
-			"totalBatches", len(batches))
+		p.logger.Info("batch processing completed",
+			"totalBatches", len(batches),
+			"successful", successCount,
+			"failed", 0)
 	}
 
 	// Cycle failure decision based on success and error types:
