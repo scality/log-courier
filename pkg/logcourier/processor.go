@@ -43,8 +43,7 @@ type Processor struct {
 	maxBackoff        time.Duration
 
 	// State
-	cycleRunning         bool // Tracks if a cycle is currently in progress
-	consecutiveFailures  int  // Tracks consecutive cycle failures
+	consecutiveFailures int // Tracks consecutive cycle failures
 }
 
 // Config holds processor configuration
@@ -183,11 +182,6 @@ func (p *Processor) Run(ctx context.Context) error {
 			return ctx.Err()
 
 		case <-ticker.C:
-			if p.cycleRunning {
-				p.logger.Info("previous cycle still running, skipping this interval")
-				continue
-			}
-
 			if err := p.runCycle(ctx); err != nil {
 				p.consecutiveFailures++
 				p.logger.Error("cycle failed",
@@ -207,11 +201,6 @@ func (p *Processor) Run(ctx context.Context) error {
 
 // runCycle executes a single discovery and processing cycle
 func (p *Processor) runCycle(ctx context.Context) error {
-	p.cycleRunning = true
-	defer func() {
-		p.cycleRunning = false
-	}()
-
 	if err := p.runBatchFinder(ctx); err != nil {
 		return fmt.Errorf("batch finder failed: %w", err)
 	}
