@@ -74,6 +74,9 @@ func run() int {
 		Level: logLevel,
 	}))
 
+	// Get shutdown timeout from config
+	shutdownTimeout := time.Duration(logcourier.ConfigSpec.GetInt("shutdown-timeout-seconds")) * time.Second
+
 	// Create processor
 	ctx := context.Background()
 	processorCfg := buildProcessorConfig(logger)
@@ -109,7 +112,6 @@ func run() int {
 		cancel()
 
 		// Wait for processor to stop gracefully (with timeout)
-		shutdownTimeout := time.Duration(logcourier.ConfigSpec.GetInt("shutdown-timeout-seconds")) * time.Second
 		shutdownTimer := time.NewTimer(shutdownTimeout)
 		defer shutdownTimer.Stop()
 
