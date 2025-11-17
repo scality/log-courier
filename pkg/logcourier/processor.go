@@ -361,69 +361,22 @@ func (p *Processor) processLogBatchWithRetry(ctx context.Context, batch LogBatch
 	return p.commitOffsetWithRetry(ctx, batch.Bucket, raftSessionID, maxInsertedAt)
 }
 
-// uploadLogBatchWithRetry handles fetching, building, and uploading with retries
-// Returns the records and offset info needed for committing
-func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
+// retryWithBackoff executes an operation with exponential backoff retry logic
+func (p *Processor) retryWithBackoff(
+	ctx context.Context,
+	operation func() error,
+	shouldRetry func(error) bool,
+	operationName string,
+	logFields map[string]any,
+) error {
 	var lastErr error
 	backoff := p.initialBackoff
 
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
 		if attempt > 0 {
-			p.logger.Info("retrying upload after backoff",
-				"bucketName", batch.Bucket,
-				"attempt", attempt,
-				"backoffSeconds", backoff.Seconds())
-
-			select {
-			case <-time.After(backoff):
-			case <-ctx.Done():
-				return nil, time.Time{}, 0, ctx.Err()
-			}
-
-			backoff = time.Duration(float64(backoff) * backoffMultiplier)
-			if backoff > p.maxBackoff {
-				backoff = p.maxBackoff
-			}
-		}
-
-		records, maxInsertedAt, raftSessionID, err := p.uploadLogBatch(ctx, batch)
-		if err == nil {
-			p.logger.Info("upload succeeded",
-				"bucketName", batch.Bucket,
-				"attempt", attempt)
-			return records, maxInsertedAt, raftSessionID, nil
-		}
-
-		lastErr = err
-
-		if IsPermanentError(err) {
-			p.logger.Error("permanent error, not retrying",
-				"bucketName", batch.Bucket,
-				"error", err)
-			return nil, time.Time{}, 0, fmt.Errorf("permanent error uploading batch: %w", err)
-		}
-
-		p.logger.Warn("transient error, will retry upload",
-			"bucketName", batch.Bucket,
-			"attempt", attempt,
-			"error", err)
-	}
-
-	return nil, time.Time{}, 0, fmt.Errorf("max retries (%d) exceeded for upload: %w", p.maxRetries, lastErr)
-}
-
-// commitOffsetWithRetry handles committing the offset to ClickHouse with retries
-func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, maxInsertedAt time.Time) error {
-	var lastErr error
-	backoff := p.initialBackoff
-
-	for attempt := 0; attempt <= p.maxRetries; attempt++ {
-		if attempt > 0 {
-			p.logger.Info("retrying offset commit after backoff",
-				"bucketName", bucket,
-				"raftSessionID", raftSessionID,
-				"attempt", attempt,
-				"backoffSeconds", backoff.Seconds())
+			logFields["attempt"] = attempt
+			logFields["backoffSeconds"] = backoff.Seconds()
+			p.logger.Info(fmt.Sprintf("retrying %s after backoff", operationName), mapsToSlice(logFields)...)
 
 			select {
 			case <-time.After(backoff):
@@ -437,25 +390,65 @@ func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, ra
 			}
 		}
 
-		err := p.offsetManager.CommitOffset(ctx, bucket, raftSessionID, maxInsertedAt)
+		err := operation()
 		if err == nil {
-			p.logger.Info("offset commit succeeded",
-				"bucketName", bucket,
-				"raftSessionID", raftSessionID,
-				"attempt", attempt,
-				"maxInsertedAt", maxInsertedAt)
+			logFields["attempt"] = attempt
+			p.logger.Info(fmt.Sprintf("%s succeeded", operationName), mapsToSlice(logFields)...)
 			return nil
 		}
 
 		lastErr = err
-		p.logger.Warn("transient error, will retry offset commit",
-			"bucketName", bucket,
-			"raftSessionID", raftSessionID,
-			"attempt", attempt,
-			"error", err)
+
+		if shouldRetry != nil && !shouldRetry(err) {
+			logFields["error"] = err
+			p.logger.Error(fmt.Sprintf("permanent error, not retrying %s", operationName), mapsToSlice(logFields)...)
+			return fmt.Errorf("permanent error in %s: %w", operationName, err)
+		}
+
+		logFields["attempt"] = attempt
+		logFields["error"] = err
+		p.logger.Warn(fmt.Sprintf("transient error, will retry %s", operationName), mapsToSlice(logFields)...)
 	}
 
-	return fmt.Errorf("max retries (%d) exceeded for offset commit: %w", p.maxRetries, lastErr)
+	return fmt.Errorf("max retries (%d) exceeded for %s: %w", p.maxRetries, operationName, lastErr)
+}
+
+// mapsToSlice converts a map to a slice of key-value pairs for slog
+func mapsToSlice(m map[string]any) []any {
+	result := make([]any, 0, len(m)*2)
+	for k, v := range m {
+		result = append(result, k, v)
+	}
+	return result
+}
+
+// uploadLogBatchWithRetry handles fetching, building, and uploading with retries
+// Returns the records and offset info needed for committing
+func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
+	var records []LogRecord
+	var maxInsertedAt time.Time
+	var raftSessionID uint16
+
+	err := p.retryWithBackoff(ctx, func() error {
+		var err error
+		records, maxInsertedAt, raftSessionID, err = p.uploadLogBatch(ctx, batch)
+		return err
+	}, func(err error) bool {
+		return !IsPermanentError(err)
+	}, "upload", map[string]any{"bucketName": batch.Bucket})
+
+	return records, maxInsertedAt, raftSessionID, err
+}
+
+// commitOffsetWithRetry handles committing the offset to ClickHouse with retries
+func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, maxInsertedAt time.Time) error {
+	return p.retryWithBackoff(ctx, func() error {
+		return p.offsetManager.CommitOffset(ctx, bucket, raftSessionID, maxInsertedAt)
+	}, nil, "offset commit", map[string]any{
+		"bucketName":    bucket,
+		"raftSessionID": raftSessionID,
+		"maxInsertedAt": maxInsertedAt,
+	})
 }
 
 // IsPermanentError determines if an error is permanent or transient
