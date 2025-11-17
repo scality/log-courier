@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"sync"
 	"time"
@@ -36,11 +37,12 @@ type Processor struct {
 	logger           *slog.Logger
 
 	// Configuration
-	discoveryInterval time.Duration
-	numWorkers        int
-	maxRetries        int
-	initialBackoff    time.Duration
-	maxBackoff        time.Duration
+	discoveryInterval   time.Duration
+	numWorkers          int
+	maxRetries          int
+	initialBackoff      time.Duration
+	maxBackoff          time.Duration
+	backoffJitterFactor float64
 
 	// State
 	consecutiveFailures int // Tracks consecutive cycle failures
@@ -68,6 +70,8 @@ type Config struct {
 	InitialBackoff time.Duration
 	// MaxBackoff is the maximum backoff duration for retry attempts
 	MaxBackoff time.Duration
+	// BackoffJitterFactor is the jitter factor for backoff (0.0 to 1.0)
+	BackoffJitterFactor float64
 
 	ClickHouseURL      string
 	ClickHouseUsername string
@@ -129,18 +133,19 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	}
 
 	return &Processor{
-		clickhouseClient:  chClient,
-		s3Uploader:        s3Uploader,
-		workDiscovery:     NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
-		logFetcher:        NewLogFetcher(chClient, database),
-		logBuilder:        NewLogObjectBuilder(),
-		offsetManager:     offsetManager,
-		discoveryInterval: cfg.DiscoveryInterval,
-		numWorkers:        cfg.NumWorkers,
-		maxRetries:        cfg.MaxRetries,
-		initialBackoff:    cfg.InitialBackoff,
-		maxBackoff:        cfg.MaxBackoff,
-		logger:            cfg.Logger,
+		clickhouseClient:    chClient,
+		s3Uploader:          s3Uploader,
+		workDiscovery:       NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
+		logFetcher:          NewLogFetcher(chClient, database),
+		logBuilder:          NewLogObjectBuilder(),
+		offsetManager:       offsetManager,
+		discoveryInterval:   cfg.DiscoveryInterval,
+		numWorkers:          cfg.NumWorkers,
+		maxRetries:          cfg.MaxRetries,
+		initialBackoff:      cfg.InitialBackoff,
+		maxBackoff:          cfg.MaxBackoff,
+		backoffJitterFactor: cfg.BackoffJitterFactor,
+		logger:              cfg.Logger,
 	}, nil
 }
 
@@ -374,12 +379,21 @@ func (p *Processor) retryWithBackoff(
 
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
 		if attempt > 0 {
+			// Apply jitter to the backoff
+			actualBackoff := backoff
+			if p.backoffJitterFactor > 0 {
+				jitterRange := float64(backoff) * p.backoffJitterFactor * 2.0
+				jitterOffset := float64(backoff) * (1.0 - p.backoffJitterFactor)
+				//nolint:gosec // Using non-cryptographic random for backoff jitter is acceptable
+				actualBackoff = time.Duration(jitterOffset + rand.Float64()*jitterRange)
+			}
+
 			logFields["attempt"] = attempt
-			logFields["backoffSeconds"] = backoff.Seconds()
+			logFields["backoffSeconds"] = actualBackoff.Seconds()
 			p.logger.Info(fmt.Sprintf("retrying %s after backoff", operationName), mapsToSlice(logFields)...)
 
 			select {
-			case <-time.After(backoff):
+			case <-time.After(actualBackoff):
 			case <-ctx.Done():
 				return ctx.Err()
 			}

@@ -66,6 +66,11 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 60,
 		EnvVar:       "LOG_COURIER_RETRY_MAX_BACKOFF_SECONDS",
 	},
+	"retry.backoff-jitter-factor": util.ConfigVarSpec{
+		Help:         "Jitter factor for backoff (0.0 to 1.0, where 0 is no jitter and 1.0 is up to 100% jitter)",
+		DefaultValue: 0.3,
+		EnvVar:       "LOG_COURIER_RETRY_BACKOFF_JITTER_FACTOR",
+	},
 
 	// S3 configuration
 	"s3.endpoint": util.ConfigVarSpec{
