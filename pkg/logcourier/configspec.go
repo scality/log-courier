@@ -44,6 +44,11 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 60,
 		EnvVar:       "LOG_COURIER_CONSUMER_DISCOVERY_INTERVAL_SECONDS",
 	},
+	"consumer.discovery-interval-jitter-factor": util.ConfigVarSpec{
+		Help:         "Jitter factor for discovery interval (0.0 to 1.0, where 0 is no jitter and 1.0 is up to 100% jitter)",
+		DefaultValue: 0.1,
+		EnvVar:       "LOG_COURIER_CONSUMER_DISCOVERY_INTERVAL_JITTER_FACTOR",
+	},
 	"consumer.num-workers": util.ConfigVarSpec{
 		Help:         "Number of parallel workers for batch processing",
 		DefaultValue: 10,

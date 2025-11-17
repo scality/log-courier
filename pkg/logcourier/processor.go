@@ -37,12 +37,13 @@ type Processor struct {
 	logger           *slog.Logger
 
 	// Configuration
-	discoveryInterval   time.Duration
-	numWorkers          int
-	maxRetries          int
-	initialBackoff      time.Duration
-	maxBackoff          time.Duration
-	backoffJitterFactor float64
+	discoveryInterval             time.Duration
+	discoveryIntervalJitterFactor float64
+	numWorkers                    int
+	maxRetries                    int
+	initialBackoff                time.Duration
+	maxBackoff                    time.Duration
+	backoffJitterFactor           float64
 
 	// State
 	consecutiveFailures int // Tracks consecutive cycle failures
@@ -56,6 +57,8 @@ type Config struct {
 	ClickHouseTimeout time.Duration
 	// DiscoveryInterval is the interval between work discovery runs
 	DiscoveryInterval time.Duration
+	// DiscoveryIntervalJitterFactor is the jitter factor for discovery interval (0.0 to 1.0)
+	DiscoveryIntervalJitterFactor float64
 
 	// CountThreshold is the minimum number of unprocessed logs required to trigger batch processing
 	CountThreshold int
@@ -133,19 +136,20 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	}
 
 	return &Processor{
-		clickhouseClient:    chClient,
-		s3Uploader:          s3Uploader,
-		workDiscovery:       NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
-		logFetcher:          NewLogFetcher(chClient, database),
-		logBuilder:          NewLogObjectBuilder(),
-		offsetManager:       offsetManager,
-		discoveryInterval:   cfg.DiscoveryInterval,
-		numWorkers:          cfg.NumWorkers,
-		maxRetries:          cfg.MaxRetries,
-		initialBackoff:      cfg.InitialBackoff,
-		maxBackoff:          cfg.MaxBackoff,
-		backoffJitterFactor: cfg.BackoffJitterFactor,
-		logger:              cfg.Logger,
+		clickhouseClient:              chClient,
+		s3Uploader:                    s3Uploader,
+		workDiscovery:                 NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
+		logFetcher:                    NewLogFetcher(chClient, database),
+		logBuilder:                    NewLogObjectBuilder(),
+		offsetManager:                 offsetManager,
+		discoveryInterval:             cfg.DiscoveryInterval,
+		discoveryIntervalJitterFactor: cfg.DiscoveryIntervalJitterFactor,
+		numWorkers:                    cfg.NumWorkers,
+		maxRetries:                    cfg.MaxRetries,
+		initialBackoff:                cfg.InitialBackoff,
+		maxBackoff:                    cfg.MaxBackoff,
+		backoffJitterFactor:           cfg.BackoffJitterFactor,
+		logger:                        cfg.Logger,
 	}, nil
 }
 
@@ -167,9 +171,6 @@ func (p *Processor) Close() error {
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
-	ticker := time.NewTicker(p.discoveryInterval)
-	defer ticker.Stop()
-
 	if err := p.runCycle(ctx); err != nil {
 		p.consecutiveFailures++
 		p.logger.Error("cycle failed",
@@ -181,12 +182,23 @@ func (p *Processor) Run(ctx context.Context) error {
 	}
 
 	for {
+		// Calculate next interval with jitter
+		nextInterval := p.discoveryInterval
+		if p.discoveryIntervalJitterFactor > 0 {
+			jitterRange := float64(p.discoveryInterval) * p.discoveryIntervalJitterFactor * 2.0
+			jitterOffset := float64(p.discoveryInterval) * (1.0 - p.discoveryIntervalJitterFactor)
+			//nolint:gosec // Using non-cryptographic random for interval jitter is acceptable
+			nextInterval = time.Duration(jitterOffset + rand.Float64()*jitterRange)
+		}
+
+		p.logger.Debug("scheduling next discovery cycle", "intervalSeconds", nextInterval.Seconds())
+
 		select {
 		case <-ctx.Done():
 			p.logger.Info("processor stopping")
 			return ctx.Err()
 
-		case <-ticker.C:
+		case <-time.After(nextInterval):
 			if err := p.runCycle(ctx); err != nil {
 				p.consecutiveFailures++
 				p.logger.Error("cycle failed",

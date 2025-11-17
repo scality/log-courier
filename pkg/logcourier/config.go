@@ -44,5 +44,10 @@ func ValidateConfig() error {
 		return fmt.Errorf("retry.backoff-jitter-factor must be between 0.0 and 1.0, got %f", backoffJitterFactor)
 	}
 
+	discoveryIntervalJitterFactor := ConfigSpec.GetFloat64("consumer.discovery-interval-jitter-factor")
+	if discoveryIntervalJitterFactor < 0.0 || discoveryIntervalJitterFactor > 1.0 {
+		return fmt.Errorf("consumer.discovery-interval-jitter-factor must be between 0.0 and 1.0, got %f", discoveryIntervalJitterFactor)
+	}
+
 	return nil
 }
