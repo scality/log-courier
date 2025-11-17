@@ -18,11 +18,6 @@ import (
 const (
 	// backoffMultiplier is the exponential backoff multiplier for retry attempts
 	backoffMultiplier = 2.0
-
-	// maxConsecutiveCycleFailures is the maximum number of consecutive cycle failures
-	// before the processor exits. This prevents infinite error loops when there's a
-	// systemic issue (e.g., ClickHouse permanently down, invalid credentials).
-	maxConsecutiveCycleFailures = 3
 )
 
 // Processor is the main log courier processor
@@ -44,9 +39,6 @@ type Processor struct {
 	initialBackoff                time.Duration
 	maxBackoff                    time.Duration
 	backoffJitterFactor           float64
-
-	// State
-	consecutiveFailures int // Tracks consecutive cycle failures
 }
 
 // Config holds processor configuration
@@ -163,22 +155,15 @@ func (p *Processor) Close() error {
 
 // Run runs the processor main loop
 //
-// Cycle Failure Semantics:
-// When a cycle fails the processor:
-// - Waits for the next discoveryInterval before retrying (eventual delivery)
-// - Tracks consecutive failures and exits if threshold exceeded
+// The processor runs cycles indefinitely. If errors occur during a cycle,
+// they are logged and the processor waits for the next discovery interval
+// before retrying (eventual delivery).
 //
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
 	if err := p.runCycle(ctx); err != nil {
-		p.consecutiveFailures++
-		p.logger.Error("cycle failed",
-			"error", err,
-			"consecutiveFailures", p.consecutiveFailures,
-			"maxConsecutiveCycleFailures", maxConsecutiveCycleFailures)
-	} else {
-		p.consecutiveFailures = 0
+		p.logger.Error("cycle failed", "error", err)
 	}
 
 	for {
@@ -200,17 +185,7 @@ func (p *Processor) Run(ctx context.Context) error {
 
 		case <-time.After(nextInterval):
 			if err := p.runCycle(ctx); err != nil {
-				p.consecutiveFailures++
-				p.logger.Error("cycle failed",
-					"error", err,
-					"consecutiveFailures", p.consecutiveFailures,
-					"maxConsecutiveCycleFailures", maxConsecutiveCycleFailures)
-
-				if p.consecutiveFailures >= maxConsecutiveCycleFailures {
-					return fmt.Errorf("processor stopping after %d consecutive cycle failures", p.consecutiveFailures)
-				}
-			} else {
-				p.consecutiveFailures = 0
+				p.logger.Error("cycle failed", "error", err)
 			}
 		}
 	}
@@ -245,8 +220,6 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 	var mu sync.Mutex
 	var successCount int
 	var failedBatches []string
-	var permanentErrorCount int
-	var transientErrorCount int
 
 	g, gctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, p.numWorkers)
@@ -265,11 +238,6 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 			if err := p.processLogBatchWithRetry(gctx, batch); err != nil {
 				mu.Lock()
 				failedBatches = append(failedBatches, batch.Bucket)
-				if IsPermanentError(err) {
-					permanentErrorCount++
-				} else {
-					transientErrorCount++
-				}
 				mu.Unlock()
 
 				p.logger.Error("batch processing failed",
@@ -304,69 +272,28 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 			"failed", 0)
 	}
 
-	// Cycle failure decision based on success and error types:
-	//
-	// 1. At least one success (s3 upload and offset commit) -> cycle succeeds
-	//    Even if other batches failed, forward progress was made
-	//
-	// 2. No successes, only permanent errors -> cycle succeeds
-	//    Misconfigured buckets should not cause processor exit
-	//
-	// 3. No successes, any transient errors -> cycle fails
-	//    Indicates system-wide issue (ClickHouse down, S3 throttled, etc.)
-	//    After 3 consecutive cycle failures, processor exits.
-	if successCount == 0 && transientErrorCount > 0 {
-		return fmt.Errorf("all %d batches failed", len(batches))
-	}
-
 	return nil
 }
 
 // ============================================================================
-// BATCH PROCESSING ERROR HANDLING SEMANTICS
+// BATCH PROCESSING ERROR HANDLING
 // ============================================================================
 //
-// ## Processing in two phases
+// Two-phase processing:
+//   1. Upload: Fetch logs → build object → upload to S3
+//   2. Offset commit: Record max timestamp in ClickHouse
 //
-// 1. Upload: Fetch logs from ClickHouse -> build log object -> upload to S3
-// 2. Offset commit: Record highest processed timestamp in ClickHouse
+// Error handling:
+//   - Permanent errors (NoSuchBucket, InvalidAccessKeyId, AccessDenied): No retry
+//   - Transient errors: Retry with exponential backoff (up to maxRetries)
+//   - Offset commit: All errors are transient and retried
 //
-// ## Error Classification
-// - Permanent: Issues that won't resolve with retries
-// - Transient: Temporary issues that may resolve
+// At-least-once delivery:
+//   If offset commit fails after successful upload, logs are reprocessed
+//   on the next cycle, creating duplicate S3 objects.
 //
-// ## Retry Behavior
-//
-// Upload phase:
-//   - Permanent error: Immediate failure, logs remain for next processor cycle
-//   - Transient error: Retry with backoff up to maxRetries
-//
-// Offset commit phase:
-//   - All errors are treated as transient
-//   - Retry with backoff up to maxRetries
-//   - Failure means upload succeeded but offset not recorded
-//
-// ## At-least-once delivery
-//
-// Logs are delivered at least once, possibly multiple times:
-//   - Upload fails: No S3 object, logs reprocessed next processor cycle
-//   - Upload succeeds, offset commit fails: S3 object exists, logs reprocessed next processing cycle -> duplicate S3 object
-//   - Crash after upload: S3 object exists, logs reprocessed on restart next processing cycle -> duplicate S3 object
-//
-// ## Processor cycle failure policy
-//
-// A cycle succeeds if:
-//   - At least one batch commits successfully, OR
-//   - All failures are permanent errors (only misconfigured buckets)
-//
-// A cycle fails if:
-//   - No batches commit successfully AND
-//   - At least one failure is a transient error
-//
-// Rationale:
-//   - Permanent errors (misconfigured buckets) should not block processor
-//   - Transient errors with no successes indicate system issues (ClickHouse down, S3 unavailable)
-//   - After 3 consecutive cycle failures, processor exits. Prevents unnecessary retries if no progress can be made.
+// Processor continues indefinitely regardless of batch success or failure,
+// retrying on next discovery interval.
 // ============================================================================
 
 func (p *Processor) processLogBatchWithRetry(ctx context.Context, batch LogBatch) error {
