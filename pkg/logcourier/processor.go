@@ -341,6 +341,8 @@ func (p *Processor) retryWithBackoff(
 			if backoff > p.maxBackoff {
 				backoff = p.maxBackoff
 			}
+
+			p.logger.Debug(fmt.Sprintf("executing %s retry", operationName), mapsToSlice(logFields)...)
 		}
 
 		err := operation()
