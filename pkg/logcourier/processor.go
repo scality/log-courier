@@ -352,7 +352,7 @@ func (p *Processor) retryWithBackoff(
 
 		if shouldRetry != nil && !shouldRetry(err) {
 			logFields["error"] = err
-			p.logger.Error(fmt.Sprintf("permanent error, not retrying %s", operationName), mapsToSlice(logFields)...)
+			p.logger.Info(fmt.Sprintf("permanent error, not retrying %s", operationName), mapsToSlice(logFields)...)
 			return fmt.Errorf("permanent error in %s: %w", operationName, err)
 		}
 
