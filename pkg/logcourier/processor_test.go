@@ -165,7 +165,7 @@ var _ = Describe("Processor", func() {
 
 			BeforeEach(func() {
 				// Configure viper for all config keys
-				viper.Reset()
+				logcourier.ConfigSpec.Reset()
 				for key, spec := range logcourier.ConfigSpec {
 					viper.SetDefault(key, spec.DefaultValue)
 					if spec.EnvVar != "" {
