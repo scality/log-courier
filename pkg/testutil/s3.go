@@ -86,14 +86,23 @@ func (h *S3TestHelper) DeleteBucket(ctx context.Context, bucketName string) erro
 		return fmt.Errorf("failed to list objects: %w", err)
 	}
 
-	// Delete objects
-	for _, obj := range listOutput.Contents {
-		_, delErr := h.client.DeleteObject(ctx, &awss3.DeleteObjectInput{
+	// Delete objects in batch
+	if len(listOutput.Contents) > 0 {
+		objectsToDelete := make([]types.ObjectIdentifier, len(listOutput.Contents))
+		for i, obj := range listOutput.Contents {
+			objectsToDelete[i] = types.ObjectIdentifier{
+				Key: obj.Key,
+			}
+		}
+
+		_, err = h.client.DeleteObjects(ctx, &awss3.DeleteObjectsInput{
 			Bucket: aws.String(bucketName),
-			Key:    obj.Key,
+			Delete: &types.Delete{
+				Objects: objectsToDelete,
+			},
 		})
-		if delErr != nil {
-			return fmt.Errorf("failed to delete object %s: %w", *obj.Key, delErr)
+		if err != nil {
+			return fmt.Errorf("failed to delete objects: %w", err)
 		}
 	}
 
