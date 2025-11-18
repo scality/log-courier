@@ -8,9 +8,15 @@ import "github.com/scality/log-courier/pkg/util"
 var ConfigSpec = util.ConfigSpec{
 	// ClickHouse connection
 	"clickhouse.url": util.ConfigVarSpec{
-		Help:         "ClickHouse connection URL",
+		Help:         "ClickHouse connection URL(s) - single host or comma-separated list (e.g., 'host1:9000,host2:9000')",
 		DefaultValue: "localhost:9002",
 		EnvVar:       "LOG_COURIER_CLICKHOUSE_URL",
+		ParseFunc: func(rawValue any) (any, error) {
+			if str, ok := rawValue.(string); ok {
+				return util.ParseCommaSeparatedHosts(str), nil
+			}
+			return rawValue, nil
+		},
 	},
 	"clickhouse.username": util.ConfigVarSpec{
 		Help:         "ClickHouse username",

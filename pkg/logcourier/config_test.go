@@ -85,6 +85,44 @@ var _ = Describe("Configuration", Ordered, func() {
 			logLevel := logcourier.ConfigSpec.GetString("log-level")
 			Expect(logLevel).To(Equal("debug"))
 		})
+
+		It("should parse comma-separated clickhouse URLs", func() {
+			Expect(os.Setenv("LOG_COURIER_CLICKHOUSE_URL", "host1:9000,host2:9000,host3:9000")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CLICKHOUSE_URL") }()
+
+			logcourier.ConfigSpec.Reset()
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			hosts := logcourier.ConfigSpec.GetStringSlice("clickhouse.url")
+			Expect(hosts).To(HaveLen(3))
+			Expect(hosts).To(ConsistOf("host1:9000", "host2:9000", "host3:9000"))
+		})
+
+		It("should handle single URL as array", func() {
+			Expect(os.Setenv("LOG_COURIER_CLICKHOUSE_URL", "localhost:9002")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CLICKHOUSE_URL") }()
+
+			logcourier.ConfigSpec.Reset()
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			hosts := logcourier.ConfigSpec.GetStringSlice("clickhouse.url")
+			Expect(hosts).To(HaveLen(1))
+			Expect(hosts[0]).To(Equal("localhost:9002"))
+		})
+
+		It("should trim whitespace from host addresses", func() {
+			Expect(os.Setenv("LOG_COURIER_CLICKHOUSE_URL", "host1:9000 , host2:9000 , host3:9000")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CLICKHOUSE_URL") }()
+
+			logcourier.ConfigSpec.Reset()
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			hosts := logcourier.ConfigSpec.GetStringSlice("clickhouse.url")
+			Expect(hosts).To(ConsistOf("host1:9000", "host2:9000", "host3:9000"))
+		})
 	})
 
 	Describe("Consumer Configuration", func() {

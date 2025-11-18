@@ -15,8 +15,10 @@ type Client struct {
 }
 
 // Config holds ClickHouse connection configuration
+//
+//nolint:govet // fieldalignment: logical field grouping preferred over minor memory optimization
 type Config struct {
-	URL      string
+	Hosts    []string
 	Username string
 	Password string
 	Timeout  time.Duration
@@ -24,8 +26,12 @@ type Config struct {
 
 // NewClient creates a new ClickHouse client
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
+	if len(cfg.Hosts) == 0 {
+		return nil, fmt.Errorf("at least one host must be provided")
+	}
+
 	options := &clickhouse.Options{
-		Addr: []string{cfg.URL},
+		Addr: cfg.Hosts,
 		Auth: clickhouse.Auth{
 			Database: DatabaseName,
 			Username: cfg.Username,
