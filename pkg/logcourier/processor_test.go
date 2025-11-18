@@ -256,14 +256,12 @@ var _ = Describe("Processor", func() {
 					Expect(objects).NotTo(BeEmpty(), "Expected at least one log object in S3")
 
 					// Verify object content
-					if len(objects) > 0 {
-						content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
-						Expect(objErr).NotTo(HaveOccurred())
-						Expect(content).NotTo(BeEmpty())
+					content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
+					Expect(objErr).NotTo(HaveOccurred())
+					Expect(content).NotTo(BeEmpty())
 
-						contentStr := string(content)
-						Expect(strings.Count(contentStr, "\n")).To(BeNumerically(">=", 6), "Expected at least 6 log lines")
-					}
+					contentStr := string(content)
+					Expect(strings.Count(contentStr, "\n")).To(BeNumerically(">=", 6), "Expected at least 6 log lines")
 
 					// Verify offset was committed
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
@@ -333,12 +331,10 @@ var _ = Describe("Processor", func() {
 					Expect(objects).To(HaveLen(1), "Expected time threshold to trigger batch processing despite low count")
 
 					// Verify content
-					if len(objects) > 0 {
-						content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
-						Expect(objErr).NotTo(HaveOccurred())
-						contentStr := string(content)
-						Expect(strings.Count(contentStr, "\n")).To(Equal(5), "Expected 5 log lines with newlines")
-					}
+					content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
+					Expect(objErr).NotTo(HaveOccurred())
+					contentStr := string(content)
+					Expect(strings.Count(contentStr, "\n")).To(Equal(5), "Expected 5 log lines with newlines")
 
 					// Verify offset was committed
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
