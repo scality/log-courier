@@ -3,6 +3,8 @@ BINDIR = ./bin
 PKGDIR = ./pkg
 LOG_COURIER_CMDDIR = $(CMDDIR)/log-courier
 LOG_COURIER_BIN = $(BINDIR)/log-courier
+ENSURE_SERVICE_USER_CMDDIR = $(CMDDIR)/ensureServiceUser
+ENSURE_SERVICE_USER_BIN = $(BINDIR)/ensureServiceUser
 COVER_COMMONFLAGS = -coverpkg "./..."
 COVDATA_DIR = $(PWD)/covdatafiles
 
@@ -11,6 +13,7 @@ COVDATA_DIR = $(PWD)/covdatafiles
 all:
 	mkdir -p $(BINDIR)
 	CGO_ENABLED=0 go build $(COVER_BUILDFLAGS) -o $(LOG_COURIER_BIN) $(LOG_COURIER_CMDDIR)/.
+	CGO_ENABLED=0 go build -o $(ENSURE_SERVICE_USER_BIN) $(ENSURE_SERVICE_USER_CMDDIR)/.
 
 clean:
 	rm -rf $(BINDIR)
