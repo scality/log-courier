@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/viper"
-
 	"github.com/scality/log-courier/pkg/clickhouse"
 	"github.com/scality/log-courier/pkg/logcourier"
 )
@@ -33,15 +31,13 @@ type ClickHouseTestHelper struct {
 
 // NewClickHouseTestHelper creates a new test helper with a unique database
 func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error) {
-	for key, spec := range logcourier.ConfigSpec {
-		viper.SetDefault(key, spec.DefaultValue)
-		if spec.EnvVar != "" {
-			_ = viper.BindEnv(key, spec.EnvVar)
-		}
+	err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg := clickhouse.Config{
-		URL:      logcourier.ConfigSpec.GetString("clickhouse.url"),
+		Hosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 		Username: logcourier.ConfigSpec.GetString("clickhouse.username"),
 		Password: logcourier.ConfigSpec.GetString("clickhouse.password"),
 		Timeout:  time.Duration(logcourier.ConfigSpec.GetInt("clickhouse.timeout-seconds")) * time.Second,

@@ -13,8 +13,9 @@ type ConfigSpec map[string]ConfigVarSpec
 
 // ConfigVarSpec describes a configuration item in a ConfigSpec
 type ConfigVarSpec struct {
-	Help         string
+	ParseFunc    func(any) (any, error)
 	DefaultValue interface{}
+	Help         string
 	EnvVar       string
 }
 
@@ -43,6 +44,14 @@ func (configSpec *ConfigSpec) LoadConfiguration(configPath string,
 		viper.SetDefault(configVarName, configVarSpec.DefaultValue)
 		if configVarSpec.EnvVar != "" {
 			_ = viper.BindEnv(configVarName, configVarSpec.EnvVar)
+		}
+		if configVarSpec.ParseFunc != nil {
+			rawValue := viper.Get(configVarName)
+			parsedValue, err := configVarSpec.ParseFunc(rawValue)
+			if err != nil {
+				return fmt.Errorf("failed to parse config %s: %w", configVarName, err)
+			}
+			viper.Set(configVarName, parsedValue)
 		}
 	}
 	return nil
@@ -77,6 +86,11 @@ func (configSpec *ConfigSpec) GetString(varName string) string {
 // GetInt returns a single running configuration value of type int
 func (configSpec *ConfigSpec) GetInt(varName string) int {
 	return viper.GetInt(varName)
+}
+
+// GetStringSlice returns a running configuration value of type []string
+func (configSpec *ConfigSpec) GetStringSlice(varName string) []string {
+	return viper.GetStringSlice(varName)
 }
 
 // Reset resets the configuration values (only for testing)
