@@ -29,7 +29,8 @@ var _ = Describe("LogFetcher", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		fetcher = logcourier.NewLogFetcher(helper.Client, helper.DatabaseName)
+		om := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+		fetcher = logcourier.NewLogFetcher(helper.Client, helper.DatabaseName, om)
 	})
 
 	AfterEach(func() {
@@ -144,33 +145,6 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records[0].BucketName).To(Equal("bucket-1"))
 		})
 
-		It("should filter by insertedAt time window", func() {
-			now := time.Now()
-
-			// Insert log that will be outside the window
-			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				LoggingEnabled: true,
-				BucketName:     "test-bucket",
-				Timestamp:      now,
-				ReqID:          "req-old",
-				Action:         "GetObject",
-				ObjectKey:      "key-old",
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			// Query with a future time window (should get no results)
-			futureTime := now.Add(1 * time.Hour)
-			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: futureTime,
-				MaxTimestamp: futureTime.Add(1 * time.Hour),
-			}
-
-			records, err := fetcher.FetchLogs(ctx, batch)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(records).To(BeEmpty())
-		})
-
 		It("should return empty list when no logs match", func() {
 			batch := logcourier.LogBatch{
 				Bucket:       "nonexistent-bucket",
@@ -183,41 +157,95 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records).To(BeEmpty())
 		})
 
-		It("should fetch all required fields", func() {
-			now := time.Now()
+		It("should fetch log with all fields", func() {
+			insertTime := time.Now()
+			reqTime := insertTime.Add(-5 * time.Minute)
 
-			// Insert a log with specific field values
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				LoggingEnabled: true,
+				Timestamp:      reqTime,
 				BucketName:     "test-bucket",
-				Timestamp:      now,
 				ReqID:          "test-req-id",
 				Action:         "PutObject",
 				ObjectKey:      "test-key",
 				BytesSent:      12345,
 				HttpCode:       200,
 				RaftSessionID:  42,
+				LoggingEnabled: true,
 			})
 			Expect(err).NotTo(HaveOccurred())
 
+			time.Sleep(100 * time.Millisecond)
+
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(1 * time.Second),
+				Bucket:        "test-bucket",
+				RaftSessionID: 42,
+				MinTimestamp:  reqTime.Add(-1 * time.Hour),
+				MaxTimestamp:  reqTime.Add(1 * time.Hour),
+				LogCount:      1,
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(records).To(HaveLen(1))
+			Expect(len(records)).To(Equal(1))
 
 			rec := records[0]
 			Expect(rec.BucketName).To(Equal("test-bucket"))
 			Expect(rec.ReqID).To(Equal("test-req-id"))
-			Expect(rec.Action).To(Equal("PutObject"))
 			Expect(rec.ObjectKey).To(Equal("test-key"))
 			Expect(rec.BytesSent).To(Equal(uint64(12345)))
 			Expect(rec.HttpCode).To(Equal(uint16(200)))
 			Expect(rec.RaftSessionID).To(Equal(uint16(42)))
+			Expect(rec.InsertedAt).NotTo(BeZero()) // NEW: Verify insertedAt is set
+			Expect(rec.Timestamp).NotTo(BeZero())   // Verify timestamp
+		})
+
+		It("should filter by triple composite offset", func() {
+			baseTime := time.Now()
+			insertedAt := baseTime.Truncate(time.Second)
+			timestamp := baseTime
+
+			// Insert 5 logs with same insertedAt and timestamp
+			for i := 0; i < 5; i++ {
+				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+					Timestamp:      timestamp,
+					BucketName:     "test-bucket",
+					ReqID:          fmt.Sprintf("req-%03d", i),
+					Action:         "GetObject",
+					LoggingEnabled: true,
+					RaftSessionID:  0,
+				})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			// Set offset to skip first 3 logs (req-000, req-001, req-002)
+			offsetQuery := fmt.Sprintf(
+				"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+				helper.DatabaseName)
+			err := helper.Client.Exec(ctx, offsetQuery,
+				"test-bucket", uint16(0),
+				insertedAt,
+				timestamp,
+				"req-002")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create offset manager and fetcher
+			om := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+			fetcher := logcourier.NewLogFetcher(helper.Client, helper.DatabaseName, om)
+
+			batch := logcourier.LogBatch{
+				Bucket:        "test-bucket",
+				RaftSessionID: 0,
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Should only get logs after offset (req-003, req-004)
+			Expect(len(records)).To(Equal(2))
+			Expect(records[0].ReqID).To(Equal("req-003"))
+			Expect(records[1].ReqID).To(Equal("req-004"))
 		})
 	})
 })

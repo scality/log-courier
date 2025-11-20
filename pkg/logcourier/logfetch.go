@@ -9,21 +9,46 @@ import (
 
 // LogFetcher fetches logs from ClickHouse
 type LogFetcher struct {
-	client   *clickhouse.Client
-	database string
+	client        *clickhouse.Client
+	database      string
+	offsetManager OffsetManagerInterface
 }
 
 // NewLogFetcher creates a new log fetcher
-func NewLogFetcher(client *clickhouse.Client, database string) *LogFetcher {
+func NewLogFetcher(client *clickhouse.Client, database string, offsetManager OffsetManagerInterface) *LogFetcher {
 	return &LogFetcher{
-		client:   client,
-		database: database,
+		client:        client,
+		database:      database,
+		offsetManager: offsetManager,
 	}
 }
 
-// FetchLogs fetches logs for a log batch
-// Returns logs sorted by timestamp (ascending) for proper chronological ordering
+// FetchLogs fetches logs for a batch using triple composite offset filtering
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
+	// Get current offset
+	offset, err := lf.offsetManager.GetOffset(ctx, batch.Bucket, batch.RaftSessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get offset: %w", err)
+	}
+
+	// Build WHERE clause with triple composite offset
+	whereClause := "WHERE bucketName = ? AND raftSessionID = ?"
+	args := []interface{}{batch.Bucket, batch.RaftSessionID}
+
+	// Add triple composite offset filter if offset exists
+	if !offset.InsertedAt.IsZero() {
+		whereClause += ` AND (
+			insertedAt > ?
+			OR (insertedAt = ? AND timestamp > ?)
+			OR (insertedAt = ? AND timestamp = ? AND req_id > ?)
+		)`
+		args = append(args,
+			offset.InsertedAt,
+			offset.InsertedAt, offset.Timestamp,
+			offset.InsertedAt, offset.Timestamp, offset.ReqID,
+		)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			bucketOwner,
@@ -56,31 +81,27 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			raftSessionID,
 			timestamp
 		FROM %s.%s
-		WHERE bucketName = ?
-		  AND insertedAt >= ?
-		  AND insertedAt <= ?
-		ORDER BY timestamp ASC
-	`, lf.database, clickhouse.TableAccessLogs)
+		%s
+		ORDER BY insertedAt ASC, timestamp ASC, req_id ASC
+	`, lf.database, clickhouse.TableAccessLogs, whereClause)
 
-	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)
+	rows, err := lf.client.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch logs: %w", err)
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer rows.Close()
 
 	var records []LogRecord
 	for rows.Next() {
 		var rec LogRecord
 		if err := rows.ScanStruct(&rec); err != nil {
-			return nil, fmt.Errorf("failed to scan log record: %w", err)
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		records = append(records, rec)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating log records: %w", err)
+		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
 	return records, nil
