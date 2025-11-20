@@ -3,24 +3,11 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
 	"github.com/scality/log-courier/pkg/logcourier"
-)
-
-const (
-	// DefaultMaterializedViewPollInterval is how often to check if materialized view has processed data
-	DefaultMaterializedViewPollInterval = 10 * time.Millisecond
-
-	// DefaultMaterializedViewTimeout is how long to wait for materialized view before timing out
-	DefaultMaterializedViewTimeout = 5 * time.Second
-
-	// DefaultOffsetPollInterval is how often to check for offset changes when waiting for ClickHouse eventual consistency
-	DefaultOffsetPollInterval = 10 * time.Millisecond
-
-	// DefaultOffsetTimeout is the maximum time to wait for an offset to appear in ClickHouse
-	DefaultOffsetTimeout = 5 * time.Second
 )
 
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
@@ -102,7 +89,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			turnAroundTime         Float32,
 
 			req_id                 String,
-			raftSessionId          UInt16,
+			raftSessionID          UInt16,
 
 			signatureVersion       LowCardinality(String),
 			cipherSuite            LowCardinality(String),
@@ -129,7 +116,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
-		ORDER BY (raftSessionId, bucketName, insertedAt, req_id)
+		ORDER BY (raftSessionID, bucketName, insertedAt, req_id)
 	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
@@ -153,11 +140,11 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			bucketName            String,
-			raftSessionId         UInt16,
+			raftSessionID         UInt16,
 			last_processed_ts     DateTime
 		)
 		ENGINE = MergeTree()
-		ORDER BY (bucketName, raftSessionId)
+		ORDER BY (bucketName, raftSessionID)
 	`, h.DatabaseName, clickhouse.TableOffsets)
 	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
 		return fmt.Errorf("failed to create offsets table: %w", err)
@@ -193,7 +180,7 @@ type TestLogRecord struct {
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionId,
+		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
 		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
 		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
 		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
@@ -255,3 +242,93 @@ func (h *ClickHouseTestHelper) Close() error {
 	return nil
 }
 
+// InsertTestLogWithTargetBucket inserts a test log record with logging target bucket/prefix
+func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context, log TestLogRecord, targetBucket, targetPrefix string) error {
+	query := fmt.Sprintf(`
+		INSERT INTO %s.%s
+		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
+		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
+		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
+		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
+		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
+		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
+		 loggingTargetBucket, loggingTargetPrefix)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+
+	return h.Client.Exec(ctx, query,
+		log.Timestamp,
+		log.BucketName,
+		log.ReqID,
+		log.Action,
+		log.LoggingEnabled,
+		log.RaftSessionID,
+		log.HttpCode,
+		log.BytesSent,
+		// Provide defaults for other required fields
+		log.Timestamp,     // startTime
+		"",                // hostname
+		"",                // accountName
+		"",                // accountDisplayName
+		"",                // bucketOwner
+		"",                // userName
+		"",                // requester
+		"",                // httpMethod
+		"",                // httpURL
+		"",                // errorCode
+		log.ObjectKey,     // objectKey
+		"",                // versionId
+		uint64(0),         // bytesDeleted
+		uint64(0),         // bytesReceived
+		uint64(0),         // bodyLength
+		uint64(0),         // contentLength
+		"",                // clientIP
+		"",                // referer
+		"",                // userAgent
+		"",                // hostHeader
+		float32(0),        // elapsed_ms
+		float32(0),        // turnAroundTime
+		"",                // signatureVersion
+		"",                // cipherSuite
+		"",                // authenticationType
+		"",                // tlsVersion
+		"",                // aclRequired
+		"",                // logFormatVersion
+		targetBucket,      // loggingTargetBucket
+		targetPrefix,      // loggingTargetPrefix
+	)
+}
+
+// FailingOffsetManager wraps an OffsetManager and injects failures for testing
+type FailingOffsetManager struct {
+	manager        logcourier.OffsetManagerInterface
+	commitCount    atomic.Int64
+	failUntilCount int64
+}
+
+// NewFailingOffsetManager creates a new failing offset manager wrapper
+func NewFailingOffsetManager(manager logcourier.OffsetManagerInterface, failUntilCount int64) *FailingOffsetManager {
+	return &FailingOffsetManager{
+		manager:        manager,
+		failUntilCount: failUntilCount,
+	}
+}
+
+// CommitOffset wraps the underlying manager's CommitOffset and fails until failUntilCount
+func (f *FailingOffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error {
+	count := f.commitCount.Add(1)
+	if count <= f.failUntilCount {
+		return fmt.Errorf("simulated offset commit failure (attempt %d)", count)
+	}
+	return f.manager.CommitOffset(ctx, bucket, raftSessionID, timestamp)
+}
+
+// GetOffset delegates to the underlying manager
+func (f *FailingOffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error) {
+	return f.manager.GetOffset(ctx, bucket, raftSessionID)
+}
+
+// GetCommitCount returns the total number of commit attempts
+func (f *FailingOffsetManager) GetCommitCount() int64 {
+	return f.commitCount.Load()
+}

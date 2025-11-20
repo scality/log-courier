@@ -72,7 +72,7 @@ var _ = Describe("BatchFinder", func() {
 			oldTime := time.Now().Add(-2 * time.Hour)
 			query := fmt.Sprintf(`
 				INSERT INTO %s.access_logs
-				(insertedAt, bucketName, timestamp, req_id, action, loggingEnabled, raftSessionId, httpURL)
+				(insertedAt, bucketName, timestamp, req_id, action, loggingEnabled, raftSessionID, httpURL)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName)
 			err := helper.Client.Exec(ctx, query,
@@ -82,7 +82,7 @@ var _ = Describe("BatchFinder", func() {
 				"req-old",         // req_id
 				"GetObject",       // action
 				true,              // loggingEnabled
-				uint16(0),         // raftSessionId
+				uint16(0),         // raftSessionID
 				"/test-bucket/key", // httpURL
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -127,7 +127,7 @@ var _ = Describe("BatchFinder", func() {
 
 			// Commit offset at current time
 			offsetTime := time.Now()
-			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionId, last_processed_ts) VALUES (?, ?, ?)", helper.DatabaseName)
+			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, last_processed_ts) VALUES (?, ?, ?)", helper.DatabaseName)
 			err := helper.Client.Exec(ctx, offsetQuery,
 				"test-bucket", uint16(0), offsetTime)
 			Expect(err).NotTo(HaveOccurred())

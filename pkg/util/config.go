@@ -93,6 +93,11 @@ func (configSpec *ConfigSpec) GetStringSlice(varName string) []string {
 	return viper.GetStringSlice(varName)
 }
 
+// GetFloat64 returns a single running configuration value of type float64
+func (configSpec *ConfigSpec) GetFloat64(varName string) float64 {
+	return viper.GetFloat64(varName)
+}
+
 // Reset resets the configuration values (only for testing)
 func (configSpec *ConfigSpec) Reset() {
 	viper.Reset()

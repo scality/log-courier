@@ -45,6 +45,43 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 900,
 		EnvVar:       "LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS",
 	},
+	"consumer.discovery-interval-seconds": util.ConfigVarSpec{
+		Help:         "Interval in seconds between work discovery runs",
+		DefaultValue: 60,
+		EnvVar:       "LOG_COURIER_CONSUMER_DISCOVERY_INTERVAL_SECONDS",
+	},
+	"consumer.discovery-interval-jitter-factor": util.ConfigVarSpec{
+		Help:         "Jitter factor for discovery interval (0.0 to 1.0, where 0 is no jitter and 1.0 is up to 100% jitter)",
+		DefaultValue: 0.1,
+		EnvVar:       "LOG_COURIER_CONSUMER_DISCOVERY_INTERVAL_JITTER_FACTOR",
+	},
+	"consumer.num-workers": util.ConfigVarSpec{
+		Help:         "Number of parallel workers for batch processing",
+		DefaultValue: 10,
+		EnvVar:       "LOG_COURIER_CONSUMER_NUM_WORKERS",
+	},
+
+	// Retry configuration
+	"retry.max-retries": util.ConfigVarSpec{
+		Help:         "Maximum number of retry attempts for failed batch processing",
+		DefaultValue: 5,
+		EnvVar:       "LOG_COURIER_RETRY_MAX_RETRIES",
+	},
+	"retry.initial-backoff-seconds": util.ConfigVarSpec{
+		Help:         "Initial backoff duration in seconds for retry attempts",
+		DefaultValue: 1,
+		EnvVar:       "LOG_COURIER_RETRY_INITIAL_BACKOFF_SECONDS",
+	},
+	"retry.max-backoff-seconds": util.ConfigVarSpec{
+		Help:         "Maximum backoff duration in seconds for retry attempts",
+		DefaultValue: 60,
+		EnvVar:       "LOG_COURIER_RETRY_MAX_BACKOFF_SECONDS",
+	},
+	"retry.backoff-jitter-factor": util.ConfigVarSpec{
+		Help:         "Jitter factor for backoff (0.0 to 1.0, where 0 is no jitter and 1.0 is up to 100% jitter)",
+		DefaultValue: 0.3,
+		EnvVar:       "LOG_COURIER_RETRY_BACKOFF_JITTER_FACTOR",
+	},
 
 	// S3 configuration
 	"s3.endpoint": util.ConfigVarSpec{
@@ -78,5 +115,10 @@ var ConfigSpec = util.ConfigSpec{
 		Help:         "Log level (error|warn|info|debug)",
 		DefaultValue: "info",
 		EnvVar:       "LOG_COURIER_LOG_LEVEL",
+	},
+	"shutdown-timeout-seconds": util.ConfigVarSpec{
+		Help:         "Maximum time to wait for graceful shutdown in seconds",
+		DefaultValue: 30,
+		EnvVar:       "LOG_COURIER_SHUTDOWN_TIMEOUT_SECONDS",
 	},
 }

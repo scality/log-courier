@@ -1,0 +1,519 @@
+package logcourier
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"math/rand/v2"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/scality/log-courier/pkg/clickhouse"
+	"github.com/scality/log-courier/pkg/s3"
+)
+
+const (
+	// backoffMultiplier is the exponential backoff multiplier for retry attempts
+	backoffMultiplier = 2.0
+)
+
+// Processor is the main log courier processor
+type Processor struct {
+	// Components
+	clickhouseClient *clickhouse.Client
+	s3Uploader       s3.UploaderInterface
+	workDiscovery    *BatchFinder
+	logFetcher       *LogFetcher
+	logBuilder       *LogObjectBuilder
+	offsetManager    OffsetManagerInterface
+	logger           *slog.Logger
+
+	// Configuration
+	discoveryInterval             time.Duration
+	discoveryIntervalJitterFactor float64
+	numWorkers                    int
+	maxRetries                    int
+	initialBackoff                time.Duration
+	maxBackoff                    time.Duration
+	backoffJitterFactor           float64
+}
+
+// Config holds processor configuration
+//nolint:govet // Field alignment is less important than readability for config structs
+type Config struct {
+	Logger *slog.Logger
+
+	ClickHouseTimeout time.Duration
+	// DiscoveryInterval is the interval between work discovery runs
+	DiscoveryInterval time.Duration
+	// DiscoveryIntervalJitterFactor is the jitter factor for discovery interval (0.0 to 1.0)
+	DiscoveryIntervalJitterFactor float64
+
+	// CountThreshold is the minimum number of unprocessed logs required to trigger batch processing
+	CountThreshold int
+	// TimeThresholdSec is the age in seconds after which logs should be processed regardless of count
+	TimeThresholdSec int
+	// NumWorkers is the number of parallel workers for batch processing
+	NumWorkers int
+
+	// MaxRetries is the maximum number of retry attempts for failed operations
+	MaxRetries int
+	// InitialBackoff is the initial backoff duration for retry attempts
+	InitialBackoff time.Duration
+	// MaxBackoff is the maximum backoff duration for retry attempts
+	MaxBackoff time.Duration
+	// BackoffJitterFactor is the jitter factor for backoff (0.0 to 1.0)
+	BackoffJitterFactor float64
+
+	ClickHouseHosts    []string
+	ClickHouseUsername string
+	ClickHousePassword string
+	ClickHouseDatabase string
+	S3Endpoint         string
+	S3AccessKeyID      string
+	S3SecretAccessKey  string
+
+	// S3Uploader is an optional S3 uploader for testing (if nil, one will be created)
+	S3Uploader s3.UploaderInterface
+	// OffsetManager is an optional offset manager for testing (if nil, one will be created)
+	OffsetManager OffsetManagerInterface
+}
+
+// NewProcessor creates a new processor
+func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
+	// Default to standard database name if not specified
+	database := cfg.ClickHouseDatabase
+	if database == "" {
+		database = clickhouse.DatabaseName
+	}
+
+	// Create ClickHouse client
+	chClient, err := clickhouse.NewClient(ctx, clickhouse.Config{
+		Hosts:    cfg.ClickHouseHosts,
+		Username: cfg.ClickHouseUsername,
+		Password: cfg.ClickHousePassword,
+		Timeout:  cfg.ClickHouseTimeout,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ClickHouse client: %w", err)
+	}
+
+	// Use provided S3 uploader or create one
+	var s3Uploader s3.UploaderInterface
+	if cfg.S3Uploader != nil {
+		s3Uploader = cfg.S3Uploader
+	} else {
+		// Create S3 client
+		s3Client, err := s3.NewClient(ctx, s3.Config{
+			Endpoint:        cfg.S3Endpoint,
+			AccessKeyID:     cfg.S3AccessKeyID,
+			SecretAccessKey: cfg.S3SecretAccessKey,
+		})
+		if err != nil {
+			_ = chClient.Close()
+			return nil, fmt.Errorf("failed to create S3 client: %w", err)
+		}
+		s3Uploader = s3.NewUploader(s3Client)
+	}
+
+	// Use provided offset manager or create one
+	var offsetManager OffsetManagerInterface
+	if cfg.OffsetManager != nil {
+		offsetManager = cfg.OffsetManager
+	} else {
+		offsetManager = NewOffsetManager(chClient, database)
+	}
+
+	return &Processor{
+		clickhouseClient:              chClient,
+		s3Uploader:                    s3Uploader,
+		workDiscovery:                 NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
+		logFetcher:                    NewLogFetcher(chClient, database),
+		logBuilder:                    NewLogObjectBuilder(),
+		offsetManager:                 offsetManager,
+		discoveryInterval:             cfg.DiscoveryInterval,
+		discoveryIntervalJitterFactor: cfg.DiscoveryIntervalJitterFactor,
+		numWorkers:                    cfg.NumWorkers,
+		maxRetries:                    cfg.MaxRetries,
+		initialBackoff:                cfg.InitialBackoff,
+		maxBackoff:                    cfg.MaxBackoff,
+		backoffJitterFactor:           cfg.BackoffJitterFactor,
+		logger:                        cfg.Logger,
+	}, nil
+}
+
+// Close closes the processor and releases resources
+func (p *Processor) Close() error {
+	if p.clickhouseClient != nil {
+		return p.clickhouseClient.Close()
+	}
+	return nil
+}
+
+// Run runs the processor main loop
+//
+// The processor runs cycles indefinitely. If errors occur during a cycle,
+// they are logged and the processor waits for the next discovery interval
+// before retrying (eventual delivery).
+//
+func (p *Processor) Run(ctx context.Context) error {
+	p.logger.Info("processor starting")
+
+	if err := p.runCycle(ctx); err != nil {
+		p.logger.Error("cycle failed", "error", err)
+	}
+
+	for {
+		// Calculate next interval with jitter
+		nextInterval := p.discoveryInterval
+		if p.discoveryIntervalJitterFactor > 0 {
+			jitterRange := float64(p.discoveryInterval) * p.discoveryIntervalJitterFactor * 2.0
+			jitterOffset := float64(p.discoveryInterval) * (1.0 - p.discoveryIntervalJitterFactor)
+			//nolint:gosec // Using non-cryptographic random for interval jitter is acceptable
+			nextInterval = time.Duration(jitterOffset + rand.Float64()*jitterRange)
+		}
+
+		p.logger.Debug("scheduling next discovery cycle", "intervalSeconds", nextInterval.Seconds())
+
+		select {
+		case <-ctx.Done():
+			p.logger.Info("processor stopping")
+			return ctx.Err()
+
+		case <-time.After(nextInterval):
+			if err := p.runCycle(ctx); err != nil {
+				p.logger.Error("cycle failed", "error", err)
+			}
+		}
+	}
+}
+
+// runCycle executes a single discovery and processing cycle
+func (p *Processor) runCycle(ctx context.Context) error {
+	if err := p.runBatchFinder(ctx); err != nil {
+		return fmt.Errorf("batch finder failed: %w", err)
+	}
+
+	return nil
+}
+
+// runBatchFinder executes batch finder and processes log batches in parallel
+func (p *Processor) runBatchFinder(ctx context.Context) error {
+	// Phase 1: Work Discovery
+	p.logger.Debug("starting batch finder")
+
+	batches, err := p.workDiscovery.FindBatches(ctx)
+	if err != nil {
+		return fmt.Errorf("batch finder failed: %w", err)
+	}
+
+	p.logger.Info("batch finder completed", "nBatches", len(batches))
+
+	if len(batches) == 0 {
+		return nil
+	}
+
+	// Phase 2: Process log batches in parallel
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var successCount int
+	var failedBatches []string
+
+	sem := make(chan struct{}, p.numWorkers)
+
+	for _, batch := range batches {
+		batch := batch
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+
+			if err := p.processLogBatchWithRetry(ctx, batch); err != nil {
+				mu.Lock()
+				failedBatches = append(failedBatches, batch.Bucket)
+				mu.Unlock()
+
+				p.logger.Error("batch processing failed",
+					"bucketName", batch.Bucket,
+					"logCount", batch.LogCount,
+					"error", err)
+			} else {
+				mu.Lock()
+				successCount++
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if len(failedBatches) > 0 {
+		p.logger.Warn("batch processing completed",
+			"totalBatches", len(batches),
+			"successful", successCount,
+			"failed", len(failedBatches),
+			"failedBuckets", failedBatches)
+	} else {
+		p.logger.Info("batch processing completed",
+			"totalBatches", len(batches),
+			"successful", successCount,
+			"failed", 0)
+	}
+
+	return nil
+}
+
+// ============================================================================
+// BATCH PROCESSING ERROR HANDLING
+// ============================================================================
+//
+// Two-phase processing:
+//   1. Upload: Fetch logs → build object → upload to S3
+//   2. Offset commit: Record max timestamp in ClickHouse
+//
+// Error handling:
+//   - Permanent errors (NoSuchBucket, InvalidAccessKeyId, AccessDenied): No retry
+//   - Transient errors: Retry with exponential backoff (up to maxRetries)
+//   - Offset commit: All errors are transient and retried
+//
+// At-least-once delivery:
+//   If offset commit fails after successful upload, logs are reprocessed
+//   on the next cycle, creating duplicate S3 objects.
+//
+// Processor continues indefinitely regardless of batch success or failure,
+// retrying on next discovery interval.
+// ============================================================================
+
+func (p *Processor) processLogBatchWithRetry(ctx context.Context, batch LogBatch) error {
+	_, maxInsertedAt, raftSessionID, err := p.uploadLogBatchWithRetry(ctx, batch)
+	if err != nil {
+		return err
+	}
+
+	return p.commitOffsetWithRetry(ctx, batch.Bucket, raftSessionID, maxInsertedAt)
+}
+
+// retryWithBackoff executes an operation with exponential backoff retry logic
+func (p *Processor) retryWithBackoff(
+	ctx context.Context,
+	operation func() error,
+	shouldRetry func(error) bool,
+	operationName string,
+	logFields map[string]any,
+) error {
+	// Create local copy to avoid mutating caller's map
+	fields := make(map[string]any)
+	for k, v := range logFields {
+		fields[k] = v
+	}
+
+	var lastErr error
+	backoff := p.initialBackoff
+
+	for attempt := 0; attempt <= p.maxRetries; attempt++ {
+		if attempt > 0 {
+			// Apply jitter to the backoff
+			actualBackoff := backoff
+			if p.backoffJitterFactor > 0 {
+				jitterRange := float64(backoff) * p.backoffJitterFactor * 2.0
+				jitterOffset := float64(backoff) * (1.0 - p.backoffJitterFactor)
+				//nolint:gosec // Using non-cryptographic random for backoff jitter is acceptable
+				actualBackoff = time.Duration(jitterOffset + rand.Float64()*jitterRange)
+			}
+
+			fields["attempt"] = attempt
+			fields["backoffSeconds"] = actualBackoff.Seconds()
+			p.logger.Info(fmt.Sprintf("retrying %s after backoff", operationName), mapsToSlice(fields)...)
+
+			select {
+			case <-time.After(actualBackoff):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+
+			backoff = time.Duration(float64(backoff) * backoffMultiplier)
+			if backoff > p.maxBackoff {
+				backoff = p.maxBackoff
+			}
+
+			p.logger.Debug(fmt.Sprintf("executing %s retry", operationName), mapsToSlice(fields)...)
+		}
+
+		err := operation()
+		if err == nil {
+			fields["attempt"] = attempt
+			p.logger.Info(fmt.Sprintf("%s succeeded", operationName), mapsToSlice(fields)...)
+			return nil
+		}
+
+		if shouldRetry != nil && !shouldRetry(err) {
+			fields["error"] = err
+			p.logger.Info(fmt.Sprintf("permanent error, not retrying %s", operationName), mapsToSlice(fields)...)
+			return fmt.Errorf("permanent error in %s: %w", operationName, err)
+		}
+
+		lastErr = err
+
+		fields["attempt"] = attempt
+		fields["error"] = err
+		p.logger.Warn(fmt.Sprintf("transient error, will retry %s", operationName), mapsToSlice(fields)...)
+	}
+
+	return fmt.Errorf("max retries (%d) exceeded for %s: %w", p.maxRetries, operationName, lastErr)
+}
+
+// mapsToSlice converts a map to a slice of key-value pairs for slog
+func mapsToSlice(m map[string]any) []any {
+	result := make([]any, 0, len(m)*2)
+	for k, v := range m {
+		result = append(result, k, v)
+	}
+	return result
+}
+
+// uploadLogBatchWithRetry handles fetching, building, and uploading with retries
+// Returns the records and offset info needed for committing
+func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
+	var records []LogRecord
+	var maxInsertedAt time.Time
+	var raftSessionID uint16
+
+	err := p.retryWithBackoff(ctx, func() error {
+		var err error
+		records, maxInsertedAt, raftSessionID, err = p.uploadLogBatch(ctx, batch)
+		return err
+	}, func(err error) bool {
+		return !IsPermanentError(err)
+	}, "upload", map[string]any{"bucketName": batch.Bucket})
+
+	return records, maxInsertedAt, raftSessionID, err
+}
+
+// commitOffsetWithRetry handles committing the offset to ClickHouse with retries
+func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, maxInsertedAt time.Time) error {
+	return p.retryWithBackoff(ctx, func() error {
+		return p.offsetManager.CommitOffset(ctx, bucket, raftSessionID, maxInsertedAt)
+	}, nil, "offset commit", map[string]any{
+		"bucketName":    bucket,
+		"raftSessionID": raftSessionID,
+		"maxInsertedAt": maxInsertedAt,
+	})
+}
+
+// IsPermanentError determines if an error is permanent or transient
+//
+// Permanent errors are configuration or permission issues that won't be fixed by retrying:
+// - NoSuchBucket: Target bucket doesn't exist
+// - InvalidAccessKeyId: Wrong or invalid credentials
+// - AccessDenied: Valid credentials but insufficient permissions
+func IsPermanentError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// SDK v2 wraps errors in smithy OperationError, which doesn't properly
+	// implement error wrapping for specific types.
+	errStr := strings.ToLower(err.Error())
+	permanentPatterns := []string{
+		"nosuchbucket",       // Target bucket doesn't exist
+		"invalidaccesskeyid", // Wrong or invalid credentials
+		"accessdenied",       // Valid credentials but insufficient permissions
+	}
+
+	for _, pattern := range permanentPatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// uploadLogBatch handles the upload phase: fetch, build, and upload to S3
+// Returns the records and offset info needed for committing
+func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
+	p.logger.Info("processing log batch",
+		"bucketName", batch.Bucket,
+		"nLogs", batch.LogCount,
+		"minTimestamp", batch.MinTimestamp,
+		"maxTimestamp", batch.MaxTimestamp)
+
+	// 1. Fetch logs
+	records, err := p.logFetcher.FetchLogs(ctx, batch)
+	if err != nil {
+		return nil, time.Time{}, 0, fmt.Errorf("failed to fetch logs: %w", err)
+	}
+
+	if len(records) == 0 {
+		p.logger.Error("no logs fetched for batch but BatchFinder expected logs",
+			"bucketName", batch.Bucket,
+			"expectedLogCount", batch.LogCount,
+			"minTimestamp", batch.MinTimestamp,
+			"maxTimestamp", batch.MaxTimestamp)
+		return nil, time.Time{}, 0, fmt.Errorf("zero records fetched but BatchFinder expected %d logs for bucket %s",
+			batch.LogCount, batch.Bucket)
+	}
+
+	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
+
+	// 2. Build log object
+	logObj, err := p.logBuilder.Build(records)
+	if err != nil {
+		return nil, time.Time{}, 0, fmt.Errorf("failed to build log object: %w", err)
+	}
+
+	p.logger.Debug("built log object", "bucketName", batch.Bucket, "s3Key", logObj.Key, "sizeBytes", len(logObj.Content))
+
+	// 3. Upload to S3
+	// Configuration Handling: Use logging target bucket from the first record.
+	//
+	// If logging configuration (loggingTargetBucket) changes mid-batch,
+	// records with the new configuration will be uploaded using the old target bucket
+	// until the next batch is processed.
+	//
+	// This is an acceptable trade-off because:
+	// 1. Configuration changes are expected to be infrequent
+	// 2. The propagation delay (one batch cycle) is acceptable for config changes
+	destinationBucket := records[0].LoggingTargetBucket
+
+	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
+	if err != nil {
+		return nil, time.Time{}, 0, fmt.Errorf("failed to upload log object: %w", err)
+	}
+
+	p.logger.Info("uploaded log object",
+		"bucketName", batch.Bucket,
+		"destinationBucket", destinationBucket,
+		"s3Key", logObj.Key,
+		"sizeBytes", len(logObj.Content))
+
+	maxInsertedAt := GetMaxInsertedAt(records)
+	raftSessionID := records[0].RaftSessionID
+
+	return records, maxInsertedAt, raftSessionID, nil
+}
+
+// GetMaxInsertedAt returns the maximum insertedAt timestamp from log records
+func GetMaxInsertedAt(records []LogRecord) time.Time {
+	if len(records) == 0 {
+		return time.Time{}
+	}
+
+	maxTime := records[0].InsertedAt
+
+	for i := 1; i < len(records); i++ {
+		if records[i].InsertedAt.After(maxTime) {
+			maxTime = records[i].InsertedAt
+		}
+	}
+
+	return maxTime
+}
