@@ -42,11 +42,17 @@ RUN mkdir ${LOG_DIR} && \
     chown ${USER}:${USER} ${DATA_DIR} && \
     mkdir -p ${SUP_RUN_DIR} && \
     chown ${USER}:${USER} ${SUP_RUN_DIR} && \
-    chmod 777 ${SUP_RUN_DIR}
+    chmod 777 ${SUP_RUN_DIR} && \
+    mkdir -p ${HOME_DIR}/log-courier/bin && \
+    chown -R ${USER}:${USER} ${HOME_DIR}/log-courier
 
 COPY --from=builder-go \
     /usr/src/app/bin/log-courier \
     /usr/local/bin/.
+
+COPY --from=builder-go \
+    /usr/src/app/bin/ensureServiceUser \
+    ${HOME_DIR}/log-courier/bin/
 
 USER ${USER}
 WORKDIR ${HOME_DIR}/log-courier
