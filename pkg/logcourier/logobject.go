@@ -109,14 +109,14 @@ func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 		b.formatField(rec.ClientIP),           // 4. Remote IP
 		b.formatField(rec.Requester),          // 5. Requester
 		b.formatField(rec.ReqID),              // 6. Request ID
-		b.formatField(rec.Action),             // 7. Operation
+		b.formatField(rec.Operation),          // 7. Operation
 		b.formatField(rec.ObjectKey),          // 8. Key
-		b.formatQuotedField(rec.HttpURL),      // 9. Request-URI (quoted)
+		b.formatQuotedField(rec.RequestURI),   // 9. Request-URI (quoted)
 		b.formatUint16(rec.HttpCode),          // 10. HTTP Status
 		b.formatField(rec.ErrorCode),          // 11. Error Code
 		b.formatUint64(rec.BytesSent),         // 12. Bytes Sent
-		b.formatUint64(rec.ContentLength),     // 13. Object Size
-		b.formatFloat32(rec.ElapsedMs),        // 14. Total Time
+		b.formatUint64(rec.ObjectSize),        // 13. Object Size
+		b.formatFloat32(rec.TotalTime),        // 14. Total Time
 		b.formatFloat32(rec.TurnAroundTime),   // 15. Turn-Around Time
 		b.formatQuotedField(rec.Referer),      // 16. Referer (quoted)
 		b.formatQuotedField(rec.UserAgent),    // 17. User-Agent (quoted)
