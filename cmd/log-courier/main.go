@@ -127,6 +127,21 @@ func run() int {
 		}
 	}()
 
+	// Start metrics server
+	metricsServer, err := util.StartMetricsServerIfEnabled(
+		logcourier.ConfigSpec, "metrics-server", logger)
+	if err != nil {
+		logger.Error("failed to start metrics server", "error", err)
+		return 1
+	}
+	if metricsServer != nil {
+		defer func() {
+			if closeErr := metricsServer.Close(); closeErr != nil {
+				logger.Error("failed to close metrics server", "error", closeErr)
+			}
+		}()
+	}
+
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
