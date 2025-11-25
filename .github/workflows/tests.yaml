@@ -48,7 +48,7 @@ jobs:
       - name: Run GolangCI linter
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.6
+          version: v2.6.2
 
       - name: Run unit tests
         run: make test-coverage
