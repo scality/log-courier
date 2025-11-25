@@ -98,6 +98,21 @@ func (configSpec *ConfigSpec) GetFloat64(varName string) float64 {
 	return viper.GetFloat64(varName)
 }
 
+// GetBool returns a single running configuration value of type bool
+func (configSpec *ConfigSpec) GetBool(varName string) bool {
+	return viper.GetBool(varName)
+}
+
+// Set sets a configuration value
+func (configSpec *ConfigSpec) Set(varName string, value interface{}) {
+	viper.Set(varName, value)
+}
+
+// SetDefault sets a default value for a configuration variable
+func (configSpec *ConfigSpec) SetDefault(varName string, value interface{}) {
+	viper.SetDefault(varName, value)
+}
+
 // Reset resets the configuration values (only for testing)
 func (configSpec *ConfigSpec) Reset() {
 	viper.Reset()

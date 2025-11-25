@@ -80,9 +80,9 @@ var _ = Describe("S3 Uploader", func() {
 		ctx = context.Background()
 
 		logcourier.ConfigSpec.Reset()
-		viper.SetDefault("s3.endpoint", testEndpoint)
-		viper.SetDefault("s3.access-key-id", workbenchAccessKey)
-		viper.SetDefault("s3.secret-access-key", workbenchSecretKey)
+		logcourier.ConfigSpec.SetDefault("s3.endpoint", testEndpoint)
+		logcourier.ConfigSpec.SetDefault("s3.access-key-id", workbenchAccessKey)
+		logcourier.ConfigSpec.SetDefault("s3.secret-access-key", workbenchSecretKey)
 
 		_ = viper.BindEnv("s3.endpoint", "S3_ENDPOINT")
 		_ = viper.BindEnv("s3.access-key-id", "S3_ACCESS_KEY_ID")
