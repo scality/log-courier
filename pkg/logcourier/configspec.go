@@ -110,6 +110,23 @@ var ConfigSpec = util.ConfigSpec{
 		EnvVar:       "S3_MAX_BACKOFF_DELAY_SECONDS",
 	},
 
+	// Metrics server
+	"metrics-server.enabled": util.ConfigVarSpec{
+		Help:         "Enable Prometheus metrics server",
+		DefaultValue: true,
+		EnvVar:       "LOG_COURIER_METRICS_SERVER_ENABLED",
+	},
+	"metrics-server.listen-address": util.ConfigVarSpec{
+		Help:         "Metrics server listening address (examples: \"\", \"127.0.0.1\", \"[::1]\") - an empty value causes the metrics server to listen to all addresses",
+		DefaultValue: "127.0.0.1",
+		EnvVar:       "LOG_COURIER_METRICS_SERVER_LISTEN_ADDRESS",
+	},
+	"metrics-server.listen-port": util.ConfigVarSpec{
+		Help:         "Metrics server listening port",
+		DefaultValue: 9090,
+		EnvVar:       "LOG_COURIER_METRICS_SERVER_LISTEN_PORT",
+	},
+
 	// General
 	"log-level": util.ConfigVarSpec{
 		Help:         "Log level (error|warn|info|debug)",
