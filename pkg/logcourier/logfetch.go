@@ -32,14 +32,14 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			clientIP,
 			requester,
 			req_id,
-			action,
+			operation,
 			objectKey,
-			httpURL,
+			requestURI,
 			httpCode,
 			errorCode,
 			bytesSent,
-			contentLength,
-			elapsed_ms,
+			objectSize,
+			totalTime,
 			turnAroundTime,
 			referer,
 			userAgent,
@@ -50,11 +50,11 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			hostHeader,
 			tlsVersion,
 			aclRequired,
+			timestamp,
 			insertedAt,
 			loggingTargetBucket,
 			loggingTargetPrefix,
-			raftSessionID,
-			timestamp
+			raftSessionID
 		FROM %s.%s
 		WHERE bucketName = ?
 		  AND insertedAt >= ?

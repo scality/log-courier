@@ -72,18 +72,43 @@ var _ = Describe("BatchFinder", func() {
 			oldTime := time.Now().Add(-2 * time.Hour)
 			query := fmt.Sprintf(`
 				INSERT INTO %s.access_logs
-				(insertedAt, bucketName, timestamp, req_id, action, loggingEnabled, raftSessionID, httpURL)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				(bucketOwner, bucketName, startTime, clientIP, requester, req_id, operation,
+				 objectKey, requestURI, httpCode, errorCode, bytesSent, objectSize, totalTime,
+				 turnAroundTime, referer, userAgent, versionId, signatureVersion, cipherSuite,
+				 authenticationType, hostHeader, tlsVersion, aclRequired, timestamp, insertedAt,
+				 loggingTargetBucket, loggingTargetPrefix, raftSessionID)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName)
 			err := helper.Client.Exec(ctx, query,
-				oldTime,           // insertedAt (old)
+				"",                // bucketOwner
 				"test-bucket",     // bucketName
-				time.Now(),        // timestamp
+				time.Now(),        // startTime
+				"",                // clientIP
+				"",                // requester
 				"req-old",         // req_id
-				"GetObject",       // action
-				true,              // loggingEnabled
+				"GetObject",       // operation
+				"",                // objectKey
+				"/test-bucket/key", // requestURI
+				uint16(0),         // httpCode
+				"",                // errorCode
+				uint64(0),         // bytesSent
+				uint64(0),         // objectSize
+				float32(0),        // totalTime
+				float32(0),        // turnAroundTime
+				"",                // referer
+				"",                // userAgent
+				"",                // versionId
+				"",                // signatureVersion
+				"",                // cipherSuite
+				"",                // authenticationType
+				"",                // hostHeader
+				"",                // tlsVersion
+				"",                // aclRequired
+				time.Now(),        // timestamp
+				oldTime,           // insertedAt (old)
+				"",                // loggingTargetBucket
+				"",                // loggingTargetPrefix
 				uint16(0),         // raftSessionID
-				"/test-bucket/key", // httpURL
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -127,7 +152,7 @@ var _ = Describe("BatchFinder", func() {
 
 			// Commit offset at current time
 			offsetTime := time.Now()
-			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, last_processed_ts) VALUES (?, ?, ?)", helper.DatabaseName)
+			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedTs) VALUES (?, ?, ?)", helper.DatabaseName)
 			err := helper.Client.Exec(ctx, offsetQuery,
 				"test-bucket", uint16(0), offsetTime)
 			Expect(err).NotTo(HaveOccurred())

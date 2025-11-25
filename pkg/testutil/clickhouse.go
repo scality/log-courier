@@ -56,53 +56,41 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			timestamp              DateTime,
-			startTime              DateTime,
+			insertedAt             DateTime DEFAULT now(),
 			hostname               LowCardinality(String),
-			action                 LowCardinality(String),
-			accountName            String,
-			accountDisplayName     String,
-			bucketName             String,
-			bucketOwner            String,
-			userName               String,
+
+			startTime              DateTime64(3),
 			requester              String,
-
-			httpMethod             LowCardinality(String),
-			httpCode               UInt16,
-			httpURL                String,
+			operation              String,
+			requestURI             String,
 			errorCode              String,
-			objectKey              String,
-
-			versionId              String,
-
-			bytesDeleted           UInt64,
-			bytesReceived          UInt64,
-			bytesSent              UInt64,
-			bodyLength             UInt64,
-			contentLength          UInt64,
-
-			clientIP               String,
+			objectSize             UInt64,
+			totalTime              Float32,
+			turnAroundTime         Float32,
 			referer                String,
 			userAgent              String,
-			hostHeader             String,
-
-			elapsed_ms             Float32,
-			turnAroundTime         Float32,
-
-			req_id                 String,
-			raftSessionID          UInt16,
-
+			versionId              String,
 			signatureVersion       LowCardinality(String),
 			cipherSuite            LowCardinality(String),
 			authenticationType     LowCardinality(String),
+			hostHeader             String,
 			tlsVersion             LowCardinality(String),
 			aclRequired            LowCardinality(String),
+
+			bucketOwner            String,
+			bucketName             String,
+			req_id                 String,
+			bytesSent              UInt64,
+			clientIP               String,
+			httpCode               UInt16,
+			objectKey              String,
 
 			logFormatVersion       LowCardinality(String),
 			loggingEnabled         Bool,
 			loggingTargetBucket    String,
 			loggingTargetPrefix    String,
-
-			insertedAt             DateTime DEFAULT now()
+			awsAccessKeyID         String,
+			raftSessionID          UInt16
 		)
 		ENGINE = Null()
 	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
@@ -141,7 +129,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		(
 			bucketName            String,
 			raftSessionID         UInt16,
-			last_processed_ts     DateTime
+			lastProcessedTs       DateTime
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionID)
@@ -180,56 +168,45 @@ type TestLogRecord struct {
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
-		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
-		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
-		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
-		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
-		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
-		 loggingTargetBucket, loggingTargetPrefix)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(timestamp, insertedAt, startTime, requester, operation, requestURI, errorCode,
+		 objectSize, totalTime, turnAroundTime, referer, userAgent, versionId,
+		 signatureVersion, cipherSuite, authenticationType, hostHeader, tlsVersion,
+		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
+		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
-		log.Timestamp,
-		log.BucketName,
-		log.ReqID,
-		log.Action,
-		log.LoggingEnabled,
-		log.RaftSessionID,
-		log.HttpCode,
-		log.BytesSent,
-		// Provide defaults for other required fields
+		log.Timestamp,     // timestamp
+		time.Now(),        // insertedAt
 		log.Timestamp,     // startTime
-		"",                // hostname
-		"",                // accountName
-		"",                // accountDisplayName
-		"",                // bucketOwner
-		"",                // userName
 		"",                // requester
-		"",                // httpMethod
-		"",                // httpURL
+		log.Action,        // operation
+		"",                // requestURI
 		"",                // errorCode
-		log.ObjectKey,     // objectKey
-		"",                // versionId
-		uint64(0),         // bytesDeleted
-		uint64(0),         // bytesReceived
-		uint64(0),         // bodyLength
-		uint64(0),         // contentLength
-		"",                // clientIP
+		uint64(0),         // objectSize
+		float32(0),        // totalTime
+		float32(0),        // turnAroundTime
 		"",                // referer
 		"",                // userAgent
-		"",                // hostHeader
-		float32(0),        // elapsed_ms
-		float32(0),        // turnAroundTime
+		"",                // versionId
 		"",                // signatureVersion
 		"",                // cipherSuite
 		"",                // authenticationType
+		"",                // hostHeader
 		"",                // tlsVersion
 		"",                // aclRequired
-		"",                // logFormatVersion
+		"",                // bucketOwner
+		log.BucketName,    // bucketName
+		log.ReqID,         // req_id
+		log.BytesSent,     // bytesSent
+		"",                // clientIP
+		log.HttpCode,      // httpCode
+		log.ObjectKey,     // objectKey
+		log.LoggingEnabled, // loggingEnabled
 		"",                // loggingTargetBucket
 		"",                // loggingTargetPrefix
+		log.RaftSessionID, // raftSessionID
 	)
 }
 
@@ -246,56 +223,45 @@ func (h *ClickHouseTestHelper) Close() error {
 func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context, log TestLogRecord, targetBucket, targetPrefix string) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, bucketName, req_id, action, loggingEnabled, raftSessionID,
-		 httpCode, bytesSent, startTime, hostname, accountName, accountDisplayName,
-		 bucketOwner, userName, requester, httpMethod, httpURL, errorCode, objectKey, versionId,
-		 bytesDeleted, bytesReceived, bodyLength, contentLength, clientIP, referer,
-		 userAgent, hostHeader, elapsed_ms, turnAroundTime, signatureVersion,
-		 cipherSuite, authenticationType, tlsVersion, aclRequired, logFormatVersion,
-		 loggingTargetBucket, loggingTargetPrefix)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(timestamp, insertedAt, startTime, requester, operation, requestURI, errorCode,
+		 objectSize, totalTime, turnAroundTime, referer, userAgent, versionId,
+		 signatureVersion, cipherSuite, authenticationType, hostHeader, tlsVersion,
+		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
+		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
-		log.Timestamp,
-		log.BucketName,
-		log.ReqID,
-		log.Action,
-		log.LoggingEnabled,
-		log.RaftSessionID,
-		log.HttpCode,
-		log.BytesSent,
-		// Provide defaults for other required fields
+		log.Timestamp,     // timestamp
+		time.Now(),        // insertedAt
 		log.Timestamp,     // startTime
-		"",                // hostname
-		"",                // accountName
-		"",                // accountDisplayName
-		"",                // bucketOwner
-		"",                // userName
 		"",                // requester
-		"",                // httpMethod
-		"",                // httpURL
+		log.Action,        // operation
+		"",                // requestURI
 		"",                // errorCode
-		log.ObjectKey,     // objectKey
-		"",                // versionId
-		uint64(0),         // bytesDeleted
-		uint64(0),         // bytesReceived
-		uint64(0),         // bodyLength
-		uint64(0),         // contentLength
-		"",                // clientIP
+		uint64(0),         // objectSize
+		float32(0),        // totalTime
+		float32(0),        // turnAroundTime
 		"",                // referer
 		"",                // userAgent
-		"",                // hostHeader
-		float32(0),        // elapsed_ms
-		float32(0),        // turnAroundTime
+		"",                // versionId
 		"",                // signatureVersion
 		"",                // cipherSuite
 		"",                // authenticationType
+		"",                // hostHeader
 		"",                // tlsVersion
 		"",                // aclRequired
-		"",                // logFormatVersion
+		"",                // bucketOwner
+		log.BucketName,    // bucketName
+		log.ReqID,         // req_id
+		log.BytesSent,     // bytesSent
+		"",                // clientIP
+		log.HttpCode,      // httpCode
+		log.ObjectKey,     // objectKey
+		log.LoggingEnabled, // loggingEnabled
 		targetBucket,      // loggingTargetBucket
 		targetPrefix,      // loggingTargetPrefix
+		log.RaftSessionID, // raftSessionID
 	)
 }
 

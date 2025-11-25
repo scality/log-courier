@@ -213,7 +213,7 @@ var _ = Describe("LogFetcher", func() {
 			rec := records[0]
 			Expect(rec.BucketName).To(Equal("test-bucket"))
 			Expect(rec.ReqID).To(Equal("test-req-id"))
-			Expect(rec.Action).To(Equal("PutObject"))
+			Expect(rec.Operation).To(Equal("PutObject"))
 			Expect(rec.ObjectKey).To(Equal("test-key"))
 			Expect(rec.BytesSent).To(Equal(uint64(12345)))
 			Expect(rec.HttpCode).To(Equal(uint16(200)))
