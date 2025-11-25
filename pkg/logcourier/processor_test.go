@@ -167,16 +167,16 @@ var _ = Describe("Processor", func() {
 				// Configure viper for all config keys
 				logcourier.ConfigSpec.Reset()
 				for key, spec := range logcourier.ConfigSpec {
-					viper.SetDefault(key, spec.DefaultValue)
+					logcourier.ConfigSpec.SetDefault(key, spec.DefaultValue)
 					if spec.EnvVar != "" {
 						_ = viper.BindEnv(key, spec.EnvVar)
 					}
 				}
 
 				// Override S3 config for testing
-				viper.Set("s3.endpoint", testS3Endpoint)
-				viper.Set("s3.access-key-id", workbenchAccessKey)
-				viper.Set("s3.secret-access-key", workbenchSecretKey)
+				logcourier.ConfigSpec.Set("s3.endpoint", testS3Endpoint)
+				logcourier.ConfigSpec.Set("s3.access-key-id", workbenchAccessKey)
+				logcourier.ConfigSpec.Set("s3.secret-access-key", workbenchSecretKey)
 
 				var err error
 				s3Helper, err = testutil.NewS3TestHelper(ctx)
@@ -933,13 +933,13 @@ var _ = Describe("Processor", func() {
 
 			BeforeEach(func() {
 				// Set up Viper for config access
-				viper.Set("clickhouse.url", os.Getenv("LOG_COURIER_CLICKHOUSE_URL"))
-				if viper.GetString("clickhouse.url") == "" {
-					viper.Set("clickhouse.url", "localhost:9002")
+				logcourier.ConfigSpec.Set("clickhouse.url", os.Getenv("LOG_COURIER_CLICKHOUSE_URL"))
+				if logcourier.ConfigSpec.GetString("clickhouse.url") == "" {
+					logcourier.ConfigSpec.Set("clickhouse.url", "localhost:9002")
 				}
-				viper.Set("s3.endpoint", testS3Endpoint)
-				viper.Set("s3.access-key-id", workbenchAccessKey)
-				viper.Set("s3.secret-access-key", workbenchSecretKey)
+				logcourier.ConfigSpec.Set("s3.endpoint", testS3Endpoint)
+				logcourier.ConfigSpec.Set("s3.access-key-id", workbenchAccessKey)
+				logcourier.ConfigSpec.Set("s3.secret-access-key", workbenchSecretKey)
 
 				// Create S3 helper
 				var err error

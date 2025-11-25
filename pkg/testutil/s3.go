@@ -181,7 +181,7 @@ func (h *S3TestHelper) ListObjects(ctx context.Context, bucketName, prefix strin
 // GetS3Config returns S3 configuration
 func GetS3Config() s3.Config {
 	for key, spec := range logcourier.ConfigSpec {
-		viper.SetDefault(key, spec.DefaultValue)
+		logcourier.ConfigSpec.SetDefault(key, spec.DefaultValue)
 		if spec.EnvVar != "" {
 			_ = viper.BindEnv(key, spec.EnvVar)
 		}
