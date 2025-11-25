@@ -43,6 +43,39 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 	}
 }
 
+// waitForShutdown waits for shutdown signal or processor error, returns exit code
+func waitForShutdown(cancel context.CancelFunc, logger *slog.Logger,
+	errChan <-chan error, signalsChan <-chan os.Signal, shutdownTimeout time.Duration) int {
+	select {
+	case sig := <-signalsChan:
+		logger.Info("signal received", "signal", sig)
+		cancel()
+
+		// Wait for processor to stop gracefully (with timeout)
+		shutdownTimer := time.NewTimer(shutdownTimeout)
+		defer shutdownTimer.Stop()
+
+		select {
+		case <-shutdownTimer.C:
+			logger.Warn("shutdown timeout exceeded, forcing exit")
+			return 1
+		case err := <-errChan:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("processor stopped with error", "error", err)
+				return 1
+			}
+		}
+
+	case err := <-errChan:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("processor error", "error", err)
+			return 1
+		}
+	}
+
+	return 0
+}
+
 func run() int {
 	// Add command-line flags
 	logcourier.ConfigSpec.AddFlag(pflag.CommandLine, "log-level", "log-level")
@@ -89,8 +122,8 @@ func run() int {
 		return 1
 	}
 	defer func() {
-		if err := processor.Close(); err != nil {
-			logger.Error("failed to close processor", "error", err)
+		if closeErr := processor.Close(); closeErr != nil {
+			logger.Error("failed to close processor", "error", closeErr)
 		}
 	}()
 
@@ -108,33 +141,10 @@ func run() int {
 	}()
 
 	// Wait for signal or error
-	select {
-	case sig := <-signalsChan:
-		logger.Info("signal received", "signal", sig)
-		cancel()
+	exitCode := waitForShutdown(cancel, logger, errChan, signalsChan, shutdownTimeout)
 
-		// Wait for processor to stop gracefully (with timeout)
-		shutdownTimer := time.NewTimer(shutdownTimeout)
-		defer shutdownTimer.Stop()
-
-		select {
-		case <-shutdownTimer.C:
-			logger.Warn("shutdown timeout exceeded, forcing exit")
-			return 1
-		case err := <-errChan:
-			if err != nil && !errors.Is(err, context.Canceled) {
-				logger.Error("processor stopped with error", "error", err)
-				return 1
-			}
-		}
-
-	case err := <-errChan:
-		if err != nil && !errors.Is(err, context.Canceled) {
-			logger.Error("processor error", "error", err)
-			return 1
-		}
+	if exitCode == 0 {
+		logger.Info("log-courier stopped")
 	}
-
-	logger.Info("log-courier stopped")
-	return 0
+	return exitCode
 }
