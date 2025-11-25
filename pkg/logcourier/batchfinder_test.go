@@ -152,7 +152,7 @@ var _ = Describe("BatchFinder", func() {
 
 			// Commit offset at current time
 			offsetTime := time.Now()
-			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, last_processed_ts) VALUES (?, ?, ?)", helper.DatabaseName)
+			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedTs) VALUES (?, ?, ?)", helper.DatabaseName)
 			err := helper.Client.Exec(ctx, offsetQuery,
 				"test-bucket", uint16(0), offsetTime)
 			Expect(err).NotTo(HaveOccurred())

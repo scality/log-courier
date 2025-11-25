@@ -129,7 +129,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		(
 			bucketName            String,
 			raftSessionID         UInt16,
-			last_processed_ts     DateTime
+			lastProcessedTs       DateTime
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionID)
