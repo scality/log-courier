@@ -49,6 +49,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.6.2
+          skip-cache: true
 
       - name: Run unit tests
         run: make test-coverage
