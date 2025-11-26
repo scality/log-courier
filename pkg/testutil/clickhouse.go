@@ -110,6 +110,16 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		return fmt.Errorf("failed to create logs table: %w", err)
 	}
 
+	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
+	// For single-node tests, create federated table as a VIEW pointing to local table.
+	federatedTableSQL := fmt.Sprintf(`
+		CREATE VIEW IF NOT EXISTS %s.%s
+		AS SELECT * FROM %s.%s
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogs)
+	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
+		return fmt.Errorf("failed to create federated table: %w", err)
+	}
+
 	// Create materialized view that filters loggingEnabled = true
 	mvSQL := fmt.Sprintf(`
 		CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s

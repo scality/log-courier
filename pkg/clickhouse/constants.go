@@ -11,6 +11,9 @@ const (
 	// TableAccessLogs is the main table storing log records (MergeTree)
 	TableAccessLogs = "access_logs"
 
+	// TableAccessLogsFederated is the distributed table across all shards
+	TableAccessLogsFederated = "access_logs_federated"
+
 	// TableOffsets is the table tracking processing offsets per bucket (MergeTree)
 	TableOffsets = "offsets"
 
