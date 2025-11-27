@@ -289,5 +289,56 @@ var _ = Describe("Configuration", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("exceeds maximum allowed"))
 		})
+
+		It("should reject zero min discovery interval", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS", "0")).To(Succeed())
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.min-discovery-interval-seconds must be positive"))
+		})
+
+		It("should reject zero max discovery interval", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS", "30")).To(Succeed())
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS", "0")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS") }()
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS") }()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("consumer.max-discovery-interval-seconds must be positive"))
+		})
+
+		It("should reject min > max discovery interval", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS", "120")).To(Succeed())
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS", "30")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS") }()
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS") }()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be <= consumer.max-discovery-interval-seconds"))
+		})
+
+		It("should accept min <= max discovery interval", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS", "30")).To(Succeed())
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS", "120")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS") }()
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS") }()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 })

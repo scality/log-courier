@@ -37,7 +37,7 @@ var ConfigSpec = util.ConfigSpec{
 	// Consumer thresholds
 	"consumer.count-threshold": util.ConfigVarSpec{
 		Help:         "Minimum number of unprocessed logs to trigger batch processing",
-		DefaultValue: 1000,
+		DefaultValue: 10000,
 		EnvVar:       "LOG_COURIER_CONSUMER_COUNT_THRESHOLD",
 	},
 	"consumer.time-threshold-seconds": util.ConfigVarSpec{
@@ -45,10 +45,15 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 900,
 		EnvVar:       "LOG_COURIER_CONSUMER_TIME_THRESHOLD_SECONDS",
 	},
-	"consumer.discovery-interval-seconds": util.ConfigVarSpec{
-		Help:         "Interval in seconds between work discovery runs",
-		DefaultValue: 60,
-		EnvVar:       "LOG_COURIER_CONSUMER_DISCOVERY_INTERVAL_SECONDS",
+	"consumer.min-discovery-interval-seconds": util.ConfigVarSpec{
+		Help:         "Minimum interval in seconds between work discovery runs (when work is found)",
+		DefaultValue: 30,
+		EnvVar:       "LOG_COURIER_CONSUMER_MIN_DISCOVERY_INTERVAL_SECONDS",
+	},
+	"consumer.max-discovery-interval-seconds": util.ConfigVarSpec{
+		Help:         "Maximum interval in seconds between work discovery runs (when no work is found)",
+		DefaultValue: 120,
+		EnvVar:       "LOG_COURIER_CONSUMER_MAX_DISCOVERY_INTERVAL_SECONDS",
 	},
 	"consumer.discovery-interval-jitter-factor": util.ConfigVarSpec{
 		Help:         "Jitter factor for discovery interval (0.0 to 1.0, where 0 is no jitter and 1.0 is up to 100% jitter)",
