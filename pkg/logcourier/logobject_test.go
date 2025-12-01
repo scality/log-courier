@@ -150,7 +150,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			lines := strings.Split(strings.TrimSpace(content), "\n")
 
 			// Empty fields should be "-"
-			expectedLine := "- test-bucket [28/Oct/2025:10:00:00 +0000] - - ABC123 GET - - 0 - 0 0 0 0 - - - - - - - - -"
+			expectedLine := "- test-bucket [28/Oct/2025:10:00:00 +0000] - - ABC123 GET - - 0 - 0 0 0 0 - - - - - - - - - - -"
 			Expect(lines[0]).To(Equal(expectedLine))
 		})
 
@@ -174,7 +174,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			lines := strings.Split(strings.TrimSpace(content), "\n")
 
 			// Exact match - HttpURL, Referer, and UserAgent should be quoted
-			expectedLine := `- test-bucket [28/Oct/2025:12:00:00 +0000] - - - - - "GET /bucket/key?versionId=123 HTTP/1.1" 0 - 0 0 0 0 "http://example.com/page" "Mozilla/5.0" - - - - - - -`
+			expectedLine := `- test-bucket [28/Oct/2025:12:00:00 +0000] - - - - - "GET /bucket/key?versionId=123 HTTP/1.1" 0 - 0 0 0 0 "http://example.com/page" "Mozilla/5.0" - - - - - - - - -`
 			Expect(lines[0]).To(Equal(expectedLine))
 		})
 
@@ -200,7 +200,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			lines := strings.Split(strings.TrimSpace(content), "\n")
 
 			// Exact match - numeric fields should be formatted correctly
-			expectedLine := "- test-bucket [28/Oct/2025:13:00:00 +0000] - - - - - - 200 - 1024 2048 45.5 15.2 - - - - - - - - -"
+			expectedLine := "- test-bucket [28/Oct/2025:13:00:00 +0000] - - - - - - 200 - 1024 2048 45.5 15.2 - - - - - - - - - - -"
 			Expect(lines[0]).To(Equal(expectedLine))
 		})
 
@@ -227,7 +227,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			lines := strings.Split(strings.TrimSpace(content), "\n")
 
 			// Exact match - zero values should be output as "0" not "-"
-			expectedLine := "- test-bucket [28/Oct/2025:14:00:00 +0000] - - test-123 - - - 200 - 0 0 0 0 - - - - - - - - -"
+			expectedLine := "- test-bucket [28/Oct/2025:14:00:00 +0000] - - test-123 - - - 200 - 0 0 0 0 - - - - - - - - - - -"
 			Expect(lines[0]).To(Equal(expectedLine))
 		})
 
@@ -266,9 +266,9 @@ var _ = Describe("LogObjectBuilder", func() {
 			// Should have 3 lines (one per record)
 			Expect(lines).To(HaveLen(3))
 
-			expectedLine1 := "- test-bucket [28/Oct/2025:15:00:00 +0000] - - req-1 GET - - 0 - 0 0 0 0 - - - - - - - - -"
-			expectedLine2 := "- test-bucket [28/Oct/2025:15:00:01 +0000] - - req-2 PUT - - 0 - 0 0 0 0 - - - - - - - - -"
-			expectedLine3 := "- test-bucket [28/Oct/2025:15:00:02 +0000] - - req-3 DELETE - - 0 - 0 0 0 0 - - - - - - - - -"
+			expectedLine1 := "- test-bucket [28/Oct/2025:15:00:00 +0000] - - req-1 GET - - 0 - 0 0 0 0 - - - - - - - - - - -"
+			expectedLine2 := "- test-bucket [28/Oct/2025:15:00:01 +0000] - - req-2 PUT - - 0 - 0 0 0 0 - - - - - - - - - - -"
+			expectedLine3 := "- test-bucket [28/Oct/2025:15:00:02 +0000] - - req-3 DELETE - - 0 - 0 0 0 0 - - - - - - - - - - -"
 
 			Expect(lines[0]).To(Equal(expectedLine1))
 			Expect(lines[1]).To(Equal(expectedLine2))
@@ -316,7 +316,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			lines := strings.Split(strings.TrimSpace(content), "\n")
 			Expect(lines).To(HaveLen(1))
 
-			expectedLine := "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be my-bucket [28/Oct/2025:14:30:45 +0000] 192.0.2.3 79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be 3E57427F3EXAMPLE REST.GET.VERSIONING - \"GET /my-bucket?versioning HTTP/1.1\" 200 - 113 0 7 4 - \"S3Console/0.4\" - SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader my-bucket.s3.amazonaws.com TLSv1.2 -"
+			expectedLine := "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be my-bucket [28/Oct/2025:14:30:45 +0000] 192.0.2.3 79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be 3E57427F3EXAMPLE REST.GET.VERSIONING - \"GET /my-bucket?versioning HTTP/1.1\" 200 - 113 0 7 4 - \"S3Console/0.4\" - - SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader my-bucket.s3.amazonaws.com TLSv1.2 - -"
 			Expect(lines[0]).To(Equal(expectedLine))
 		})
 	})
