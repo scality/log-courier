@@ -102,7 +102,7 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 //
 // Note: ClickHouse stores "-" for fields not applicable to an operation
 func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
-	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
+	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
 		b.formatField(rec.BucketOwner),        // 1. Bucket Owner
 		b.formatField(rec.BucketName),         // 2. Bucket
 		b.formatTimestamp(rec.StartTime),      // 3. Time
@@ -121,13 +121,13 @@ func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 		b.formatQuotedField(rec.Referer),      // 16. Referer (quoted)
 		b.formatQuotedField(rec.UserAgent),    // 17. User-Agent (quoted)
 		b.formatField(rec.VersionID),          // 18. Version Id
-		// 19. Host Id - OMITTED
+		"-",                                   // 19. Host Id (not implemented)
 		b.formatField(rec.SignatureVersion),   // 20. Signature Version
 		b.formatField(rec.CipherSuite),        // 21. Cipher Suite
 		b.formatField(rec.AuthenticationType), // 22. Authentication Type
 		b.formatField(rec.HostHeader),         // 23. Host Header
 		b.formatField(rec.TlsVersion),         // 24. TLS Version
-		// 25. Access Point ARN - OMITTED
+		"-",                                   // 25. Access Point ARN (not implemented)
 		b.formatField(rec.AclRequired),        // 26. ACL Required
 	)
 }
