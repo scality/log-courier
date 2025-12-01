@@ -18,6 +18,26 @@ const (
 	backoffMultiplier = 2.0
 )
 
+// applyJitter applies symmetric jitter to a duration.
+//
+// The jitter creates a random duration centered on the input duration, varying by jitterFactor (+ or -)
+// For example, with jitterFactor=0.2 and duration=60s, the result ranges from 48s to 72s (+/-20%).
+//
+// Returns the original duration if jitterFactor is 0 or negative.
+func applyJitter(duration time.Duration, jitterFactor float64) time.Duration {
+	if jitterFactor <= 0 {
+		return duration
+	}
+
+	// Generate random multiplier in [1-jitterFactor, 1+jitterFactor]
+	// rand.Float64()*2.0 - 1.0 produces [-1, 1]
+	// Multiply by jitterFactor to get [-jitterFactor, +jitterFactor]
+	// Add 1.0 to center around the base duration
+	//nolint:gosec // Using non-cryptographic random for jitter is acceptable
+	multiplier := 1.0 + (rand.Float64()*2.0-1.0)*jitterFactor
+	return time.Duration(float64(duration) * multiplier)
+}
+
 // Processor is the main log courier processor
 type Processor struct {
 	// Components
@@ -183,13 +203,7 @@ func (p *Processor) Run(ctx context.Context) error {
 		}
 
 		// Apply jitter to base interval
-		jitteredInterval := baseInterval
-		if p.discoveryIntervalJitterFactor > 0 {
-			jitterRange := float64(baseInterval) * p.discoveryIntervalJitterFactor * 2.0
-			jitterOffset := float64(baseInterval) * (1.0 - p.discoveryIntervalJitterFactor)
-			//nolint:gosec // Using non-cryptographic random for interval jitter is acceptable
-			jitteredInterval = time.Duration(jitterOffset + rand.Float64()*jitterRange)
-		}
+		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
 
 		// Calculate sleep duration accounting for processing time
 		processingTime := time.Since(cycleStart)
@@ -357,13 +371,7 @@ func (p *Processor) retryWithBackoff(
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
 		if attempt > 0 {
 			// Apply jitter to the backoff
-			actualBackoff := backoff
-			if p.backoffJitterFactor > 0 {
-				jitterRange := float64(backoff) * p.backoffJitterFactor * 2.0
-				jitterOffset := float64(backoff) * (1.0 - p.backoffJitterFactor)
-				//nolint:gosec // Using non-cryptographic random for backoff jitter is acceptable
-				actualBackoff = time.Duration(jitterOffset + rand.Float64()*jitterRange)
-			}
+			actualBackoff := applyJitter(backoff, p.backoffJitterFactor)
 
 			fields["attempt"] = attempt
 			fields["backoffSeconds"] = actualBackoff.Seconds()
