@@ -41,6 +41,7 @@ type Processor struct {
 }
 
 // Config holds processor configuration
+//
 //nolint:govet // Field alignment is less important than readability for config structs
 type Config struct {
 	Logger *slog.Logger
@@ -161,7 +162,6 @@ func (p *Processor) Close() error {
 // The processor runs cycles indefinitely. If errors occur during a cycle,
 // they are logged and the processor waits for the next discovery interval
 // before retrying (eventual delivery).
-//
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 

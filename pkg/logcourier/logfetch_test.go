@@ -14,8 +14,8 @@ import (
 
 var _ = Describe("LogFetcher", func() {
 	var (
-		ctx    context.Context
-		helper *testutil.ClickHouseTestHelper
+		ctx     context.Context
+		helper  *testutil.ClickHouseTestHelper
 		fetcher *logcourier.LogFetcher
 	)
 
