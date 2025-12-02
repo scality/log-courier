@@ -57,12 +57,13 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			raftSessionID
 		FROM %s.%s
 		WHERE bucketName = ?
+		  AND raftSessionID = ?
 		  AND insertedAt >= ?
 		  AND insertedAt <= ?
 		ORDER BY timestamp ASC
 	`, lf.database, clickhouse.TableAccessLogs)
 
-	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)
+	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.RaftSessionID, batch.MinTimestamp, batch.MaxTimestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}

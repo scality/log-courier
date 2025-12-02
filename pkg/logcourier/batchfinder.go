@@ -29,30 +29,35 @@ func NewBatchFinder(client *clickhouse.Client, database string, countThreshold, 
 func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	query := fmt.Sprintf(`
         WITH
-            -- Find the most recent timestamp processed for each bucket
+            -- Find the most recent timestamp processed for each bucket and raftSessionID
             bucket_offsets AS (
                 SELECT
                     bucketName,
+                    raftSessionID,
                     max(lastProcessedTs) as lastProcessedTs
                 FROM %s.%s
-                GROUP BY bucketName
+                GROUP BY bucketName, raftSessionID
             ),
 
-            -- Find unprocessed logs for each bucket (process all buckets, partitioning will be added later - TODO: LOGC-8)
+            -- Find unprocessed logs for each bucket/raftSessionID combination (process all buckets, partitioning will be added later - TODO: LOGC-8)
             new_logs_by_bucket AS (
                 SELECT
                     l.bucketName,
+                    l.raftSessionID,
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
                     max(l.insertedAt) as max_ts
                 FROM %s.%s AS l
-                LEFT JOIN bucket_offsets AS o ON l.bucketName = o.bucketName
+                LEFT JOIN bucket_offsets AS o
+                    ON l.bucketName = o.bucketName
+                    AND l.raftSessionID = o.raftSessionID
                 WHERE l.insertedAt > COALESCE(o.lastProcessedTs, toDateTime64('1970-01-01 00:00:00', 3))
-                GROUP BY l.bucketName
+                GROUP BY l.bucketName, l.raftSessionID
             )
         -- Select buckets ready for log batch processing
         SELECT
             bucketName,
+            raftSessionID,
             new_log_count,
             min_ts,
             max_ts
@@ -71,7 +76,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	for rows.Next() {
 		var batch LogBatch
 
-		err := rows.Scan(&batch.Bucket, &batch.LogCount, &batch.MinTimestamp, &batch.MaxTimestamp)
+		err := rows.Scan(&batch.Bucket, &batch.RaftSessionID, &batch.LogCount, &batch.MinTimestamp, &batch.MaxTimestamp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan log batch: %w", err)
 		}

@@ -56,9 +56,10 @@ var _ = Describe("LogFetcher", func() {
 			}
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(10 * time.Second),
+				Bucket:        "test-bucket",
+				RaftSessionID: 0,
+				MinTimestamp:  now.Add(-1 * time.Second),
+				MaxTimestamp:  now.Add(10 * time.Second),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -89,9 +90,10 @@ var _ = Describe("LogFetcher", func() {
 			}
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: now,
-				MaxTimestamp: now.Add(10 * time.Second),
+				Bucket:        "test-bucket",
+				RaftSessionID: 0,
+				MinTimestamp:  now,
+				MaxTimestamp:  now.Add(10 * time.Second),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -133,9 +135,10 @@ var _ = Describe("LogFetcher", func() {
 
 			// Fetch only bucket-1
 			batch := logcourier.LogBatch{
-				Bucket:       "bucket-1",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(1 * time.Second),
+				Bucket:        "bucket-1",
+				RaftSessionID: 0,
+				MinTimestamp:  now.Add(-1 * time.Second),
+				MaxTimestamp:  now.Add(1 * time.Second),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -161,9 +164,10 @@ var _ = Describe("LogFetcher", func() {
 			// Query with a future time window (should get no results)
 			futureTime := now.Add(1 * time.Hour)
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: futureTime,
-				MaxTimestamp: futureTime.Add(1 * time.Hour),
+				Bucket:        "test-bucket",
+				RaftSessionID: 0,
+				MinTimestamp:  futureTime,
+				MaxTimestamp:  futureTime.Add(1 * time.Hour),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -173,9 +177,10 @@ var _ = Describe("LogFetcher", func() {
 
 		It("should return empty list when no logs match", func() {
 			batch := logcourier.LogBatch{
-				Bucket:       "nonexistent-bucket",
-				MinTimestamp: time.Now().Add(-1 * time.Hour),
-				MaxTimestamp: time.Now(),
+				Bucket:        "nonexistent-bucket",
+				RaftSessionID: 0,
+				MinTimestamp:  time.Now().Add(-1 * time.Hour),
+				MaxTimestamp:  time.Now(),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -201,9 +206,10 @@ var _ = Describe("LogFetcher", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(1 * time.Second),
+				Bucket:        "test-bucket",
+				RaftSessionID: 42,
+				MinTimestamp:  now.Add(-1 * time.Second),
+				MaxTimestamp:  now.Add(1 * time.Second),
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
