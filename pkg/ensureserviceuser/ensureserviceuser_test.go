@@ -33,8 +33,8 @@ const (
 
 // IAMTestHelper provides utilities for testing with real Vault IAM
 type IAMTestHelper struct {
-	Client      *iam.Client
-	iamEndpoint string
+	Client       *iam.Client
+	iamEndpoint  string
 	ServiceNames []string
 }
 
@@ -121,7 +121,6 @@ func (h *IAMTestHelper) Cleanup(ctx context.Context) error {
 
 	return nil
 }
-
 
 var _ = Describe("Apply", func() {
 	var (

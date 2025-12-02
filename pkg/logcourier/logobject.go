@@ -103,25 +103,25 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 // Note: ClickHouse stores "-" for fields not applicable to an operation
 func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
-		b.formatField(rec.BucketOwner),        // 1. Bucket Owner
-		b.formatField(rec.BucketName),         // 2. Bucket
-		b.formatTimestamp(rec.StartTime),      // 3. Time
-		b.formatField(rec.ClientIP),           // 4. Remote IP
-		b.formatField(rec.Requester),          // 5. Requester
-		b.formatField(rec.ReqID),              // 6. Request ID
-		b.formatField(rec.Operation),          // 7. Operation
-		b.formatField(rec.ObjectKey),          // 8. Key
-		b.formatQuotedField(rec.RequestURI),   // 9. Request-URI (quoted)
-		b.formatUint16(rec.HttpCode),          // 10. HTTP Status
-		b.formatField(rec.ErrorCode),          // 11. Error Code
-		b.formatUint64(rec.BytesSent),         // 12. Bytes Sent
-		b.formatUint64(rec.ObjectSize),        // 13. Object Size
-		b.formatFloat32(rec.TotalTime),        // 14. Total Time
-		b.formatFloat32(rec.TurnAroundTime),   // 15. Turn-Around Time
-		b.formatQuotedField(rec.Referer),      // 16. Referer (quoted)
-		b.formatQuotedField(rec.UserAgent),    // 17. User-Agent (quoted)
-		b.formatField(rec.VersionID),          // 18. Version Id
-		"-",                                   // 19. Host Id (not implemented)
+		b.formatField(rec.BucketOwner),      // 1. Bucket Owner
+		b.formatField(rec.BucketName),       // 2. Bucket
+		b.formatTimestamp(rec.StartTime),    // 3. Time
+		b.formatField(rec.ClientIP),         // 4. Remote IP
+		b.formatField(rec.Requester),        // 5. Requester
+		b.formatField(rec.ReqID),            // 6. Request ID
+		b.formatField(rec.Operation),        // 7. Operation
+		b.formatField(rec.ObjectKey),        // 8. Key
+		b.formatQuotedField(rec.RequestURI), // 9. Request-URI (quoted)
+		b.formatUint16(rec.HttpCode),        // 10. HTTP Status
+		b.formatField(rec.ErrorCode),        // 11. Error Code
+		b.formatUint64(rec.BytesSent),       // 12. Bytes Sent
+		b.formatUint64(rec.ObjectSize),      // 13. Object Size
+		b.formatFloat32(rec.TotalTime),      // 14. Total Time
+		b.formatFloat32(rec.TurnAroundTime), // 15. Turn-Around Time
+		b.formatQuotedField(rec.Referer),    // 16. Referer (quoted)
+		b.formatQuotedField(rec.UserAgent),  // 17. User-Agent (quoted)
+		b.formatField(rec.VersionID),        // 18. Version Id
+		"-",                                 // 19. Host Id (not implemented)
 		b.formatField(rec.SignatureVersion),   // 20. Signature Version
 		b.formatField(rec.CipherSuite),        // 21. Cipher Suite
 		b.formatField(rec.AuthenticationType), // 22. Authentication Type

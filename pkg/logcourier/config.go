@@ -49,5 +49,20 @@ func ValidateConfig() error {
 		return fmt.Errorf("consumer.discovery-interval-jitter-factor must be between 0.0 and 1.0, got %f", discoveryIntervalJitterFactor)
 	}
 
+	minDiscoveryInterval := ConfigSpec.GetInt("consumer.min-discovery-interval-seconds")
+	if minDiscoveryInterval <= 0 {
+		return fmt.Errorf("consumer.min-discovery-interval-seconds must be positive, got %d", minDiscoveryInterval)
+	}
+
+	maxDiscoveryInterval := ConfigSpec.GetInt("consumer.max-discovery-interval-seconds")
+	if maxDiscoveryInterval <= 0 {
+		return fmt.Errorf("consumer.max-discovery-interval-seconds must be positive, got %d", maxDiscoveryInterval)
+	}
+
+	if minDiscoveryInterval > maxDiscoveryInterval {
+		return fmt.Errorf("consumer.min-discovery-interval-seconds (%d) must be <= consumer.max-discovery-interval-seconds (%d)",
+			minDiscoveryInterval, maxDiscoveryInterval)
+	}
+
 	return nil
 }

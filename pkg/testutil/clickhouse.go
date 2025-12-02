@@ -187,39 +187,38 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
-		log.Timestamp,     // timestamp
-		time.Now(),        // insertedAt
-		log.Timestamp,     // startTime
-		"",                // requester
-		log.Action,        // operation
-		"",                // requestURI
-		"",                // errorCode
-		uint64(0),         // objectSize
-		float32(0),        // totalTime
-		float32(0),        // turnAroundTime
-		"",                // referer
-		"",                // userAgent
-		"",                // versionId
-		"",                // signatureVersion
-		"",                // cipherSuite
-		"",                // authenticationType
-		"",                // hostHeader
-		"",                // tlsVersion
-		"",                // aclRequired
-		"",                // bucketOwner
-		log.BucketName,    // bucketName
-		log.ReqID,         // req_id
-		log.BytesSent,     // bytesSent
-		"",                // clientIP
-		log.HttpCode,      // httpCode
-		log.ObjectKey,     // objectKey
+		log.Timestamp,      // timestamp
+		time.Now(),         // insertedAt
+		log.Timestamp,      // startTime
+		"",                 // requester
+		log.Action,         // operation
+		"",                 // requestURI
+		"",                 // errorCode
+		uint64(0),          // objectSize
+		float32(0),         // totalTime
+		float32(0),         // turnAroundTime
+		"",                 // referer
+		"",                 // userAgent
+		"",                 // versionId
+		"",                 // signatureVersion
+		"",                 // cipherSuite
+		"",                 // authenticationType
+		"",                 // hostHeader
+		"",                 // tlsVersion
+		"",                 // aclRequired
+		"",                 // bucketOwner
+		log.BucketName,     // bucketName
+		log.ReqID,          // req_id
+		log.BytesSent,      // bytesSent
+		"",                 // clientIP
+		log.HttpCode,       // httpCode
+		log.ObjectKey,      // objectKey
 		log.LoggingEnabled, // loggingEnabled
-		"",                // loggingTargetBucket
-		"",                // loggingTargetPrefix
-		log.RaftSessionID, // raftSessionID
+		"",                 // loggingTargetBucket
+		"",                 // loggingTargetPrefix
+		log.RaftSessionID,  // raftSessionID
 	)
 }
-
 
 // Close closes the test helper
 func (h *ClickHouseTestHelper) Close() error {
@@ -242,36 +241,36 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
-		log.Timestamp,     // timestamp
-		time.Now(),        // insertedAt
-		log.Timestamp,     // startTime
-		"",                // requester
-		log.Action,        // operation
-		"",                // requestURI
-		"",                // errorCode
-		uint64(0),         // objectSize
-		float32(0),        // totalTime
-		float32(0),        // turnAroundTime
-		"",                // referer
-		"",                // userAgent
-		"",                // versionId
-		"",                // signatureVersion
-		"",                // cipherSuite
-		"",                // authenticationType
-		"",                // hostHeader
-		"",                // tlsVersion
-		"",                // aclRequired
-		"",                // bucketOwner
-		log.BucketName,    // bucketName
-		log.ReqID,         // req_id
-		log.BytesSent,     // bytesSent
-		"",                // clientIP
-		log.HttpCode,      // httpCode
-		log.ObjectKey,     // objectKey
+		log.Timestamp,      // timestamp
+		time.Now(),         // insertedAt
+		log.Timestamp,      // startTime
+		"",                 // requester
+		log.Action,         // operation
+		"",                 // requestURI
+		"",                 // errorCode
+		uint64(0),          // objectSize
+		float32(0),         // totalTime
+		float32(0),         // turnAroundTime
+		"",                 // referer
+		"",                 // userAgent
+		"",                 // versionId
+		"",                 // signatureVersion
+		"",                 // cipherSuite
+		"",                 // authenticationType
+		"",                 // hostHeader
+		"",                 // tlsVersion
+		"",                 // aclRequired
+		"",                 // bucketOwner
+		log.BucketName,     // bucketName
+		log.ReqID,          // req_id
+		log.BytesSent,      // bytesSent
+		"",                 // clientIP
+		log.HttpCode,       // httpCode
+		log.ObjectKey,      // objectKey
 		log.LoggingEnabled, // loggingEnabled
-		targetBucket,      // loggingTargetBucket
-		targetPrefix,      // loggingTargetPrefix
-		log.RaftSessionID, // raftSessionID
+		targetBucket,       // loggingTargetBucket
+		targetPrefix,       // loggingTargetPrefix
+		log.RaftSessionID,  // raftSessionID
 	)
 }
 

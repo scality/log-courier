@@ -80,35 +80,35 @@ var _ = Describe("BatchFinder", func() {
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName)
 			err := helper.Client.Exec(ctx, query,
-				"",                // bucketOwner
-				"test-bucket",     // bucketName
-				time.Now(),        // startTime
-				"",                // clientIP
-				"",                // requester
-				"req-old",         // req_id
-				"GetObject",       // operation
-				"",                // objectKey
+				"",                 // bucketOwner
+				"test-bucket",      // bucketName
+				time.Now(),         // startTime
+				"",                 // clientIP
+				"",                 // requester
+				"req-old",          // req_id
+				"GetObject",        // operation
+				"",                 // objectKey
 				"/test-bucket/key", // requestURI
-				uint16(0),         // httpCode
-				"",                // errorCode
-				uint64(0),         // bytesSent
-				uint64(0),         // objectSize
-				float32(0),        // totalTime
-				float32(0),        // turnAroundTime
-				"",                // referer
-				"",                // userAgent
-				"",                // versionId
-				"",                // signatureVersion
-				"",                // cipherSuite
-				"",                // authenticationType
-				"",                // hostHeader
-				"",                // tlsVersion
-				"",                // aclRequired
-				time.Now(),        // timestamp
-				oldTime,           // insertedAt (old)
-				"",                // loggingTargetBucket
-				"",                // loggingTargetPrefix
-				uint16(0),         // raftSessionID
+				uint16(0),          // httpCode
+				"",                 // errorCode
+				uint64(0),          // bytesSent
+				uint64(0),          // objectSize
+				float32(0),         // totalTime
+				float32(0),         // turnAroundTime
+				"",                 // referer
+				"",                 // userAgent
+				"",                 // versionId
+				"",                 // signatureVersion
+				"",                 // cipherSuite
+				"",                 // authenticationType
+				"",                 // hostHeader
+				"",                 // tlsVersion
+				"",                 // aclRequired
+				time.Now(),         // timestamp
+				oldTime,            // insertedAt (old)
+				"",                 // loggingTargetBucket
+				"",                 // loggingTargetPrefix
+				uint16(0),          // raftSessionID
 			)
 			Expect(err).NotTo(HaveOccurred())
 

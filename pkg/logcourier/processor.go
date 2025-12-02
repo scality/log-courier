@@ -18,6 +18,26 @@ const (
 	backoffMultiplier = 2.0
 )
 
+// applyJitter applies symmetric jitter to a duration.
+//
+// The jitter creates a random duration centered on the input duration, varying by jitterFactor (+ or -)
+// For example, with jitterFactor=0.2 and duration=60s, the result ranges from 48s to 72s (+/-20%).
+//
+// Returns the original duration if jitterFactor is 0 or negative.
+func applyJitter(duration time.Duration, jitterFactor float64) time.Duration {
+	if jitterFactor <= 0 {
+		return duration
+	}
+
+	// Generate random multiplier in [1-jitterFactor, 1+jitterFactor]
+	// rand.Float64()*2.0 - 1.0 produces [-1, 1]
+	// Multiply by jitterFactor to get [-jitterFactor, +jitterFactor]
+	// Add 1.0 to center around the base duration
+	//nolint:gosec // Using non-cryptographic random for jitter is acceptable
+	multiplier := 1.0 + (rand.Float64()*2.0-1.0)*jitterFactor
+	return time.Duration(float64(duration) * multiplier)
+}
+
 // Processor is the main log courier processor
 type Processor struct {
 	// Components
@@ -30,7 +50,8 @@ type Processor struct {
 	logger           *slog.Logger
 
 	// Configuration
-	discoveryInterval             time.Duration
+	minDiscoveryInterval          time.Duration
+	maxDiscoveryInterval          time.Duration
 	discoveryIntervalJitterFactor float64
 	numWorkers                    int
 	maxRetries                    int
@@ -40,13 +61,17 @@ type Processor struct {
 }
 
 // Config holds processor configuration
+//
 //nolint:govet // Field alignment is less important than readability for config structs
 type Config struct {
 	Logger *slog.Logger
 
 	ClickHouseTimeout time.Duration
-	// DiscoveryInterval is the interval between work discovery runs
-	DiscoveryInterval time.Duration
+
+	// MinDiscoveryInterval is the minimum interval between discovery runs (when work is found)
+	MinDiscoveryInterval time.Duration
+	// MaxDiscoveryInterval is the maximum interval between discovery runs (when no work is found)
+	MaxDiscoveryInterval time.Duration
 	// DiscoveryIntervalJitterFactor is the jitter factor for discovery interval (0.0 to 1.0)
 	DiscoveryIntervalJitterFactor float64
 
@@ -132,7 +157,8 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		logFetcher:                    NewLogFetcher(chClient, database),
 		logBuilder:                    NewLogObjectBuilder(),
 		offsetManager:                 offsetManager,
-		discoveryInterval:             cfg.DiscoveryInterval,
+		minDiscoveryInterval:          cfg.MinDiscoveryInterval,
+		maxDiscoveryInterval:          cfg.MaxDiscoveryInterval,
 		discoveryIntervalJitterFactor: cfg.DiscoveryIntervalJitterFactor,
 		numWorkers:                    cfg.NumWorkers,
 		maxRetries:                    cfg.MaxRetries,
@@ -156,62 +182,86 @@ func (p *Processor) Close() error {
 // The processor runs cycles indefinitely. If errors occur during a cycle,
 // they are logged and the processor waits for the next discovery interval
 // before retrying (eventual delivery).
-//
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
-	if err := p.runCycle(ctx); err != nil {
+	// Run initial cycle
+	cycleStart := time.Now()
+	batchCount, err := p.runCycle(ctx)
+	if err != nil {
 		p.logger.Error("cycle failed", "error", err)
+		batchCount = 0 // Treat error as no work found
 	}
 
 	for {
-		// Calculate next interval with jitter
-		nextInterval := p.discoveryInterval
-		if p.discoveryIntervalJitterFactor > 0 {
-			jitterRange := float64(p.discoveryInterval) * p.discoveryIntervalJitterFactor * 2.0
-			jitterOffset := float64(p.discoveryInterval) * (1.0 - p.discoveryIntervalJitterFactor)
-			//nolint:gosec // Using non-cryptographic random for interval jitter is acceptable
-			nextInterval = time.Duration(jitterOffset + rand.Float64()*jitterRange)
+		// Select base interval based on work found
+		baseInterval := p.maxDiscoveryInterval
+		intervalMode := "max"
+		if batchCount > 0 {
+			baseInterval = p.minDiscoveryInterval
+			intervalMode = "min"
 		}
 
-		p.logger.Debug("scheduling next discovery cycle", "intervalSeconds", nextInterval.Seconds())
+		// Apply jitter to base interval
+		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
+
+		// Calculate sleep duration accounting for processing time
+		processingTime := time.Since(cycleStart)
+		sleepDuration := jitteredInterval - processingTime
+		if sleepDuration < 0 {
+			sleepDuration = 0
+		}
+
+		p.logger.Debug("scheduling next discovery cycle",
+			"batchesFound", batchCount,
+			"processingTimeSeconds", processingTime.Seconds(),
+			"baseIntervalSeconds", baseInterval.Seconds(),
+			"jitteredIntervalSeconds", jitteredInterval.Seconds(),
+			"sleepDurationSeconds", sleepDuration.Seconds(),
+			"intervalMode", intervalMode)
 
 		select {
 		case <-ctx.Done():
 			p.logger.Info("processor stopping")
 			return ctx.Err()
 
-		case <-time.After(nextInterval):
-			if err := p.runCycle(ctx); err != nil {
+		case <-time.After(sleepDuration):
+			cycleStart = time.Now()
+			batchCount, err = p.runCycle(ctx)
+			if err != nil {
 				p.logger.Error("cycle failed", "error", err)
+				batchCount = 0 // Treat error as no work found
 			}
 		}
 	}
 }
 
 // runCycle executes a single discovery and processing cycle
-func (p *Processor) runCycle(ctx context.Context) error {
-	if err := p.runBatchFinder(ctx); err != nil {
-		return fmt.Errorf("batch finder failed: %w", err)
+// Returns the number of batches found
+func (p *Processor) runCycle(ctx context.Context) (int, error) {
+	batchCount, err := p.runBatchFinder(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
-	return nil
+	return batchCount, nil
 }
 
 // runBatchFinder executes batch finder and processes log batches in parallel
-func (p *Processor) runBatchFinder(ctx context.Context) error {
+// Returns the number of batches found
+func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	// Phase 1: Work Discovery
 	p.logger.Debug("starting batch finder")
 
 	batches, err := p.workDiscovery.FindBatches(ctx)
 	if err != nil {
-		return fmt.Errorf("batch finder failed: %w", err)
+		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
 	p.logger.Info("batch finder completed", "nBatches", len(batches))
 
 	if len(batches) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Phase 2: Process log batches in parallel
@@ -268,7 +318,7 @@ func (p *Processor) runBatchFinder(ctx context.Context) error {
 			"failed", 0)
 	}
 
-	return nil
+	return len(batches), nil
 }
 
 // ============================================================================
@@ -321,13 +371,7 @@ func (p *Processor) retryWithBackoff(
 	for attempt := 0; attempt <= p.maxRetries; attempt++ {
 		if attempt > 0 {
 			// Apply jitter to the backoff
-			actualBackoff := backoff
-			if p.backoffJitterFactor > 0 {
-				jitterRange := float64(backoff) * p.backoffJitterFactor * 2.0
-				jitterOffset := float64(backoff) * (1.0 - p.backoffJitterFactor)
-				//nolint:gosec // Using non-cryptographic random for backoff jitter is acceptable
-				actualBackoff = time.Duration(jitterOffset + rand.Float64()*jitterRange)
-			}
+			actualBackoff := applyJitter(backoff, p.backoffJitterFactor)
 
 			fields["attempt"] = attempt
 			fields["backoffSeconds"] = actualBackoff.Seconds()

@@ -23,11 +23,11 @@ type Client struct {
 
 // Config holds S3 client configuration
 type Config struct {
-	Endpoint        string
-	AccessKeyID     string
-	SecretAccessKey string
+	Endpoint         string
+	AccessKeyID      string
+	SecretAccessKey  string
 	MaxRetryAttempts int
-	MaxBackoffDelay time.Duration
+	MaxBackoffDelay  time.Duration
 }
 
 // NewClient creates a new S3 client
