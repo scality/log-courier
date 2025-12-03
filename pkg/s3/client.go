@@ -3,6 +3,8 @@ package s3
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -14,6 +16,13 @@ import (
 
 const (
 	defaultRegion = "us-east-1"
+
+	// Default HTTP client timeouts
+	defaultDialTimeout            = 10 * time.Second  // Time to establish connection
+	defaultResponseHeaderTimeout  = 30 * time.Second  // Time to receive response headers
+	defaultIdleConnTimeout        = 90 * time.Second  // Time to keep idle connections
+	defaultTLSHandshakeTimeout    = 10 * time.Second  // Time for TLS handshake
+	defaultExpectContinueTimeout  = 1 * time.Second   // Time waiting for 100-Continue
 )
 
 // Client wraps S3 client
@@ -38,8 +47,22 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 
 	var optFns []func(*config.LoadOptions) error
 
-	// Set region and credentials
+	// Create HTTP client with timeouts to prevent indefinite hangs
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: defaultDialTimeout,
+			}).DialContext,
+			ResponseHeaderTimeout: defaultResponseHeaderTimeout,
+			IdleConnTimeout:       defaultIdleConnTimeout,
+			TLSHandshakeTimeout:   defaultTLSHandshakeTimeout,
+			ExpectContinueTimeout: defaultExpectContinueTimeout,
+		},
+	}
+
+	// Set HTTP client, region, and credentials
 	optFns = append(optFns,
+		config.WithHTTPClient(httpClient),
 		config.WithRegion(defaultRegion),
 		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
