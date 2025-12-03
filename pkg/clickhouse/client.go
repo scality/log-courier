@@ -21,7 +21,7 @@ type Config struct {
 	Hosts    []string
 	Username string
 	Password string
-	Timeout  time.Duration
+	Timeout  time.Duration // Used for DialTimeout and ReadTimeout
 }
 
 // NewClient creates a new ClickHouse client
@@ -38,6 +38,9 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 			Password: cfg.Password,
 		},
 		DialTimeout: cfg.Timeout,
+		// ReadTimeout applies to reading from the connection (query execution)
+		// This prevents queries from hanging indefinitely
+		ReadTimeout: cfg.Timeout,
 	}
 
 	conn, err := clickhouse.Open(options)
