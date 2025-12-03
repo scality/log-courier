@@ -88,6 +88,18 @@ var ConfigSpec = util.ConfigSpec{
 		EnvVar:       "LOG_COURIER_RETRY_BACKOFF_JITTER_FACTOR",
 	},
 
+	// Operation timeouts
+	"timeout.upload-operation-seconds": util.ConfigVarSpec{
+		Help:         "Maximum time in seconds for upload operations (fetch + build + upload)",
+		DefaultValue: 300, // 5 minutes
+		EnvVar:       "LOG_COURIER_TIMEOUT_UPLOAD_OPERATION_SECONDS",
+	},
+	"timeout.commit-operation-seconds": util.ConfigVarSpec{
+		Help:         "Maximum time in seconds for offset commit operations",
+		DefaultValue: 30,
+		EnvVar:       "LOG_COURIER_TIMEOUT_COMMIT_OPERATION_SECONDS",
+	},
+
 	// S3 configuration
 	"s3.endpoint": util.ConfigVarSpec{
 		Help:         "S3 endpoint URL",
