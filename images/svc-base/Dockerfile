@@ -1,4 +1,4 @@
-# BUILDER: golang
+# BUILDER: golang (production)
 FROM golang:1.25.4-alpine3.21 AS builder-go
 
 ENV GOOS=linux
@@ -11,7 +11,21 @@ RUN apk add --no-cache make
 COPY . /usr/src/app/
 RUN make all
 
-FROM alpine:3.22
+# BUILDER: golang (debug with symbols and race detector)
+FROM golang:1.25.4-alpine3.21 AS builder-go-debug
+
+ENV GOOS=linux
+ENV GOARCH=amd64
+
+WORKDIR /usr/src/app
+
+RUN apk add --no-cache make gcc musl-dev
+
+COPY . /usr/src/app/
+RUN make all-debug
+
+# Common runtime setup (shared between production and debug)
+FROM alpine:3.22 AS runtime-common
 
 RUN apk add --no-cache \
     bash \
@@ -46,6 +60,14 @@ RUN mkdir ${LOG_DIR} && \
     mkdir -p ${HOME_DIR}/log-courier/bin && \
     chown -R ${USER}:${USER} ${HOME_DIR}/log-courier
 
+USER ${USER}
+WORKDIR ${HOME_DIR}/log-courier
+
+CMD ["bash", "-c", "source ${CONF_DIR}/env && export && supervisord -c ${CONF_DIR}/${SUPERVISORD_CONF}"]
+
+# Production runtime (extends common, adds production binaries)
+FROM runtime-common AS runtime-base
+
 COPY --from=builder-go \
     /usr/src/app/bin/log-courier \
     /usr/local/bin/.
@@ -54,7 +76,35 @@ COPY --from=builder-go \
     /usr/src/app/bin/ensureServiceUser \
     ${HOME_DIR}/log-courier/bin/
 
-USER ${USER}
-WORKDIR ${HOME_DIR}/log-courier
+# Debug runtime (extends common, adds Go runtime and debug binaries)
+FROM runtime-common AS runtime-debug
 
-CMD ["bash", "-c", "source ${CONF_DIR}/env && export && supervisord -c ${CONF_DIR}/${SUPERVISORD_CONF}"]
+# Switch to root to install Go runtime
+USER root
+
+# Install Go runtime from official image
+COPY --from=golang:1.25.4-alpine3.21 /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Copy debug binaries
+COPY --from=builder-go-debug \
+    /usr/src/app/bin/log-courier \
+    /usr/local/bin/.
+
+COPY --from=builder-go-debug \
+    /usr/src/app/bin/ensureServiceUser \
+    ${HOME_DIR}/log-courier/bin/
+
+# Copy source code for stack traces
+COPY --from=builder-go-debug \
+    /usr/src/app \
+    ${HOME_DIR}/log-courier/src
+
+# Fix ownership after installing as root
+RUN chown -R ${USER}:${USER} ${HOME_DIR}/log-courier
+
+# Switch back to non-root user
+USER ${USER}
+
+# Default to production image
+FROM runtime-base
