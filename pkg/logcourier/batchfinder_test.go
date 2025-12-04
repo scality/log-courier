@@ -152,9 +152,9 @@ var _ = Describe("BatchFinder", func() {
 
 			// Commit offset at current time
 			offsetTime := time.Now()
-			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedTs) VALUES (?, ?, ?)", helper.DatabaseName)
+			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)", helper.DatabaseName)
 			err := helper.Client.Exec(ctx, offsetQuery,
-				"test-bucket", uint16(0), offsetTime)
+				"test-bucket", uint16(0), offsetTime, offsetTime, "req-999")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Should not return batches (all logs processed)
@@ -194,6 +194,54 @@ var _ = Describe("BatchFinder", func() {
 
 			buckets := []string{batches[0].Bucket, batches[1].Bucket}
 			Expect(buckets).To(ConsistOf("bucket-1", "bucket-2"))
+		})
+
+		It("should respect composite offset", func() {
+			// Use old time to trigger time threshold
+			oldTime := time.Now().Add(-2 * time.Hour)
+			insertedAt := oldTime.Truncate(time.Second)
+			timestamp := oldTime
+
+			// Insert 5 logs directly with old insertedAt: same insertedAt and timestamp, different req_ids
+			for i := 0; i < 5; i++ {
+				query := fmt.Sprintf(`
+					INSERT INTO %s.access_logs
+					(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				`, helper.DatabaseName)
+				err := helper.Client.Exec(ctx, query,
+					insertedAt,                 // insertedAt (old, same for all)
+					"test-bucket",              // bucketName
+					timestamp,                  // timestamp (same for all)
+					fmt.Sprintf("req-%03d", i), // req_id (different)
+					"GetObject",                // operation
+					true,                       // loggingEnabled
+					uint16(0),                  // raftSessionID
+					"/test-bucket/key",         // requestURI
+				)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			time.Sleep(100 * time.Millisecond)
+
+			// Set offset to req-002 (skip first 3 logs)
+			offsetQuery := fmt.Sprintf(
+				"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+				helper.DatabaseName)
+			err := helper.Client.Exec(ctx, offsetQuery,
+				"test-bucket", uint16(0),
+				insertedAt,
+				timestamp,
+				"req-002")
+			Expect(err).NotTo(HaveOccurred())
+
+			// BatchFinder should only find logs after composite offset
+			batches, err := finder.FindBatches(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Should find 1 batch with 2 logs (req-003, req-004)
+			Expect(batches).To(HaveLen(1))
+			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
 		})
 	})
 })
