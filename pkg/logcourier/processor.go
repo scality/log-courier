@@ -63,6 +63,13 @@ type Processor struct {
 	commitOperationTimeout        time.Duration
 }
 
+// ProcessResult holds the result of uploading a log batch
+type ProcessResult struct {
+	Offset        Offset
+	Records       []LogRecord
+	RaftSessionID uint16
+}
+
 // Config holds processor configuration
 //
 //nolint:govet // Field alignment is less important than readability for config structs
@@ -363,12 +370,12 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 // ============================================================================
 
 func (p *Processor) processLogBatchWithRetry(ctx context.Context, batch LogBatch) error {
-	_, maxInsertedAt, raftSessionID, err := p.uploadLogBatchWithRetry(ctx, batch)
+	result, err := p.uploadLogBatchWithRetry(ctx, batch)
 	if err != nil {
 		return err
 	}
 
-	return p.commitOffsetWithRetry(ctx, batch.Bucket, raftSessionID, maxInsertedAt)
+	return p.commitOffsetWithRetry(ctx, batch.Bucket, result.RaftSessionID, result.Offset)
 }
 
 // retryWithBackoff executes an operation with exponential backoff retry logic
@@ -448,18 +455,16 @@ func mapsToSlice(m map[string]any) []any {
 }
 
 // uploadLogBatchWithRetry handles fetching, building, and uploading with retries
-// Returns the records and offset info needed for committing
-func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
-	var records []LogRecord
-	var maxInsertedAt time.Time
-	var raftSessionID uint16
+// Returns the process result needed for committing
+func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) (*ProcessResult, error) {
+	var result *ProcessResult
 
 	uploadCtx, cancel := context.WithTimeout(ctx, p.uploadOperationTimeout)
 	defer cancel()
 
 	err := p.retryWithBackoff(uploadCtx, func() error {
 		var err error
-		records, maxInsertedAt, raftSessionID, err = p.uploadLogBatch(uploadCtx, batch)
+		result, err = p.uploadLogBatch(uploadCtx, batch)
 		return err
 	}, func(err error) bool {
 		return !IsPermanentError(err)
@@ -472,20 +477,22 @@ func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch)
 			"error", err)
 	}
 
-	return records, maxInsertedAt, raftSessionID, err
+	return result, err
 }
 
 // commitOffsetWithRetry handles committing the offset to ClickHouse with retries
-func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, maxInsertedAt time.Time) error {
+func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error {
 	commitCtx, cancel := context.WithTimeout(ctx, p.commitOperationTimeout)
 	defer cancel()
 
 	err := p.retryWithBackoff(commitCtx, func() error {
-		return p.offsetManager.CommitOffset(commitCtx, bucket, raftSessionID, maxInsertedAt)
+		return p.offsetManager.CommitOffset(commitCtx, bucket, raftSessionID, offset)
 	}, nil, "offset commit", map[string]any{
 		"bucketName":    bucket,
 		"raftSessionID": raftSessionID,
-		"maxInsertedAt": maxInsertedAt,
+		"insertedAt":    offset.InsertedAt,
+		"timestamp":     offset.Timestamp,
+		"reqID":         offset.ReqID,
 	})
 
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
@@ -530,7 +537,7 @@ func IsPermanentError(err error) bool {
 
 // uploadLogBatch handles the upload phase: fetch, build, and upload to S3
 // Returns the records and offset info needed for committing
-func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRecord, time.Time, uint16, error) {
+func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*ProcessResult, error) {
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
@@ -540,7 +547,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 	// 1. Fetch logs
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
 	if err != nil {
-		return nil, time.Time{}, 0, fmt.Errorf("failed to fetch logs: %w", err)
+		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}
 
 	if len(records) == 0 {
@@ -549,7 +556,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 			"expectedLogCount", batch.LogCount,
 			"minTimestamp", batch.MinTimestamp,
 			"maxTimestamp", batch.MaxTimestamp)
-		return nil, time.Time{}, 0, fmt.Errorf("zero records fetched but BatchFinder expected %d logs for bucket %s",
+		return nil, fmt.Errorf("zero records fetched but BatchFinder expected %d logs for bucket %s",
 			batch.LogCount, batch.Bucket)
 	}
 
@@ -558,7 +565,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 	// 2. Build log object
 	logObj, err := p.logBuilder.Build(records)
 	if err != nil {
-		return nil, time.Time{}, 0, fmt.Errorf("failed to build log object: %w", err)
+		return nil, fmt.Errorf("failed to build log object: %w", err)
 	}
 
 	p.logger.Debug("built log object", "bucketName", batch.Bucket, "s3Key", logObj.Key, "sizeBytes", len(logObj.Content))
@@ -577,7 +584,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 
 	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
 	if err != nil {
-		return nil, time.Time{}, 0, fmt.Errorf("failed to upload log object: %w", err)
+		return nil, fmt.Errorf("failed to upload log object: %w", err)
 	}
 
 	p.logger.Info("uploaded log object",
@@ -586,25 +593,16 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) ([]LogRe
 		"s3Key", logObj.Key,
 		"sizeBytes", len(logObj.Content))
 
-	maxInsertedAt := GetMaxInsertedAt(records)
-	raftSessionID := records[0].RaftSessionID
+	// Get triple composite offset from last log
+	lastLog := records[len(records)-1]
 
-	return records, maxInsertedAt, raftSessionID, nil
-}
-
-// GetMaxInsertedAt returns the maximum insertedAt timestamp from log records
-func GetMaxInsertedAt(records []LogRecord) time.Time {
-	if len(records) == 0 {
-		return time.Time{}
-	}
-
-	maxTime := records[0].InsertedAt
-
-	for i := 1; i < len(records); i++ {
-		if records[i].InsertedAt.After(maxTime) {
-			maxTime = records[i].InsertedAt
-		}
-	}
-
-	return maxTime
+	return &ProcessResult{
+		Records: records,
+		Offset: Offset{
+			InsertedAt: lastLog.InsertedAt,
+			Timestamp:  lastLog.Timestamp,
+			ReqID:      lastLog.ReqID,
+		},
+		RaftSessionID: lastLog.RaftSessionID,
+	}, nil
 }
