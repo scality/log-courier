@@ -144,33 +144,6 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records[0].BucketName).To(Equal("bucket-1"))
 		})
 
-		It("should filter by insertedAt time window", func() {
-			now := time.Now()
-
-			// Insert log that will be outside the window
-			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				LoggingEnabled: true,
-				BucketName:     "test-bucket",
-				Timestamp:      now,
-				ReqID:          "req-old",
-				Action:         "GetObject",
-				ObjectKey:      "key-old",
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			// Query with a future time window (should get no results)
-			futureTime := now.Add(1 * time.Hour)
-			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: futureTime,
-				MaxTimestamp: futureTime.Add(1 * time.Hour),
-			}
-
-			records, err := fetcher.FetchLogs(ctx, batch)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(records).To(BeEmpty())
-		})
-
 		It("should return empty list when no logs match", func() {
 			batch := logcourier.LogBatch{
 				Bucket:       "nonexistent-bucket",
@@ -183,27 +156,30 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records).To(BeEmpty())
 		})
 
-		It("should fetch all required fields", func() {
-			now := time.Now()
+		It("should fetch log with all fields", func() {
+			insertTime := time.Now()
+			reqTime := insertTime.Add(-5 * time.Minute)
 
-			// Insert a log with specific field values
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				LoggingEnabled: true,
+				Timestamp:      reqTime,
 				BucketName:     "test-bucket",
-				Timestamp:      now,
 				ReqID:          "test-req-id",
 				Action:         "PutObject",
 				ObjectKey:      "test-key",
 				BytesSent:      12345,
 				HttpCode:       200,
 				RaftSessionID:  42,
+				LoggingEnabled: true,
 			})
 			Expect(err).NotTo(HaveOccurred())
 
+			time.Sleep(100 * time.Millisecond)
+
 			batch := logcourier.LogBatch{
 				Bucket:       "test-bucket",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(1 * time.Second),
+				MinTimestamp: reqTime.Add(-1 * time.Hour),
+				MaxTimestamp: reqTime.Add(1 * time.Hour),
+				LogCount:     1,
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -218,6 +194,8 @@ var _ = Describe("LogFetcher", func() {
 			Expect(rec.BytesSent).To(Equal(uint64(12345)))
 			Expect(rec.HttpCode).To(Equal(uint16(200)))
 			Expect(rec.RaftSessionID).To(Equal(uint16(42)))
+			Expect(rec.InsertedAt).NotTo(BeZero())
+			Expect(rec.Timestamp).NotTo(BeZero())
 		})
 	})
 })

@@ -3,6 +3,7 @@ package logcourier
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,8 +28,15 @@ import (
 
 // OffsetManagerInterface defines the interface for offset management
 type OffsetManagerInterface interface {
-	CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error
-	GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error)
+	CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error
+	GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (Offset, error)
+}
+
+// Offset holds the composite offset
+type Offset struct {
+	InsertedAt time.Time
+	Timestamp  time.Time
+	ReqID      string
 }
 
 // OffsetManager manages offsets
@@ -45,21 +53,27 @@ func NewOffsetManager(client *clickhouse.Client, database string) *OffsetManager
 	}
 }
 
-// CommitOffset commits the processing offset for a bucket
-func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error {
+// CommitOffset commits the processing offset for a bucket using composite key
+func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error {
 	if bucket == "" {
 		return fmt.Errorf("bucket name cannot be empty")
 	}
-	if timestamp.IsZero() {
+	if offset.InsertedAt.IsZero() {
+		return fmt.Errorf("insertedAt timestamp cannot be zero")
+	}
+	if offset.Timestamp.IsZero() {
 		return fmt.Errorf("timestamp cannot be zero")
+	}
+	if offset.ReqID == "" {
+		return fmt.Errorf("reqID cannot be empty")
 	}
 
 	query := fmt.Sprintf(`
-        INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedTs)
-        VALUES (?, ?, ?)
+        INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId)
+        VALUES (?, ?, ?, ?, ?)
     `, om.database, clickhouse.TableOffsets)
 
-	err := om.client.Exec(ctx, query, bucket, raftSessionID, timestamp)
+	err := om.client.Exec(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
 	if err != nil {
 		return fmt.Errorf("failed to commit offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
 	}
@@ -67,35 +81,39 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
 	return nil
 }
 
-// GetOffset retrieves the current offset for a bucket and raft session
+// GetOffset retrieves the current composite offset for a bucket and raft session
 //
-// Both bucket and raftSessionID are used so that there are two separate offsets for migrated buckets,
-// one for the source and one for the destination raft session.
-//
-// Returns zero time if bucket has no offset
-func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error) {
+// Returns zero timestamps and empty reqID if bucket has no offset
+func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (Offset, error) {
 	if bucket == "" {
-		return time.Time{}, fmt.Errorf("bucket name cannot be empty")
+		return Offset{}, fmt.Errorf("bucket name cannot be empty")
 	}
 
+	// Get the row with maximum composite offset for the given bucket and raft session.
+	// Order by all three components to handle cases where multiple rows have the same lastProcessedInsertedAt or lastProcessedTimestamp.
 	query := fmt.Sprintf(`
-        SELECT maxOrNull(lastProcessedTs)
+        SELECT
+            lastProcessedInsertedAt,
+            lastProcessedTimestamp,
+            lastProcessedReqId
         FROM %s.%s
         WHERE bucketName = ? AND raftSessionID = ?
+        ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
+        LIMIT 1
     `, om.database, clickhouse.TableOffsets)
 
 	row := om.client.QueryRow(ctx, query, bucket, raftSessionID)
 
-	var timestamp sql.NullTime
-	err := row.Scan(&timestamp)
+	var offset Offset
+	err := row.Scan(&offset.InsertedAt, &offset.Timestamp, &offset.ReqID)
+
+	// Check if no rows returned (no offset exists)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Offset{}, nil
+		}
+		return Offset{}, fmt.Errorf("failed to get offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
 	}
 
-	// If no offset exists for this bucket/raftSession, maxOrNull() returns NULL
-	// Use sql.NullTime so NULL is properly detected via the Valid field
-	if !timestamp.Valid {
-		return time.Time{}, nil
-	}
-	return timestamp.Time, nil
+	return offset, nil
 }

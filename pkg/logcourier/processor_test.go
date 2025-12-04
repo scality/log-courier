@@ -28,27 +28,6 @@ const (
 )
 
 var _ = Describe("Processor", func() {
-	Describe("Unit Tests", func() {
-		Describe("GetMaxInsertedAt", func() {
-			It("should return the maximum insertedAt timestamp", func() {
-				now := time.Now()
-				records := []logcourier.LogRecord{
-					{InsertedAt: now.Add(-10 * time.Minute)},
-					{InsertedAt: now.Add(-5 * time.Minute)},
-					{InsertedAt: now.Add(-15 * time.Minute)},
-				}
-
-				result := logcourier.GetMaxInsertedAt(records)
-				Expect(result).To(Equal(now.Add(-5 * time.Minute)))
-			})
-
-			It("should return zero time for empty records", func() {
-				result := logcourier.GetMaxInsertedAt([]logcourier.LogRecord{})
-				Expect(result.IsZero()).To(BeTrue())
-			})
-		})
-	})
-
 	Describe("Processor Tests", func() {
 		var (
 			ctx    context.Context
@@ -270,7 +249,7 @@ var _ = Describe("Processor", func() {
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 					offset, err := offsetMgr.GetOffset(ctx, "source-bucket", 1)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeFalse(), "Expected offset to be set after processing")
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after processing")
 				})
 
 				It("should process batch when time threshold is exceeded", func() {
@@ -344,7 +323,7 @@ var _ = Describe("Processor", func() {
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "time-threshold-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeFalse(), "Expected offset to be set after time-based processing")
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after time-based processing")
 				})
 
 			})
@@ -421,7 +400,7 @@ var _ = Describe("Processor", func() {
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "perm-error-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
+					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
 				})
 
 				It("should not retry when S3 credentials are invalid", func() {
@@ -496,7 +475,7 @@ var _ = Describe("Processor", func() {
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "invalid-creds-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
+					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
 				})
 
 				It("should not retry when account lacks S3 write permissions", func() {
@@ -659,7 +638,7 @@ var _ = Describe("Processor", func() {
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "access-denied-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
+					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
 				})
 
 			})
@@ -832,16 +811,16 @@ var _ = Describe("Processor", func() {
 
 					offset1, err := offsetMgr.GetOffset(ctx, "good-bucket-1", 1)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(offset1.IsZero()).To(BeFalse(), "Expected offset for good-bucket-1")
+					Expect(offset1.InsertedAt.IsZero()).To(BeFalse(), "Expected offset for good-bucket-1")
 
 					offset2, err := offsetMgr.GetOffset(ctx, "good-bucket-2", 1)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(offset2.IsZero()).To(BeFalse(), "Expected offset for good-bucket-2")
+					Expect(offset2.InsertedAt.IsZero()).To(BeFalse(), "Expected offset for good-bucket-2")
 
 					// Verify offset was not committed for bad bucket
 					badOffset, err := offsetMgr.GetOffset(ctx, "bad-bucket", 1)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(badOffset.IsZero()).To(BeTrue(), "Expected no offset for bad-bucket after permanent error")
+					Expect(badOffset.InsertedAt.IsZero()).To(BeTrue(), "Expected no offset for bad-bucket after permanent error")
 				})
 
 			})
@@ -928,7 +907,7 @@ var _ = Describe("Processor", func() {
 					// Verify offset was eventually committed
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "offset-retry-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					Expect(offset.IsZero()).To(BeFalse(), "Offset should be committed after retries")
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Offset should be committed after retries")
 				})
 			})
 		})

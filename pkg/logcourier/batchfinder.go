@@ -26,40 +26,89 @@ func NewBatchFinder(client *clickhouse.Client, database string, countThreshold, 
 }
 
 // FindBatches finds log batches ready for processing
+//
+//nolint:funlen // Function length is due to extensive SQL comments for readability
 func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	query := fmt.Sprintf(`
         WITH
-            -- Find the most recent timestamp processed for each bucket
+            -- CTE 1: bucket_offsets
+            -- Purpose: Get the most recent offset for each bucket
+            --
+            -- Uses ROW_NUMBER() window function to rank offsets by the composite offset keys
+            -- in descending order and select the first row.
+            --
+            -- PARTITION BY ensures we get one offset per bucket
             bucket_offsets AS (
                 SELECT
                     bucketName,
-                    max(lastProcessedTs) as lastProcessedTs
-                FROM %s.%s
-                GROUP BY bucketName
+                    raftSessionID,
+                    lastProcessedInsertedAt,
+                    lastProcessedTimestamp,
+                    lastProcessedReqId
+                FROM (
+                    SELECT
+                        bucketName,
+                        raftSessionID,
+                        lastProcessedInsertedAt,
+                        lastProcessedTimestamp,
+                        lastProcessedReqId,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY bucketName, raftSessionID
+                            ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
+                        ) as rn
+                    FROM %s.offsets
+                ) offsets_ordered
+                WHERE rn = 1
             ),
 
-            -- Find unprocessed logs for each bucket (process all buckets, partitioning will be added later - TODO: LOGC-8)
+            -- CTE 2: new_logs_by_bucket
+            -- Purpose: Count unprocessed logs for each bucket
+            --
+            -- Joins access_logs with bucket_offsets to find logs that haven't been processed yet.
+            -- A log is considered unprocessed if its (insertedAt, timestamp, reqID) is greater
+            -- than the stored offset using lexicographic comparison:
+            --   1. insertedAt > offset.insertedAt, OR
+            --   2. insertedAt = offset.insertedAt AND timestamp > offset.timestamp, OR
+            --   3. insertedAt = offset.insertedAt AND timestamp = offset.timestamp AND reqID > offset.reqID
+            --
+            -- For buckets with no offset, COALESCE defaults to epoch, so all logs are unprocessed.
             new_logs_by_bucket AS (
                 SELECT
                     l.bucketName,
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
                     max(l.insertedAt) as max_ts
-                FROM %s.%s AS l
-                LEFT JOIN bucket_offsets AS o ON l.bucketName = o.bucketName
-                WHERE l.insertedAt > COALESCE(o.lastProcessedTs, toDateTime64('1970-01-01 00:00:00', 3))
+                FROM %s.access_logs AS l
+                LEFT JOIN bucket_offsets AS o
+                    ON l.bucketName = o.bucketName
+                    AND l.raftSessionID = o.raftSessionID
+                WHERE
+                    -- Triple composite offset comparison: log > offset
+                    l.insertedAt > COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00'))
+                    OR (
+                        l.insertedAt = o.lastProcessedInsertedAt
+                        AND l.timestamp > COALESCE(o.lastProcessedTimestamp, toDateTime64('1970-01-01 00:00:00', 3))
+                    )
+                    OR (
+                        l.insertedAt = o.lastProcessedInsertedAt
+                        AND l.timestamp = o.lastProcessedTimestamp
+                        AND l.req_id > COALESCE(o.lastProcessedReqId, '')
+                    )
                 GROUP BY l.bucketName
             )
-        -- Select buckets ready for log batch processing
-        SELECT
-            bucketName,
-            new_log_count,
-            min_ts,
-            max_ts
+        -- Main query: Select buckets that are ready for processing
+        --
+        -- A bucket is ready if either:
+        --   1. It has at least countThreshold unprocessed logs (volume condition), OR
+        --   2. Its oldest unprocessed log is older than timeThresholdSec (age condition)
+        --
+        -- Results are ordered by min_ts (oldest first) to prioritize buckets with oldest logs.
+        SELECT bucketName, new_log_count, min_ts, max_ts
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
-            OR min_ts <= now() - INTERVAL ? SECOND
-    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
+           OR min_ts <= now() - INTERVAL ? SECOND
+        ORDER BY min_ts ASC
+    `, bf.database, bf.database)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
 	if err != nil {
