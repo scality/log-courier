@@ -104,7 +104,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
-		ORDER BY (raftSessionID, bucketName, insertedAt, req_id)
+		ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
 	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
@@ -137,9 +137,11 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	offsetsTableSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
-			bucketName            String,
-			raftSessionID         UInt16,
-			lastProcessedTs       DateTime
+			bucketName                String,
+			raftSessionID             UInt16,
+			lastProcessedInsertedAt   DateTime,
+			lastProcessedTimestamp    DateTime64(3),
+			lastProcessedReqId        String
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionID)
@@ -290,16 +292,16 @@ func NewFailingOffsetManager(manager logcourier.OffsetManagerInterface, failUnti
 }
 
 // CommitOffset wraps the underlying manager's CommitOffset and fails until failUntilCount
-func (f *FailingOffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, timestamp time.Time) error {
+func (f *FailingOffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, offset logcourier.Offset) error {
 	count := f.commitCount.Add(1)
 	if count <= f.failUntilCount {
 		return fmt.Errorf("simulated offset commit failure (attempt %d)", count)
 	}
-	return f.manager.CommitOffset(ctx, bucket, raftSessionID, timestamp)
+	return f.manager.CommitOffset(ctx, bucket, raftSessionID, offset)
 }
 
 // GetOffset delegates to the underlying manager
-func (f *FailingOffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (time.Time, error) {
+func (f *FailingOffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (logcourier.Offset, error) {
 	return f.manager.GetOffset(ctx, bucket, raftSessionID)
 }
 
