@@ -384,14 +384,8 @@ func (p *Processor) retryWithBackoff(
 	operation func() error,
 	shouldRetry func(error) bool,
 	operationName string,
-	logFields map[string]any,
+	logger *slog.Logger,
 ) error {
-	// Create local copy to avoid mutating caller's map
-	fields := make(map[string]any)
-	for k, v := range logFields {
-		fields[k] = v
-	}
-
 	var lastErr error
 	backoff := p.initialBackoff
 
@@ -400,16 +394,15 @@ func (p *Processor) retryWithBackoff(
 			// Apply jitter to the backoff
 			actualBackoff := applyJitter(backoff, p.backoffJitterFactor)
 
-			fields["attempt"] = attempt
-			fields["backoffSeconds"] = actualBackoff.Seconds()
-			p.logger.Info(fmt.Sprintf("retrying %s after backoff", operationName), mapsToSlice(fields)...)
+			logger.Info(fmt.Sprintf("retrying %s after backoff", operationName),
+				"attempt", attempt,
+				"backoffSeconds", actualBackoff.Seconds())
 
 			select {
 			case <-time.After(actualBackoff):
 			case <-ctx.Done():
 				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-					fields["error"] = ctx.Err()
-					p.logger.Warn(fmt.Sprintf("%s operation timed out", operationName), mapsToSlice(fields)...)
+					logger.Warn(fmt.Sprintf("%s operation timed out", operationName), "error", ctx.Err())
 				}
 				return ctx.Err()
 			}
@@ -419,45 +412,36 @@ func (p *Processor) retryWithBackoff(
 				backoff = p.maxBackoff
 			}
 
-			p.logger.Debug(fmt.Sprintf("executing %s retry", operationName), mapsToSlice(fields)...)
+			logger.Debug(fmt.Sprintf("executing %s retry", operationName), "attempt", attempt)
 		}
 
 		err := operation()
 		if err == nil {
-			fields["attempt"] = attempt
-			p.logger.Info(fmt.Sprintf("%s succeeded", operationName), mapsToSlice(fields)...)
+			logger.Info(fmt.Sprintf("%s succeeded", operationName), "attempt", attempt)
 			return nil
 		}
 
 		if shouldRetry != nil && !shouldRetry(err) {
-			fields["error"] = err
-			p.logger.Info(fmt.Sprintf("permanent error, not retrying %s", operationName), mapsToSlice(fields)...)
+			logger.Error(fmt.Sprintf("permanent error, not retrying %s", operationName), "error", err)
 			return fmt.Errorf("permanent error in %s: %w", operationName, err)
 		}
 
 		lastErr = err
 
-		fields["attempt"] = attempt
-		fields["error"] = err
-		p.logger.Warn(fmt.Sprintf("transient error, will retry %s", operationName), mapsToSlice(fields)...)
+		logger.Warn(fmt.Sprintf("transient error, will retry %s", operationName),
+			"attempt", attempt,
+			"error", err)
 	}
 
 	return fmt.Errorf("max retries (%d) exceeded for %s: %w", p.maxRetries, operationName, lastErr)
-}
-
-// mapsToSlice converts a map to a slice of key-value pairs for slog
-func mapsToSlice(m map[string]any) []any {
-	result := make([]any, 0, len(m)*2)
-	for k, v := range m {
-		result = append(result, k, v)
-	}
-	return result
 }
 
 // uploadLogBatchWithRetry handles fetching, building, and uploading with retries
 // Returns the process result needed for committing
 func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch) (*ProcessResult, error) {
 	var result *ProcessResult
+
+	logger := p.logger.With("bucketName", batch.Bucket)
 
 	uploadCtx, cancel := context.WithTimeout(ctx, p.uploadOperationTimeout)
 	defer cancel()
@@ -468,7 +452,7 @@ func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch)
 		return err
 	}, func(err error) bool {
 		return !IsPermanentError(err)
-	}, "upload", map[string]any{"bucketName": batch.Bucket})
+	}, "upload", logger)
 
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
 		p.logger.Error("upload operation exceeded timeout",
@@ -482,18 +466,19 @@ func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch)
 
 // commitOffsetWithRetry handles committing the offset to ClickHouse with retries
 func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error {
+	logger := p.logger.With(
+		"bucketName", bucket,
+		"raftSessionID", raftSessionID,
+		"insertedAt", offset.InsertedAt,
+		"timestamp", offset.Timestamp,
+		"reqID", offset.ReqID)
+
 	commitCtx, cancel := context.WithTimeout(ctx, p.commitOperationTimeout)
 	defer cancel()
 
 	err := p.retryWithBackoff(commitCtx, func() error {
 		return p.offsetManager.CommitOffset(commitCtx, bucket, raftSessionID, offset)
-	}, nil, "offset commit", map[string]any{
-		"bucketName":    bucket,
-		"raftSessionID": raftSessionID,
-		"insertedAt":    offset.InsertedAt,
-		"timestamp":     offset.Timestamp,
-		"reqID":         offset.ReqID,
-	})
+	}, nil, "offset commit", logger)
 
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
 		p.logger.Error("offset commit operation exceeded timeout",
