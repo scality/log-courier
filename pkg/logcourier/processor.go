@@ -2,6 +2,7 @@ package logcourier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -58,6 +59,8 @@ type Processor struct {
 	initialBackoff                time.Duration
 	maxBackoff                    time.Duration
 	backoffJitterFactor           float64
+	uploadOperationTimeout        time.Duration
+	commitOperationTimeout        time.Duration
 }
 
 // Config holds processor configuration
@@ -90,6 +93,11 @@ type Config struct {
 	MaxBackoff time.Duration
 	// BackoffJitterFactor is the jitter factor for backoff (0.0 to 1.0)
 	BackoffJitterFactor float64
+
+	// UploadOperationTimeout is the maximum time for upload operations (fetch + build + upload)
+	UploadOperationTimeout time.Duration
+	// CommitOperationTimeout is the maximum time for offset commit operations
+	CommitOperationTimeout time.Duration
 
 	ClickHouseHosts    []string
 	ClickHouseUsername string
@@ -150,6 +158,16 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		offsetManager = NewOffsetManager(chClient, database)
 	}
 
+	// Apply default timeouts if not configured (for tests that don't use config system)
+	uploadTimeout := cfg.UploadOperationTimeout
+	if uploadTimeout == 0 {
+		uploadTimeout = 5 * time.Minute // Default: 300 seconds
+	}
+	commitTimeout := cfg.CommitOperationTimeout
+	if commitTimeout == 0 {
+		commitTimeout = 30 * time.Second // Default: 30 seconds
+	}
+
 	return &Processor{
 		clickhouseClient:              chClient,
 		s3Uploader:                    s3Uploader,
@@ -165,6 +183,8 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		initialBackoff:                cfg.InitialBackoff,
 		maxBackoff:                    cfg.MaxBackoff,
 		backoffJitterFactor:           cfg.BackoffJitterFactor,
+		uploadOperationTimeout:        uploadTimeout,
+		commitOperationTimeout:        commitTimeout,
 		logger:                        cfg.Logger,
 	}, nil
 }
@@ -380,6 +400,10 @@ func (p *Processor) retryWithBackoff(
 			select {
 			case <-time.After(actualBackoff):
 			case <-ctx.Done():
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					fields["error"] = ctx.Err()
+					p.logger.Warn(fmt.Sprintf("%s operation timed out", operationName), mapsToSlice(fields)...)
+				}
 				return ctx.Err()
 			}
 
@@ -430,26 +454,49 @@ func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch)
 	var maxInsertedAt time.Time
 	var raftSessionID uint16
 
-	err := p.retryWithBackoff(ctx, func() error {
+	uploadCtx, cancel := context.WithTimeout(ctx, p.uploadOperationTimeout)
+	defer cancel()
+
+	err := p.retryWithBackoff(uploadCtx, func() error {
 		var err error
-		records, maxInsertedAt, raftSessionID, err = p.uploadLogBatch(ctx, batch)
+		records, maxInsertedAt, raftSessionID, err = p.uploadLogBatch(uploadCtx, batch)
 		return err
 	}, func(err error) bool {
 		return !IsPermanentError(err)
 	}, "upload", map[string]any{"bucketName": batch.Bucket})
+
+	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+		p.logger.Error("upload operation exceeded timeout",
+			"bucketName", batch.Bucket,
+			"timeout", p.uploadOperationTimeout,
+			"error", err)
+	}
 
 	return records, maxInsertedAt, raftSessionID, err
 }
 
 // commitOffsetWithRetry handles committing the offset to ClickHouse with retries
 func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, maxInsertedAt time.Time) error {
-	return p.retryWithBackoff(ctx, func() error {
-		return p.offsetManager.CommitOffset(ctx, bucket, raftSessionID, maxInsertedAt)
+	commitCtx, cancel := context.WithTimeout(ctx, p.commitOperationTimeout)
+	defer cancel()
+
+	err := p.retryWithBackoff(commitCtx, func() error {
+		return p.offsetManager.CommitOffset(commitCtx, bucket, raftSessionID, maxInsertedAt)
 	}, nil, "offset commit", map[string]any{
 		"bucketName":    bucket,
 		"raftSessionID": raftSessionID,
 		"maxInsertedAt": maxInsertedAt,
 	})
+
+	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+		p.logger.Error("offset commit operation exceeded timeout",
+			"bucketName", bucket,
+			"raftSessionID", raftSessionID,
+			"timeout", p.commitOperationTimeout,
+			"error", err)
+	}
+
+	return err
 }
 
 // IsPermanentError determines if an error is permanent or transient

@@ -37,6 +37,8 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 		InitialBackoff:                time.Duration(logcourier.ConfigSpec.GetInt("retry.initial-backoff-seconds")) * time.Second,
 		MaxBackoff:                    time.Duration(logcourier.ConfigSpec.GetInt("retry.max-backoff-seconds")) * time.Second,
 		BackoffJitterFactor:           logcourier.ConfigSpec.GetFloat64("retry.backoff-jitter-factor"),
+		UploadOperationTimeout:        time.Duration(logcourier.ConfigSpec.GetInt("timeout.upload-operation-seconds")) * time.Second,
+		CommitOperationTimeout:        time.Duration(logcourier.ConfigSpec.GetInt("timeout.commit-operation-seconds")) * time.Second,
 		S3Endpoint:                    logcourier.ConfigSpec.GetString("s3.endpoint"),
 		S3AccessKeyID:                 logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		S3SecretAccessKey:             logcourier.ConfigSpec.GetString("s3.secret-access-key"),

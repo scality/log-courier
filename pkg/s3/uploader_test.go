@@ -282,5 +282,41 @@ var _ = Describe("S3 Uploader", func() {
 			// Verify exactly 3 requests were made (initial + 2 retries)
 			Expect(requestCount.Load()).To(Equal(int32(3)))
 		})
+
+		It("should respect context timeout for upload operation", func() {
+			// Mock S3 server that delays response longer than timeout
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Sleep longer than the test timeout to ensure timeout fires
+				time.Sleep(2 * time.Second)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer mockServer.Close()
+
+			cfg := s3.Config{
+				Endpoint:         mockServer.URL,
+				AccessKeyID:      workbenchAccessKey,
+				SecretAccessKey:  workbenchSecretKey,
+				MaxRetryAttempts: 1, // Single attempt
+			}
+
+			ctxClient, err := s3.NewClient(ctx, cfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctxUploader := s3.NewUploader(ctxClient)
+
+			// Create context with short timeout (shorter than server delay)
+			uploadCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
+
+			content := []byte("test content")
+
+			// Should timeout via context before server responds
+			err = ctxUploader.Upload(uploadCtx, bucket, testKey, content)
+			Expect(err).To(HaveOccurred())
+			// Check that error is due to context timeout
+			Expect(errors.Is(err, context.DeadlineExceeded) ||
+				err.Error() == "context deadline exceeded" ||
+				err.Error() == "context canceled").To(BeTrue())
+		})
 	})
 })
