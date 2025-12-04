@@ -41,6 +41,5 @@ lint:
 fmt:
 	go fmt ./...
 
-coverage-report: test-coverage
+coverage-report:
 	go tool cover -html=cover.out -o unit-coverage.html
-	go tool cover -html=integration-coverage.out -o integration-coverage.html

@@ -53,7 +53,7 @@ jobs:
       - name: Run unit tests
         run: make test-coverage
 
-      - name: Extract coverage report
+      - name: Generate coverage HTML report
         run: make coverage-report
 
       - name: Upload coverage reports to Codecov
