@@ -88,8 +88,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
+					MinDiscoveryInterval: 100 * time.Millisecond, // Fast discovery for tests
+					MaxDiscoveryInterval: 1 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           3,
 					InitialBackoff:       1 * time.Second,
@@ -117,8 +117,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
+					MinDiscoveryInterval: 100 * time.Millisecond, // Fast discovery for tests
+					MaxDiscoveryInterval: 1 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           3,
 					InitialBackoff:       1 * time.Second,
@@ -143,8 +143,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
+					MinDiscoveryInterval: 100 * time.Millisecond, // Fast discovery for tests
+					MaxDiscoveryInterval: 1 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           3,
 					InitialBackoff:       1 * time.Second,
@@ -199,8 +199,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5, // Lower threshold for faster tests
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
+					MinDiscoveryInterval: 100 * time.Millisecond, // Fast discovery for tests
+					MaxDiscoveryInterval: 1 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           3,
 					InitialBackoff:       100 * time.Millisecond,
@@ -243,20 +243,23 @@ var _ = Describe("Processor", func() {
 					}
 
 					// Run one cycle in background and cancel after processing
-					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+					testCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 					defer cancel()
 
 					go func() {
 						_ = processor.Run(testCtx)
 					}()
 
-					// Wait for processing
-					time.Sleep(2 * time.Second)
+					// Poll for log object to appear in S3 (typically completes in 200-500ms)
+					Eventually(func() []string {
+						objects, _ := s3Helper.ListObjects(ctx, testTargetBucket, testTargetPrefix)
+						return objects
+					}, 2*time.Second, 100*time.Millisecond).ShouldNot(BeEmpty(),
+						"Expected at least one log object in S3")
 
-					// Check that log object was uploaded to S3
+					// Get the uploaded objects
 					objects, mvErr := s3Helper.ListObjects(ctx, testTargetBucket, testTargetPrefix)
 					Expect(mvErr).NotTo(HaveOccurred())
-					Expect(objects).NotTo(BeEmpty(), "Expected at least one log object in S3")
 
 					// Verify object content
 					content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
@@ -274,7 +277,7 @@ var _ = Describe("Processor", func() {
 				})
 
 				It("should process batch when time threshold is exceeded", func() {
-					// Create a processor with a short time threshold (2 seconds)
+					// Create a processor with a short time threshold (1 second for faster test)
 					cfg := logcourier.Config{
 						Logger:               logger,
 						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
@@ -283,9 +286,9 @@ var _ = Describe("Processor", func() {
 						ClickHouseDatabase:   helper.DatabaseName,
 						ClickHouseTimeout:    30 * time.Second,
 						CountThreshold:       10,
-						TimeThresholdSec:     2,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
+						TimeThresholdSec:     1, // Reduced from 2 for faster test
+						MinDiscoveryInterval: 100 * time.Millisecond, // Fast discovery for tests
+						MaxDiscoveryInterval: 1 * time.Second,
 						NumWorkers:           2,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
@@ -314,25 +317,27 @@ var _ = Describe("Processor", func() {
 						Expect(err).NotTo(HaveOccurred())
 					}
 
-					// Wait for logs to exceed time threshold (2 seconds + buffer)
-					time.Sleep(3 * time.Second)
+					// Wait for logs to exceed 1 second threshold with minimal buffer
+					time.Sleep(1200 * time.Millisecond)
 
 					// Run processor
-					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+					testCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 					defer cancel()
 
 					go func() {
 						_ = timeProcessor.Run(testCtx)
 					}()
 
-					// Wait for processing
-					time.Sleep(2 * time.Second)
-					cancel()
+					// Poll for object to appear (should complete quickly)
+					Eventually(func() int {
+						objects, _ := s3Helper.ListObjects(ctx, testTargetBucket, "time-test/")
+						return len(objects)
+					}, 2*time.Second, 100*time.Millisecond).Should(Equal(1),
+						"Expected time threshold to trigger batch processing despite low count")
 
-					// Verify batch was processed despite low count
+					// Get the uploaded objects
 					objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, "time-test/")
 					Expect(listErr).NotTo(HaveOccurred())
-					Expect(objects).To(HaveLen(1), "Expected time threshold to trigger batch processing despite low count")
 
 					// Verify content
 					content, objErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
@@ -405,13 +410,17 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for processing attempt
-					time.Sleep(1 * time.Second)
+					// Poll for upload attempt to complete
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}, 2*time.Second, 50*time.Millisecond).Should(Equal(int64(1)),
+						"Should attempt upload exactly once")
+
 					cancel()
 
-					// Verify only one upload attempt was made
+					// Verify upload count is still 1 (no retries)
 					uploadCount := countingUploader.GetUploadCount()
-					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
+					Expect(uploadCount).To(Equal(int64(1)))
 
 					// Verify the upload failed
 					failureCount := countingUploader.GetFailureCount()
@@ -480,13 +489,17 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for processing attempt
-					time.Sleep(1 * time.Second)
+					// Poll for upload attempt to complete
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}, 2*time.Second, 50*time.Millisecond).Should(Equal(int64(1)),
+						"Should attempt upload exactly once")
+
 					cancel()
 
-					// Verify only one upload attempt was made
+					// Verify upload count is still 1 (no retries)
 					uploadCount := countingUploader.GetUploadCount()
-					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
+					Expect(uploadCount).To(Equal(int64(1)))
 
 					// Verify the upload failed
 					failureCount := countingUploader.GetFailureCount()
@@ -582,8 +595,8 @@ var _ = Describe("Processor", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 
-					// Wait for policy to propagate
-					time.Sleep(2 * time.Second)
+					// Wait for policy to propagate (minimal wait for workbench)
+					time.Sleep(200 * time.Millisecond)
 
 					// Create S3 client with restricted credentials
 					restrictedConfig := s3.Config{
@@ -643,13 +656,17 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for processing attempt
-					time.Sleep(1 * time.Second)
+					// Poll for upload attempt to complete
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}, 2*time.Second, 50*time.Millisecond).Should(Equal(int64(1)),
+						"Should attempt upload exactly once")
+
 					cancel()
 
-					// Verify only one upload attempt was made
+					// Verify upload count is still 1 (no retries)
 					uploadCount := countingUploader.GetUploadCount()
-					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
+					Expect(uploadCount).To(Equal(int64(1)))
 
 					// Verify the upload failed
 					failureCount := countingUploader.GetFailureCount()
@@ -695,15 +712,21 @@ var _ = Describe("Processor", func() {
 						Expect(err).NotTo(HaveOccurred())
 					}
 
-					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					defer cancel()
 
 					go func() {
 						_ = processor.Run(testCtx)
 					}()
 
-					// Wait for processing
-					time.Sleep(3 * time.Second)
+					// Poll for both buckets to be processed
+					Eventually(func() bool {
+						bucket1Objects, _ := s3Helper.ListObjects(ctx, testTargetBucket, "bucket1/")
+						bucket2Objects, _ := s3Helper.ListObjects(ctx, testTargetBucket, "bucket2/")
+						return len(bucket1Objects) > 0 && len(bucket2Objects) > 0
+					}, 3*time.Second, 100*time.Millisecond).Should(BeTrue(),
+						"Expected both buckets to be processed in parallel")
+
 					cancel()
 
 					// Verify both buckets were processed
@@ -795,20 +818,24 @@ var _ = Describe("Processor", func() {
 						Expect(insertErr).NotTo(HaveOccurred())
 					}
 
-					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					defer cancel()
 
 					go func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for processing
-					time.Sleep(3 * time.Second)
+					// Poll for all uploads to complete
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}, 3*time.Second, 100*time.Millisecond).Should(Equal(int64(3)),
+						"Should attempt upload for all 3 batches")
+
 					cancel()
 
 					// Verify upload attempts: 3 batches attempted (2 good + 1 bad)
 					uploadCount := countingUploader.GetUploadCount()
-					Expect(uploadCount).To(Equal(int64(3)), "Should attempt upload for all 3 batches")
+					Expect(uploadCount).To(Equal(int64(3)))
 
 					// Verify successes: 2 good buckets succeeded
 					successCount := countingUploader.GetSuccessCount()
@@ -899,14 +926,19 @@ var _ = Describe("Processor", func() {
 						Expect(insertErr).NotTo(HaveOccurred())
 					}
 
-					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					defer cancel()
 
 					go func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					time.Sleep(3 * time.Second)
+					// Poll for offset commit retries to complete (fails twice, succeeds on 3rd)
+					Eventually(func() int64 {
+						return failingOffsetMgr.GetCommitCount()
+					}, 3*time.Second, 100*time.Millisecond).Should(Equal(int64(3)),
+						"Should try offset commit 3 times (2 failures + 1 success)")
+
 					cancel()
 
 					// Verify upload happened only once despite offset commit retries
@@ -967,8 +999,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 1 * time.Second,
-					MaxDiscoveryInterval: 10 * time.Second,
+					MinDiscoveryInterval: 200 * time.Millisecond, // Fast cycles for tests
+					MaxDiscoveryInterval: 2 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           1,
 					InitialBackoff:       100 * time.Millisecond,
@@ -1024,7 +1056,7 @@ var _ = Describe("Processor", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				testCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
 				errChan := make(chan error, 1)
@@ -1032,8 +1064,8 @@ var _ = Describe("Processor", func() {
 					errChan <- processor.Run(testCtx)
 				}()
 
-				// Wait for several cycles to run
-				time.Sleep(4 * time.Second)
+				// Wait for several cycles to run (with 200ms intervals, ~10 cycles in 2s)
+				time.Sleep(1500 * time.Millisecond)
 				cancel()
 
 				runErr := <-errChan
@@ -1062,8 +1094,8 @@ var _ = Describe("Processor", func() {
 					ClickHouseTimeout:    30 * time.Second,
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 1 * time.Second,
-					MaxDiscoveryInterval: 10 * time.Second,
+					MinDiscoveryInterval: 200 * time.Millisecond, // Fast cycles for tests
+					MaxDiscoveryInterval: 2 * time.Second,
 					NumWorkers:           2,
 					MaxRetries:           1, // 2 total attempts (0 and 1)
 					InitialBackoff:       100 * time.Millisecond,
@@ -1111,7 +1143,7 @@ var _ = Describe("Processor", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				testCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+				testCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
 				errChan := make(chan error, 1)
@@ -1119,10 +1151,10 @@ var _ = Describe("Processor", func() {
 					errChan <- processor.Run(testCtx)
 				}()
 
-				// Wait for multiple cycles:
+				// Wait for multiple cycles (with 200ms intervals, ~10 cycles in 2s):
 				// Cycle 1: both buckets fail (1 permanent, 1 transient exhausts retries) -> cycle fails
-				// Cycle 2: bucket 1 fails (permanent), bucket 2 succeeds (transient) -> cycle succeeds
-				time.Sleep(3 * time.Second)
+				// Cycle 2+: bucket 1 fails (permanent), bucket 2 succeeds (transient) -> cycle succeeds
+				time.Sleep(1500 * time.Millisecond)
 				cancel()
 
 				runErr := <-errChan
