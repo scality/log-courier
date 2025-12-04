@@ -11,7 +11,7 @@ RUN apk add --no-cache make
 COPY . /usr/src/app/
 RUN make all
 
-# BUILDER: golang (debug with symbols)
+# BUILDER: golang (debug with symbols and race detector)
 FROM golang:1.25.4-alpine3.21 AS builder-go-debug
 
 ENV GOOS=linux
@@ -19,7 +19,7 @@ ENV GOARCH=amd64
 
 WORKDIR /usr/src/app
 
-RUN apk add --no-cache make
+RUN apk add --no-cache make gcc musl-dev
 
 COPY . /usr/src/app/
 RUN make all-debug
