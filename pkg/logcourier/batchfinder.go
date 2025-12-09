@@ -47,7 +47,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                     max(l.insertedAt) as max_ts
                 FROM %s.%s AS l
                 LEFT JOIN bucket_offsets AS o ON l.bucketName = o.bucketName
-                WHERE l.insertedAt > COALESCE(o.lastProcessedTs, toDateTime64('1970-01-01 00:00:00', 3))
+                WHERE l.insertedAt > COALESCE(o.lastProcessedTs, toDateTime('1970-01-01 00:00:00'))
                 GROUP BY l.bucketName
             )
         -- Select buckets ready for log batch processing
