@@ -25,7 +25,7 @@ COPY . /usr/src/app/
 RUN make all-debug
 
 # Common runtime setup (shared between production and debug)
-FROM alpine:3.22 AS runtime-common
+FROM alpine:3.23 AS runtime-common
 
 RUN apk add --no-cache \
     bash \
