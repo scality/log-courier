@@ -3,6 +3,8 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -23,11 +25,15 @@ func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error)
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Create a no-op logger for tests
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
 	cfg := clickhouse.Config{
 		Hosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 		Username: logcourier.ConfigSpec.GetString("clickhouse.username"),
 		Password: logcourier.ConfigSpec.GetString("clickhouse.password"),
 		Timeout:  time.Duration(logcourier.ConfigSpec.GetInt("clickhouse.timeout-seconds")) * time.Second,
+		Logger:   logger,
 	}
 
 	client, err := clickhouse.NewClient(ctx, cfg)
