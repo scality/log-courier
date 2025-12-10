@@ -64,5 +64,25 @@ func ValidateConfig() error {
 			minDiscoveryInterval, maxDiscoveryInterval)
 	}
 
+	maxRetries := ConfigSpec.GetInt("retry.max-retries")
+	if maxRetries < 0 {
+		return fmt.Errorf("retry.max-retries must be non-negative, got %d", maxRetries)
+	}
+
+	initialBackoff := ConfigSpec.GetInt("retry.initial-backoff-seconds")
+	if initialBackoff <= 0 {
+		return fmt.Errorf("retry.initial-backoff-seconds must be positive, got %d", initialBackoff)
+	}
+
+	maxBackoff := ConfigSpec.GetInt("retry.max-backoff-seconds")
+	if maxBackoff <= 0 {
+		return fmt.Errorf("retry.max-backoff-seconds must be positive, got %d", maxBackoff)
+	}
+
+	if initialBackoff > maxBackoff {
+		return fmt.Errorf("retry.initial-backoff-seconds (%d) must be <= retry.max-backoff-seconds (%d)",
+			initialBackoff, maxBackoff)
+	}
+
 	return nil
 }

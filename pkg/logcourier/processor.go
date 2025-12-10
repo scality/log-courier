@@ -130,10 +130,14 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 
 	// Create ClickHouse client
 	chClient, err := clickhouse.NewClient(ctx, clickhouse.Config{
-		Hosts:    cfg.ClickHouseHosts,
-		Username: cfg.ClickHouseUsername,
-		Password: cfg.ClickHousePassword,
-		Timeout:  cfg.ClickHouseTimeout,
+		Hosts:          cfg.ClickHouseHosts,
+		Username:       cfg.ClickHouseUsername,
+		Password:       cfg.ClickHousePassword,
+		Timeout:        cfg.ClickHouseTimeout,
+		MaxRetries:     cfg.MaxRetries,
+		InitialBackoff: cfg.InitialBackoff,
+		MaxBackoff:     cfg.MaxBackoff,
+		Logger:         cfg.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse client: %w", err)
