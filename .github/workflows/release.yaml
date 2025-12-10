@@ -8,6 +8,11 @@ on:
       tag:
         description: 'Tag to be released'
         required: true
+      build_debug:
+        description: 'Also build debug image'
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   build-image:
@@ -15,10 +20,17 @@ jobs:
     with:
       tag: ${{ inputs.tag }}
 
+  build-debug-image:
+    if: ${{ inputs.build_debug }}
+    uses: ./.github/workflows/build-debug-image.yaml
+    with:
+      tag: ${{ inputs.tag }}
+
   release:
     runs-on: ubuntu-latest
     needs:
     - build-image
+    - build-debug-image
     steps:
     - name: Create Release
       uses: softprops/action-gh-release@v2
