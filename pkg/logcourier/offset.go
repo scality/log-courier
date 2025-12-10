@@ -41,15 +41,17 @@ type Offset struct {
 
 // OffsetManager manages offsets
 type OffsetManager struct {
-	client   *clickhouse.Client
-	database string
+	client     *clickhouse.Client
+	database   string
+	asyncInsert bool
 }
 
 // NewOffsetManager creates a new offset manager
-func NewOffsetManager(client *clickhouse.Client, database string) *OffsetManager {
+func NewOffsetManager(client *clickhouse.Client, database string, asyncInsert bool) *OffsetManager {
 	return &OffsetManager{
-		client:   client,
-		database: database,
+		client:      client,
+		database:    database,
+		asyncInsert: asyncInsert,
 	}
 }
 
@@ -73,7 +75,12 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
         VALUES (?, ?, ?, ?, ?)
     `, om.database, clickhouse.TableOffsets)
 
-	err := om.client.Exec(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
+	var err error
+	if om.asyncInsert {
+		err = om.client.ExecAsync(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
+	} else {
+		err = om.client.Exec(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to commit offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
 	}

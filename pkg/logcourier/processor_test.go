@@ -252,7 +252,7 @@ var _ = Describe("Processor", func() {
 					Expect(strings.Count(contentStr, "\n")).To(BeNumerically(">=", 6), "Expected at least 6 log lines")
 
 					// Verify offset was committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					Eventually(func() bool {
 						offset, err := offsetMgr.GetOffset(ctx, "source-bucket", 1)
 						if err != nil {
@@ -340,7 +340,7 @@ var _ = Describe("Processor", func() {
 					Expect(strings.Count(contentStr, "\n")).To(Equal(5), "Expected 5 log lines with newlines")
 
 					// Verify offset was committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					Eventually(func() bool {
 						offset, err := offsetMgr.GetOffset(ctx, "time-threshold-bucket", 1)
 						if err != nil {
@@ -430,7 +430,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "perm-error-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -510,7 +510,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "invalid-creds-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -675,7 +675,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "access-denied-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -861,7 +861,7 @@ var _ = Describe("Processor", func() {
 					Expect(good2Objects).To(HaveLen(1), "Expected good-bucket-2 to be processed despite bad-bucket failure")
 
 					// Verify offsets were committed for successful buckets only
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 
 					Eventually(func() bool {
 						offset, getErr := offsetMgr.GetOffset(ctx, "good-bucket-1", 1)
@@ -906,7 +906,7 @@ var _ = Describe("Processor", func() {
 					countingUploader := testutil.NewCountingUploader(uploader)
 
 					// Create offset manager and wrap it to inject failures
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 					failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2) // Fail first 2 attempts
 
 					// Create processor with both wrappers
@@ -1123,7 +1123,7 @@ var _ = Describe("Processor", func() {
 				// Create offset manager that will:
 				// - Fail attempts 1 and 2 (first cycle exhausts retries)
 				// - Succeed on attempt 3 (second cycle succeeds)
-				offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+				offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName, false)
 				failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2)
 
 				// Create processor with MaxRetries=1 (2 total attempts per cycle)

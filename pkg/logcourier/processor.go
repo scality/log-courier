@@ -166,7 +166,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	if cfg.OffsetManager != nil {
 		offsetManager = cfg.OffsetManager
 	} else {
-		offsetManager = NewOffsetManager(chClient, database)
+		offsetManager = NewOffsetManager(chClient, database, true)
 	}
 
 	// Apply default timeouts if not configured (for tests that don't use config system)

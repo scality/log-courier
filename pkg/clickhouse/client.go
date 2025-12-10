@@ -116,6 +116,15 @@ func (c *Client) Exec(ctx context.Context, query string, args ...any) error {
 	return c.conn.Exec(ctx, query, args...)
 }
 
+// ExecAsync executes a query with async_insert enabled
+func (c *Client) ExecAsync(ctx context.Context, query string, args ...any) error {
+	ctx = clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
+		"async_insert":          1,
+		"wait_for_async_insert": 0,
+	}))
+	return c.conn.Exec(ctx, query, args...)
+}
+
 // Query executes a query and returns rows
 func (c *Client) Query(ctx context.Context, query string, args ...any) (driver.Rows, error) {
 	return c.conn.Query(ctx, query, args...)
