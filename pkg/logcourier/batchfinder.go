@@ -59,7 +59,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
             OR min_ts <= now() - INTERVAL ? SECOND
-    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederatedQuery)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
 	if err != nil {

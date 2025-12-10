@@ -111,13 +111,9 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	}
 
 	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create federated table as a VIEW pointing to local table.
-	federatedTableSQL := fmt.Sprintf(`
-		CREATE VIEW IF NOT EXISTS %s.%s
-		AS SELECT * FROM %s.%s
-	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogs)
-	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
-		return fmt.Errorf("failed to create federated table: %w", err)
+	// For single-node tests, create federated tables as VIEWs pointing to local table.
+	if err := h.createFederatedViews(ctx); err != nil {
+		return err
 	}
 
 	// Create materialized view that filters loggingEnabled = true
@@ -146,6 +142,29 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	`, h.DatabaseName, clickhouse.TableOffsets)
 	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
 		return fmt.Errorf("failed to create offsets table: %w", err)
+	}
+
+	return nil
+}
+
+// createFederatedViews creates federated table views for single-node tests
+func (h *ClickHouseTestHelper) createFederatedViews(ctx context.Context) error {
+	// Create federated table view (for writes through buffer in production)
+	federatedTableSQL := fmt.Sprintf(`
+		CREATE VIEW IF NOT EXISTS %s.%s
+		AS SELECT * FROM %s.%s
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogs)
+	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
+		return fmt.Errorf("failed to create federated table: %w", err)
+	}
+
+	// Create federated query table view (for reads, bypasses buffer in production)
+	federatedQueryTableSQL := fmt.Sprintf(`
+		CREATE VIEW IF NOT EXISTS %s.%s
+		AS SELECT * FROM %s.%s
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederatedQuery, h.DatabaseName, clickhouse.TableAccessLogs)
+	if err := h.Client.Exec(ctx, federatedQueryTableSQL); err != nil {
+		return fmt.Errorf("failed to create federated query table: %w", err)
 	}
 
 	return nil

@@ -11,8 +11,11 @@ const (
 	// TableAccessLogs is the main table storing log records (MergeTree)
 	TableAccessLogs = "access_logs"
 
-	// TableAccessLogsFederated is the distributed table across all shards
+	// TableAccessLogsFederated is the distributed table for writes (through buffer)
 	TableAccessLogsFederated = "access_logs_federated"
+
+	// TableAccessLogsFederatedQuery is the distributed table for queries (bypasses buffer)
+	TableAccessLogsFederatedQuery = "access_logs_federated_query"
 
 	// TableOffsets is the table tracking processing offsets per bucket (MergeTree)
 	TableOffsets = "offsets"
