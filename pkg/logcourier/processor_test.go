@@ -225,8 +225,9 @@ var _ = Describe("Processor", func() {
 					testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					defer cancel()
 
+					errChan := make(chan error, 1)
 					go func() {
-						_ = processor.Run(testCtx)
+						errChan <- processor.Run(testCtx)
 					}()
 
 					// Wait for log object to be uploaded to S3
@@ -251,16 +252,16 @@ var _ = Describe("Processor", func() {
 					contentStr := string(content)
 					Expect(strings.Count(contentStr, "\n")).To(BeNumerically(">=", 6), "Expected at least 6 log lines")
 
+					// Cancel context and wait for processor to stop
+					cancel()
+					<-errChan
+
+					// Explicitly close processor to flush buffered offsets
+					closeErr := processor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
+
 					// Verify offset was committed
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
-					Eventually(func() bool {
-						offset, err := offsetMgr.GetOffset(ctx, "source-bucket", 1)
-						if err != nil {
-							return false
-						}
-						return !offset.InsertedAt.IsZero()
-					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
-
 					offset, err := offsetMgr.GetOffset(ctx, "source-bucket", 1)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after processing")
@@ -311,8 +312,9 @@ var _ = Describe("Processor", func() {
 					testCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 					defer cancel()
 
+					errChan := make(chan error, 1)
 					go func() {
-						_ = timeProcessor.Run(testCtx)
+						errChan <- timeProcessor.Run(testCtx)
 					}()
 
 					// Wait for batch to be processed (needs time for logs to age past 2s threshold + discovery)
@@ -328,7 +330,6 @@ var _ = Describe("Processor", func() {
 
 					objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, "time-test/")
 					Expect(listErr).NotTo(HaveOccurred())
-					cancel()
 
 					// Verify batch was processed despite low count
 					Expect(objects).To(HaveLen(1), "Expected time threshold to trigger batch processing despite low count")
@@ -339,16 +340,16 @@ var _ = Describe("Processor", func() {
 					contentStr := string(content)
 					Expect(strings.Count(contentStr, "\n")).To(Equal(5), "Expected 5 log lines with newlines")
 
+					// Cancel context and wait for processor to stop
+					cancel()
+					<-errChan
+
+					// Explicitly close processor to flush buffered offsets
+					closeErr := timeProcessor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
+
 					// Verify offset was committed
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
-					Eventually(func() bool {
-						offset, err := offsetMgr.GetOffset(ctx, "time-threshold-bucket", 1)
-						if err != nil {
-							return false
-						}
-						return !offset.InsertedAt.IsZero()
-					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
-
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "time-threshold-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after time-based processing")
@@ -826,8 +827,9 @@ var _ = Describe("Processor", func() {
 					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 
+					errChan := make(chan error, 1)
 					go func() {
-						_ = testProcessor.Run(testCtx)
+						errChan <- testProcessor.Run(testCtx)
 					}()
 
 					// Wait for all upload attempts (3 batches: 2 good + 1 bad)
@@ -838,7 +840,14 @@ var _ = Describe("Processor", func() {
 					)
 
 					uploadCount := countingUploader.GetUploadCount()
+
+					// Cancel context and wait for processor to stop
 					cancel()
+					<-errChan
+
+					// Explicitly close processor to flush buffered offsets
+					closeErr := testProcessor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
 
 					// Verify upload attempts: 3 batches attempted (2 good + 1 bad)
 					Expect(uploadCount).To(Equal(int64(3)), "Should attempt upload for all 3 batches")
@@ -863,25 +872,9 @@ var _ = Describe("Processor", func() {
 					// Verify offsets were committed for successful buckets only
 					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
 
-					Eventually(func() bool {
-						offset, getErr := offsetMgr.GetOffset(ctx, "good-bucket-1", 1)
-						if getErr != nil {
-							return false
-						}
-						return !offset.InsertedAt.IsZero()
-					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
-
 					offset1, err := offsetMgr.GetOffset(ctx, "good-bucket-1", 1)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(offset1.InsertedAt.IsZero()).To(BeFalse(), "Expected offset for good-bucket-1")
-
-					Eventually(func() bool {
-						offset, getErr := offsetMgr.GetOffset(ctx, "good-bucket-2", 1)
-						if getErr != nil {
-							return false
-						}
-						return !offset.InsertedAt.IsZero()
-					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
 
 					offset2, err := offsetMgr.GetOffset(ctx, "good-bucket-2", 1)
 					Expect(err).NotTo(HaveOccurred())
@@ -951,8 +944,9 @@ var _ = Describe("Processor", func() {
 					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 
+					errChan := make(chan error, 1)
 					go func() {
-						_ = testProcessor.Run(testCtx)
+						errChan <- testProcessor.Run(testCtx)
 					}()
 
 					// Wait for upload to complete
@@ -964,18 +958,16 @@ var _ = Describe("Processor", func() {
 
 					uploadCount := countingUploader.GetUploadCount()
 
-					// Wait for offset to be committed (which happens after retries)
-					Eventually(func() bool {
-						offset, err := offsetMgr.GetOffset(ctx, "offset-retry-bucket", 1)
-						if err != nil {
-							return false
-						}
-						return !offset.InsertedAt.IsZero()
-					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
+					// Cancel context and wait for processor to stop
+					cancel()
+					<-errChan
+
+					// Explicitly close processor to flush buffered offsets
+					closeErr := testProcessor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
 
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "offset-retry-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
-					cancel()
 
 					// Verify upload happened only once despite offset commit retries
 					Expect(uploadCount).To(Equal(int64(1)), "Should upload exactly once")
