@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
@@ -29,6 +30,7 @@ import (
 // OffsetManagerInterface defines the interface for offset management
 type OffsetManagerInterface interface {
 	CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error
+	CommitOffsetsBatch(ctx context.Context, requests []OffsetCommitRequest) error
 	GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (Offset, error)
 }
 
@@ -37,6 +39,13 @@ type Offset struct {
 	InsertedAt time.Time
 	Timestamp  time.Time
 	ReqID      string
+}
+
+// OffsetCommitRequest holds a single offset commit request
+type OffsetCommitRequest struct {
+	Offset        Offset
+	Bucket        string
+	RaftSessionID uint16
 }
 
 // OffsetManager manages offsets
@@ -55,27 +64,52 @@ func NewOffsetManager(client *clickhouse.Client, database string) *OffsetManager
 
 // CommitOffset commits the processing offset for a bucket using composite key
 func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error {
-	if bucket == "" {
-		return fmt.Errorf("bucket name cannot be empty")
+	return om.CommitOffsetsBatch(ctx, []OffsetCommitRequest{{
+		Offset:        offset,
+		Bucket:        bucket,
+		RaftSessionID: raftSessionID,
+	}})
+}
+
+// CommitOffsetsBatch commits multiple offsets in a single database operation
+func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, requests []OffsetCommitRequest) error {
+	if len(requests) == 0 {
+		return nil
 	}
-	if offset.InsertedAt.IsZero() {
-		return fmt.Errorf("insertedAt timestamp cannot be zero")
+
+	// Validate all requests first
+	for i, req := range requests {
+		if req.Bucket == "" {
+			return fmt.Errorf("request %d: bucket name cannot be empty", i)
+		}
+		if req.Offset.InsertedAt.IsZero() {
+			return fmt.Errorf("request %d: insertedAt timestamp cannot be zero", i)
+		}
+		if req.Offset.Timestamp.IsZero() {
+			return fmt.Errorf("request %d: timestamp cannot be zero", i)
+		}
+		if req.Offset.ReqID == "" {
+			return fmt.Errorf("request %d: reqID cannot be empty", i)
+		}
 	}
-	if offset.Timestamp.IsZero() {
-		return fmt.Errorf("timestamp cannot be zero")
-	}
-	if offset.ReqID == "" {
-		return fmt.Errorf("reqID cannot be empty")
+
+	// Build query with multiple VALUES clauses for batch insert
+	valuesClauses := make([]string, len(requests))
+	args := make([]interface{}, 0, len(requests)*5)
+
+	for i, req := range requests {
+		valuesClauses[i] = "(?, ?, ?, ?, ?)"
+		args = append(args, req.Bucket, req.RaftSessionID, req.Offset.InsertedAt, req.Offset.Timestamp, req.Offset.ReqID)
 	}
 
 	query := fmt.Sprintf(`
         INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId)
-        VALUES (?, ?, ?, ?, ?)
-    `, om.database, clickhouse.TableOffsetsFederated)
+        VALUES %s
+    `, om.database, clickhouse.TableOffsetsFederated, strings.Join(valuesClauses, ", "))
 
-	err := om.client.Exec(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
+	err := om.client.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("failed to commit offset for bucket %s raftSessionID %d: %w", bucket, raftSessionID, err)
+		return fmt.Errorf("failed to commit %d offsets: %w", len(requests), err)
 	}
 
 	return nil
