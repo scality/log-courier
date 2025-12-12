@@ -57,8 +57,8 @@ var _ = Describe("LogFetcher", func() {
 
 			batch := logcourier.LogBatch{
 				Bucket:       "test-bucket",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(10 * time.Second),
+				LastProcessedOffset: logcourier.Offset{},
+				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -66,43 +66,76 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records).To(HaveLen(3))
 		})
 
-		It("should return logs sorted by timestamp", func() {
-			now := time.Now()
+		It("should return logs sorted by (insertedAt, timestamp, reqID)", func() {
+			baseTime := time.Now().Add(-1 * time.Hour)
 
-			// Insert logs in reverse chronological order
-			times := []time.Time{
-				now.Add(3 * time.Second),
-				now.Add(1 * time.Second),
-				now.Add(2 * time.Second),
-			}
+			// Insert logs with different insertedAt and timestamp values to test full ordering
+			// Log C: Latest insertedAt (should be fetched last)
+			// Log A: Middle insertedAt, early timestamp
+			// Log B: Middle insertedAt, late timestamp (should come after A due to timestamp)
+			// Log D: Earliest insertedAt (should be fetched first)
 
-			for i, t := range times {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "test-bucket",
-					Timestamp:      t,
-					ReqID:          fmt.Sprintf("req-%d", i),
-					Action:         "GetObject",
-					ObjectKey:      fmt.Sprintf("key-%d", i),
-				})
-				Expect(err).NotTo(HaveOccurred())
-			}
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			// Log D: insertedAt=1s, timestamp=4s (earliest insertedAt)
+			err := helper.Client.Exec(ctx, query,
+				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(4*time.Second), "req-D",
+				"GetObject", true, uint16(0), "/test-bucket/key-d")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Log A: insertedAt=3s, timestamp=1s
+			err = helper.Client.Exec(ctx, query,
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-A",
+				"GetObject", true, uint16(0), "/test-bucket/key-a")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Log B: insertedAt=3s, timestamp=2s (same insertedAt as A, later timestamp)
+			err = helper.Client.Exec(ctx, query,
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-B",
+				"GetObject", true, uint16(0), "/test-bucket/key-b")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Log C: insertedAt=5s, timestamp=3s (latest insertedAt)
+			err = helper.Client.Exec(ctx, query,
+				baseTime.Add(5*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-C",
+				"GetObject", true, uint16(0), "/test-bucket/key-c")
+			Expect(err).NotTo(HaveOccurred())
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
-				MinTimestamp: now,
-				MaxTimestamp: now.Add(10 * time.Second),
+				Bucket:              "test-bucket",
+				LastProcessedOffset: logcourier.Offset{},
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(records).To(HaveLen(3))
+			Expect(records).To(HaveLen(4))
 
-			// Verify sorted by timestamp (ascending)
+			// Verify sorted by (insertedAt, timestamp, reqID)
 			for i := 1; i < len(records); i++ {
-				Expect(records[i].Timestamp.After(records[i-1].Timestamp) ||
-					records[i].Timestamp.Equal(records[i-1].Timestamp)).To(BeTrue(),
-					"records should be sorted by timestamp in ascending order")
+				prev := records[i-1]
+				curr := records[i]
+
+				if curr.InsertedAt.After(prev.InsertedAt) {
+					continue
+				} else if curr.InsertedAt.Equal(prev.InsertedAt) {
+					if curr.Timestamp.After(prev.Timestamp) || curr.Timestamp.Equal(prev.Timestamp) {
+						if curr.Timestamp.Equal(prev.Timestamp) {
+							Expect(curr.ReqID > prev.ReqID).To(BeTrue(),
+								"When insertedAt and timestamp are equal, reqID should increase")
+						}
+						continue
+					}
+				}
+				// If we get here, ordering is violated
+				Expect(true).To(BeFalse(),
+					"Records should be sorted by (insertedAt, timestamp, reqID). "+
+						"Record %d: (%s, %s, %s), Record %d: (%s, %s, %s)",
+					i-1, prev.InsertedAt, prev.Timestamp, prev.ReqID,
+					i, curr.InsertedAt, curr.Timestamp, curr.ReqID)
 			}
 		})
 
@@ -134,8 +167,8 @@ var _ = Describe("LogFetcher", func() {
 			// Fetch only bucket-1
 			batch := logcourier.LogBatch{
 				Bucket:       "bucket-1",
-				MinTimestamp: now.Add(-1 * time.Second),
-				MaxTimestamp: now.Add(1 * time.Second),
+				LastProcessedOffset: logcourier.Offset{},
+				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -147,13 +180,185 @@ var _ = Describe("LogFetcher", func() {
 		It("should return empty list when no logs match", func() {
 			batch := logcourier.LogBatch{
 				Bucket:       "nonexistent-bucket",
-				MinTimestamp: time.Now().Add(-1 * time.Hour),
-				MaxTimestamp: time.Now(),
+				LastProcessedOffset: logcourier.Offset{},
+				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(records).To(BeEmpty())
+		})
+
+		It("should only fetch logs after LastProcessedOffset", func() {
+			baseTime := time.Now().Add(-1 * time.Hour)
+
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			// Insert 3 logs with sequential insertedAt and timestamps
+			err := helper.Client.Exec(ctx, query,
+				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-001",
+				"GetObject", true, uint16(0), "/test-bucket/key-1")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				baseTime.Add(2*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-002",
+				"GetObject", true, uint16(0), "/test-bucket/key-2")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-003",
+				"GetObject", true, uint16(0), "/test-bucket/key-3")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set offset to 2nd log - should only fetch 3rd log
+			batch := logcourier.LogBatch{
+				Bucket: "test-bucket",
+				LastProcessedOffset: logcourier.Offset{
+					InsertedAt: baseTime.Add(2 * time.Second),
+					Timestamp:  baseTime.Add(2 * time.Second),
+					ReqID:      "req-002",
+				},
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(1), "Should only fetch logs after offset")
+			Expect(records[0].ReqID).To(Equal("req-003"), "Should fetch the 3rd log only")
+		})
+
+		It("should filter logs with same insertedAt using composite offset", func() {
+			// This test verifies the fix for LOGC-32 at the LogFetcher level
+			baseTime := time.Now().Add(-1 * time.Hour)
+			insertedAt := baseTime.Truncate(time.Second) // Same for all logs
+
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			// Insert 3 logs: same insertedAt, different timestamps
+			err := helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", baseTime.Add(1*time.Second), "req-A",
+				"GetObject", true, uint16(0), "/test-bucket/key-a")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", baseTime.Add(2*time.Second), "req-B",
+				"GetObject", true, uint16(0), "/test-bucket/key-b")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", baseTime.Add(3*time.Second), "req-C",
+				"GetObject", true, uint16(0), "/test-bucket/key-c")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set offset to log B (middle log)
+			batch := logcourier.LogBatch{
+				Bucket: "test-bucket",
+				LastProcessedOffset: logcourier.Offset{
+					InsertedAt: insertedAt,
+					Timestamp:  baseTime.Add(2 * time.Second),
+					ReqID:      "req-B",
+				},
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(1), "Should only fetch log C (after offset B)")
+			Expect(records[0].ReqID).To(Equal("req-C"), "Should fetch only the log with timestamp > offset timestamp")
+
+			// Verify logs A and B were excluded
+			for _, rec := range records {
+				Expect(rec.ReqID).NotTo(Equal("req-A"), "Log A should be excluded (timestamp < offset)")
+				Expect(rec.ReqID).NotTo(Equal("req-B"), "Log B should be excluded (matches offset exactly)")
+			}
+		})
+
+		It("should exclude log that exactly matches offset", func() {
+			baseTime := time.Now().Add(-1 * time.Hour)
+
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			// Insert a single log
+			insertedAt := baseTime.Add(1 * time.Second)
+			timestamp := baseTime.Add(1 * time.Second)
+			reqID := "req-exact"
+
+			err := helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", timestamp, reqID,
+				"GetObject", true, uint16(0), "/test-bucket/key")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set offset to exact same log
+			batch := logcourier.LogBatch{
+				Bucket: "test-bucket",
+				LastProcessedOffset: logcourier.Offset{
+					InsertedAt: insertedAt,
+					Timestamp:  timestamp,
+					ReqID:      reqID,
+				},
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(BeEmpty(), "Should not fetch log that exactly matches offset (not > itself)")
+		})
+
+		It("should filter by reqID when insertedAt and timestamp are equal", func() {
+			baseTime := time.Now().Add(-1 * time.Hour)
+			insertedAt := baseTime.Truncate(time.Second)
+			timestamp := baseTime.Truncate(time.Second)
+
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			// Insert 3 logs: same insertedAt, same timestamp, different reqIDs
+			err := helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", timestamp, "req-A",
+				"GetObject", true, uint16(0), "/test-bucket/key-a")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", timestamp, "req-B",
+				"GetObject", true, uint16(0), "/test-bucket/key-b")
+			Expect(err).NotTo(HaveOccurred())
+
+			err = helper.Client.Exec(ctx, query,
+				insertedAt, "test-bucket", timestamp, "req-C",
+				"GetObject", true, uint16(0), "/test-bucket/key-c")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set offset to req-B (middle reqID)
+			batch := logcourier.LogBatch{
+				Bucket: "test-bucket",
+				LastProcessedOffset: logcourier.Offset{
+					InsertedAt: insertedAt,
+					Timestamp:  timestamp,
+					ReqID:      "req-B",
+				},
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(1), "Should only fetch logs with reqID > offset reqID")
+			Expect(records[0].ReqID).To(Equal("req-C"), "Should fetch only req-C (reqID > 'req-B')")
+
+			// Verify A and B were excluded
+			for _, rec := range records {
+				Expect(rec.ReqID > "req-B").To(BeTrue(), "All fetched logs should have reqID > offset reqID")
+			}
 		})
 
 		It("should fetch log with all fields", func() {
@@ -177,8 +382,8 @@ var _ = Describe("LogFetcher", func() {
 
 			batch := logcourier.LogBatch{
 				Bucket:       "test-bucket",
-				MinTimestamp: reqTime.Add(-1 * time.Hour),
-				MaxTimestamp: reqTime.Add(1 * time.Hour),
+				LastProcessedOffset: logcourier.Offset{},
+				
 				LogCount:     1,
 			}
 
