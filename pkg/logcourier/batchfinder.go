@@ -77,7 +77,9 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                     l.bucketName,
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
-                    max(l.insertedAt) as max_ts
+                    COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00')) as lastProcessedInsertedAt,
+                    COALESCE(o.lastProcessedTimestamp, toDateTime64('1970-01-01 00:00:00', 3)) as lastProcessedTimestamp,
+                    COALESCE(o.lastProcessedReqId, '') as lastProcessedReqId
                 FROM %s.access_logs AS l
                 LEFT JOIN bucket_offsets AS o
                     ON l.bucketName = o.bucketName
@@ -94,7 +96,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                         AND l.timestamp = o.lastProcessedTimestamp
                         AND l.req_id > COALESCE(o.lastProcessedReqId, '')
                     )
-                GROUP BY l.bucketName
+                GROUP BY l.bucketName, o.lastProcessedInsertedAt, o.lastProcessedTimestamp, o.lastProcessedReqId
             )
         -- Main query: Select buckets that are ready for processing
         --
@@ -103,7 +105,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         --   2. Its oldest unprocessed log is older than timeThresholdSec (age condition)
         --
         -- Results are ordered by min_ts (oldest first) to prioritize buckets with oldest logs.
-        SELECT bucketName, new_log_count, min_ts, max_ts
+        SELECT bucketName, new_log_count, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
            OR min_ts <= now() - INTERVAL ? SECOND
@@ -120,7 +122,13 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	for rows.Next() {
 		var batch LogBatch
 
-		err := rows.Scan(&batch.Bucket, &batch.LogCount, &batch.MinTimestamp, &batch.MaxTimestamp)
+		err := rows.Scan(
+			&batch.Bucket,
+			&batch.LogCount,
+			&batch.LastProcessedOffset.InsertedAt,
+			&batch.LastProcessedOffset.Timestamp,
+			&batch.LastProcessedOffset.ReqID,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan log batch: %w", err)
 		}

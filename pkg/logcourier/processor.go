@@ -530,8 +530,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
-		"minTimestamp", batch.MinTimestamp,
-		"maxTimestamp", batch.MaxTimestamp)
+		"afterOffset", batch.LastProcessedOffset.InsertedAt)
 
 	// 1. Fetch logs
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
@@ -543,8 +542,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		p.logger.Error("no logs fetched for batch but BatchFinder expected logs",
 			"bucketName", batch.Bucket,
 			"expectedLogCount", batch.LogCount,
-			"minTimestamp", batch.MinTimestamp,
-			"maxTimestamp", batch.MaxTimestamp)
+			"afterOffset", batch.LastProcessedOffset.InsertedAt)
 		return nil, fmt.Errorf("zero records fetched but BatchFinder expected %d logs for bucket %s",
 			batch.LogCount, batch.Bucket)
 	}
