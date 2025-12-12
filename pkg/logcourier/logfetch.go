@@ -22,7 +22,8 @@ func NewLogFetcher(client *clickhouse.Client, database string) *LogFetcher {
 }
 
 // FetchLogs fetches logs for a batch
-// Returns logs sorted by time (ascending).
+// Returns logs sorted by insertedAt, timestamp, req_id
+// LogBuilder will re-sort by timestamp for S3 file ordering.
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
 	query := fmt.Sprintf(`
 		SELECT
@@ -59,7 +60,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		WHERE bucketName = ?
 		  AND insertedAt >= ?
 		  AND insertedAt <= ?
-		ORDER BY timestamp ASC, req_id ASC
+		ORDER BY insertedAt ASC, timestamp ASC, req_id ASC
 	`, lf.database, clickhouse.TableAccessLogs)
 
 	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)

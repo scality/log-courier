@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,13 +25,22 @@ func NewLogObjectBuilder() *LogObjectBuilder {
 }
 
 // Build builds a log object from log records
-// Records must be ordered by event timestamp (log record date).
+// Records are sorted by event timestamp.
 // The key is generated using the first record's event timestamp in the format:
 // <LoggingTargetPrefix>YYYY-mm-DD-HH-MM-SS-UniqueString
 func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	if len(records) == 0 {
 		return LogObject{}, fmt.Errorf("no records to build log object")
 	}
+
+	// Sort records by timestamp for chronological ordering in S3 files.
+	sort.Slice(records, func(i, j int) bool {
+		// Sort by timestamp, then req_id for stable ordering
+		if records[i].Timestamp.Equal(records[j].Timestamp) {
+			return records[i].ReqID < records[j].ReqID
+		}
+		return records[i].Timestamp.Before(records[j].Timestamp)
+	})
 
 	// Configuration Handling: Use logging configuration from the first record.
 	//

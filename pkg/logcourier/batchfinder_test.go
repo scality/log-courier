@@ -243,5 +243,63 @@ var _ = Describe("BatchFinder", func() {
 			Expect(batches).To(HaveLen(1))
 			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
 		})
+
+		It("should not reprocess logs when insertedAt order differs from timestamp order", func() {
+			// - Log A arrives quickly (insertedAt=10:00:03, timestamp=10:00:02)
+			// - Log B arrives delayed (insertedAt=10:00:05, timestamp=10:00:01)
+			// - Next cycle should not re-discover log B
+
+			baseTime := time.Now().Add(-1 * time.Hour)
+
+			// Insert Log A: operation at :02, arrives at :03
+			logATimestamp := baseTime.Add(2 * time.Second)
+			logAInsertedAt := baseTime.Add(3 * time.Second)
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+			err := helper.Client.Exec(ctx, query,
+				logAInsertedAt, "test-bucket", logATimestamp, "req-A",
+				"GetObject", true, uint16(0), "/test-bucket/key-a")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Insert Log B: operation at :01, arrives at :05
+			logBTimestamp := baseTime.Add(1 * time.Second)
+			logBInsertedAt := baseTime.Add(5 * time.Second)
+			err = helper.Client.Exec(ctx, query,
+				logBInsertedAt, "test-bucket", logBTimestamp, "req-B",
+				"GetObject", true, uint16(0), "/test-bucket/key-b")
+			Expect(err).NotTo(HaveOccurred())
+
+			// Cycle 1: Find batches
+			batches, err := finder.FindBatches(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(batches).To(HaveLen(1))
+			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
+
+			// Cycle 1: Fetch logs and simulate processing
+			fetcher := logcourier.NewLogFetcher(helper.Client, helper.DatabaseName)
+			records, err := fetcher.FetchLogs(ctx, batches[0])
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(2))
+
+			// Cycle 1: Commit offset from last fetched log
+			// (simulating what Processor does)
+			lastLog := records[len(records)-1]
+			offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+			err = offsetMgr.CommitOffset(ctx, "test-bucket", uint16(0), logcourier.Offset{
+				InsertedAt: lastLog.InsertedAt,
+				Timestamp:  lastLog.Timestamp,
+				ReqID:      lastLog.ReqID,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Cycle 2: Find batches again
+			batches, err = finder.FindBatches(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(batches).To(BeEmpty(), "Expected no batches after processing all logs, but found %d batch(es)", len(batches))
+		})
 	})
 })
