@@ -8,6 +8,7 @@ import (
 type LogBatch struct {
 	LastProcessedOffset Offset // Offset to filter from (empty if no previous processing)
 	Bucket              string
+	RaftSessionID       uint16
 	LogCount            uint64
 }
 

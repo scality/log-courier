@@ -59,6 +59,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			raftSessionID
 		FROM %s.%s
 		WHERE bucketName = ?
+		  AND raftSessionID = ?
 		  AND (
 		      insertedAt > ?
 		      OR (insertedAt = ? AND timestamp > ?)
@@ -69,6 +70,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 
 	rows, err := lf.client.Query(ctx, query,
 		batch.Bucket,
+		batch.RaftSessionID,
 		batch.LastProcessedOffset.InsertedAt,
 		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp,
 		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp, batch.LastProcessedOffset.ReqID,

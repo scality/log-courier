@@ -75,6 +75,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
             new_logs_by_bucket AS (
                 SELECT
                     l.bucketName,
+                    l.raftSessionID,
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
                     COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00')) as lastProcessedInsertedAt,
@@ -96,7 +97,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                         AND l.timestamp = o.lastProcessedTimestamp
                         AND l.req_id > COALESCE(o.lastProcessedReqId, '')
                     )
-                GROUP BY l.bucketName, o.lastProcessedInsertedAt, o.lastProcessedTimestamp, o.lastProcessedReqId
+                GROUP BY l.bucketName, l.raftSessionID, o.lastProcessedInsertedAt, o.lastProcessedTimestamp, o.lastProcessedReqId
             )
         -- Main query: Select buckets that are ready for processing
         --
@@ -105,7 +106,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         --   2. Its oldest unprocessed log is older than timeThresholdSec (age condition)
         --
         -- Results are ordered by min_ts (oldest first) to prioritize buckets with oldest logs.
-        SELECT bucketName, new_log_count, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId
+        SELECT bucketName, raftSessionID, new_log_count, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
            OR min_ts <= now() - INTERVAL ? SECOND
@@ -124,6 +125,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 
 		err := rows.Scan(
 			&batch.Bucket,
+			&batch.RaftSessionID,
 			&batch.LogCount,
 			&batch.LastProcessedOffset.InsertedAt,
 			&batch.LastProcessedOffset.Timestamp,

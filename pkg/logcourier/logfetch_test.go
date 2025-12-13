@@ -373,7 +373,7 @@ var _ = Describe("LogFetcher", func() {
 				ObjectKey:      "test-key",
 				BytesSent:      12345,
 				HttpCode:       200,
-				RaftSessionID:  42,
+				RaftSessionID:  0,
 				LoggingEnabled: true,
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -381,10 +381,10 @@ var _ = Describe("LogFetcher", func() {
 			time.Sleep(100 * time.Millisecond)
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
+				Bucket:              "test-bucket",
+				RaftSessionID:       0,
 				LastProcessedOffset: logcourier.Offset{},
-				
-				LogCount:     1,
+				LogCount:            1,
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -398,7 +398,7 @@ var _ = Describe("LogFetcher", func() {
 			Expect(rec.ObjectKey).To(Equal("test-key"))
 			Expect(rec.BytesSent).To(Equal(uint64(12345)))
 			Expect(rec.HttpCode).To(Equal(uint16(200)))
-			Expect(rec.RaftSessionID).To(Equal(uint16(42)))
+			Expect(rec.RaftSessionID).To(Equal(uint16(0)))
 			Expect(rec.InsertedAt).NotTo(BeZero())
 			Expect(rec.Timestamp).NotTo(BeZero())
 		})
