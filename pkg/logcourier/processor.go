@@ -549,6 +549,14 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
 
+	lastLog := records[len(records)-1]
+	offset := Offset{
+		InsertedAt: lastLog.InsertedAt,
+		Timestamp:  lastLog.Timestamp,
+		ReqID:      lastLog.ReqID,
+	}
+	raftSessionID := lastLog.RaftSessionID
+
 	// 2. Build log object
 	logObj, err := p.logBuilder.Build(records)
 	if err != nil {
@@ -580,16 +588,9 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		"s3Key", logObj.Key,
 		"sizeBytes", len(logObj.Content))
 
-	// Get triple composite offset from last log
-	lastLog := records[len(records)-1]
-
 	return &ProcessResult{
 		Records: records,
-		Offset: Offset{
-			InsertedAt: lastLog.InsertedAt,
-			Timestamp:  lastLog.Timestamp,
-			ReqID:      lastLog.ReqID,
-		},
-		RaftSessionID: lastLog.RaftSessionID,
+		Offset:  offset,
+		RaftSessionID: raftSessionID,
 	}, nil
 }
