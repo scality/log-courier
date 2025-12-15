@@ -56,7 +56,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                             PARTITION BY bucketName, raftSessionID
                             ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
                         ) as rn
-                    FROM %s.offsets
+                    FROM %s.%s
                 ) offsets_ordered
                 WHERE rn = 1
             ),
@@ -81,7 +81,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                     COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00')) as lastProcessedInsertedAt,
                     COALESCE(o.lastProcessedTimestamp, toDateTime64('1970-01-01 00:00:00', 3)) as lastProcessedTimestamp,
                     COALESCE(o.lastProcessedReqId, '') as lastProcessedReqId
-                FROM %s.access_logs AS l
+                FROM %s.%s AS l
                 LEFT JOIN bucket_offsets AS o
                     ON l.bucketName = o.bucketName
                     AND l.raftSessionID = o.raftSessionID
@@ -111,7 +111,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         WHERE new_log_count >= ?
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
-    `, bf.database, bf.database)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
 	if err != nil {
