@@ -29,7 +29,7 @@ var _ = Describe("BatchFinder", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		finder = logcourier.NewBatchFinder(helper.Client, helper.DatabaseName, 10, 60)
+		finder = logcourier.NewBatchFinder(helper.Client, helper.DatabaseName, 5, 60)
 	})
 
 	AfterEach(func() {
@@ -40,208 +40,437 @@ var _ = Describe("BatchFinder", func() {
 	})
 
 	Describe("FindBatches", func() {
-		It("should return empty list when no logs", func() {
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(BeEmpty())
-		})
-
-		It("should return log batch when count threshold met", func() {
-			// Insert 15 logs (threshold is 10)
-			for i := 0; i < 15; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "test-bucket",
-					Timestamp:      time.Now(),
-					ReqID:          fmt.Sprintf("req-%d", i),
-					Action:         "GetObject",
-				})
+		Describe("Edge Cases", func() {
+			It("should return empty list when no logs", func() {
+				batches, err := finder.FindBatches(ctx)
 				Expect(err).NotTo(HaveOccurred())
-			}
+				Expect(batches).To(BeEmpty())
+			})
 
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(HaveLen(1))
-			Expect(batches[0].Bucket).To(Equal("test-bucket"))
-			Expect(batches[0].LogCount).To(BeNumerically(">=", 15))
-		})
+			It("should return epoch offset when no offset exists (first processing)", func() {
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "test-bucket",
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
 
-		It("should return log batch when time threshold met", func() {
-			// Insert 1 log directly into access_logs with old insertedAt timestamp
-			// This bypasses the materialized view to set insertedAt manually
-			oldTime := time.Now().Add(-2 * time.Hour)
-			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
-				(bucketOwner, bucketName, startTime, clientIP, requester, req_id, operation,
-				 objectKey, requestURI, httpCode, errorCode, bytesSent, objectSize, totalTime,
-				 turnAroundTime, referer, userAgent, versionId, signatureVersion, cipherSuite,
-				 authenticationType, hostHeader, tlsVersion, aclRequired, timestamp, insertedAt,
-				 loggingTargetBucket, loggingTargetPrefix, raftSessionID)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
-			err := helper.Client.Exec(ctx, query,
-				"",                 // bucketOwner
-				"test-bucket",      // bucketName
-				time.Now(),         // startTime
-				"",                 // clientIP
-				"",                 // requester
-				"req-old",          // req_id
-				"GetObject",        // operation
-				"",                 // objectKey
-				"/test-bucket/key", // requestURI
-				uint16(0),          // httpCode
-				"",                 // errorCode
-				uint64(0),          // bytesSent
-				uint64(0),          // objectSize
-				float32(0),         // totalTime
-				float32(0),         // turnAroundTime
-				"",                 // referer
-				"",                 // userAgent
-				"",                 // versionId
-				"",                 // signatureVersion
-				"",                 // cipherSuite
-				"",                 // authenticationType
-				"",                 // hostHeader
-				"",                 // tlsVersion
-				"",                 // aclRequired
-				time.Now(),         // timestamp
-				oldTime,            // insertedAt (old)
-				"",                 // loggingTargetBucket
-				"",                 // loggingTargetPrefix
-				uint16(0),          // raftSessionID
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(HaveLen(1))
-			Expect(batches[0].Bucket).To(Equal("test-bucket"))
-		})
-
-		It("should not return batches when neither threshold met", func() {
-			// Insert 5 logs (below count threshold of 10)
-			// With recent timestamp (within time threshold of 60 seconds)
-			for i := 0; i < 5; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "test-bucket",
-					Timestamp:      time.Now(),
-					ReqID:          fmt.Sprintf("req-%d", i),
-					Action:         "GetObject",
-				})
+				batches, err := finder.FindBatches(ctx)
 				Expect(err).NotTo(HaveOccurred())
-			}
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].Bucket).To(Equal("test-bucket"))
+				Expect(batches[0].LogCount).To(BeNumerically(">=", 6))
 
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(BeEmpty())
+				epoch := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+				Expect(batches[0].LastProcessedOffset.InsertedAt).To(Equal(epoch))
+				Expect(batches[0].LastProcessedOffset.ReqID).To(Equal(""))
+			})
+
+			It("should not return batches when all logs already processed", func() {
+				oldTime := time.Now().Add(-2 * time.Hour)
+
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						oldTime.Add(time.Duration(i)*time.Second), // insertedAt
+						"test-bucket",                              // bucketName
+						oldTime.Add(time.Duration(i)*time.Second),  // timestamp
+						fmt.Sprintf("req-%03d", i),                 // req_id
+						"GetObject",                                // operation
+						true,                                       // loggingEnabled
+						uint16(0),                                  // raftSessionID
+						"/test-bucket/key",                         // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Set offset to last log
+				lastLogTime := oldTime.Add(5 * time.Second)
+				offsetQuery := fmt.Sprintf(
+					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName)
+				err := helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), lastLogTime, lastLogTime, "req-007")
+				Expect(err).NotTo(HaveOccurred())
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(BeEmpty())
+			})
 		})
 
-		It("should respect bucket offsets", func() {
-			// Insert logs
-			for i := 0; i < 15; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "test-bucket",
-					Timestamp:      time.Now(),
-					ReqID:          fmt.Sprintf("req-%d", i),
-					Action:         "GetObject",
-				})
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			// Commit offset at current time
-			offsetTime := time.Now()
-			offsetQuery := fmt.Sprintf("INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)", helper.DatabaseName)
-			err := helper.Client.Exec(ctx, offsetQuery,
-				"test-bucket", uint16(0), offsetTime, offsetTime, "req-999")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Should not return batches (all logs processed)
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(BeEmpty())
-		})
-
-		It("should handle multiple buckets", func() {
-			// Insert logs for bucket-1 (above threshold)
-			for i := 0; i < 15; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "bucket-1",
-					Timestamp:      time.Now(),
-					ReqID:          fmt.Sprintf("req-1-%d", i),
-					Action:         "GetObject",
-				})
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			// Insert logs for bucket-2 (above threshold)
-			for i := 0; i < 20; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "bucket-2",
-					Timestamp:      time.Now(),
-					ReqID:          fmt.Sprintf("req-2-%d", i),
-					Action:         "PutObject",
-				})
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(HaveLen(2))
-
-			buckets := []string{batches[0].Bucket, batches[1].Bucket}
-			Expect(buckets).To(ConsistOf("bucket-1", "bucket-2"))
-		})
-
-		It("should respect composite offset", func() {
-			// Use old time to trigger time threshold
-			oldTime := time.Now().Add(-2 * time.Hour)
-			insertedAt := oldTime.Truncate(time.Second)
-			timestamp := oldTime
-
-			// Insert 5 logs directly with old insertedAt: same insertedAt and timestamp, different req_ids
-			for i := 0; i < 5; i++ {
+		Describe("Threshold Conditions", func() {
+			It("should return log batch when time threshold met", func() {
+				// Insert 1 log directly into access_logs with old insertedAt timestamp
+				// This bypasses the materialized view to set insertedAt manually
+				oldTime := time.Now().Add(-2 * time.Hour)
 				query := fmt.Sprintf(`
 					INSERT INTO %s.access_logs
-					(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					(bucketOwner, bucketName, startTime, clientIP, requester, req_id, operation,
+					 objectKey, requestURI, httpCode, errorCode, bytesSent, objectSize, totalTime,
+					 turnAroundTime, referer, userAgent, versionId, signatureVersion, cipherSuite,
+					 authenticationType, hostHeader, tlsVersion, aclRequired, timestamp, insertedAt,
+					 loggingTargetBucket, loggingTargetPrefix, raftSessionID)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`, helper.DatabaseName)
 				err := helper.Client.Exec(ctx, query,
-					insertedAt,                 // insertedAt (old, same for all)
-					"test-bucket",              // bucketName
-					timestamp,                  // timestamp (same for all)
-					fmt.Sprintf("req-%03d", i), // req_id (different)
-					"GetObject",                // operation
-					true,                       // loggingEnabled
-					uint16(0),                  // raftSessionID
-					"/test-bucket/key",         // requestURI
+					"",                 // bucketOwner
+					"test-bucket",      // bucketName
+					time.Now(),         // startTime
+					"",                 // clientIP
+					"",                 // requester
+					"req-old",          // req_id
+					"GetObject",        // operation
+					"",                 // objectKey
+					"/test-bucket/key", // requestURI
+					uint16(0),          // httpCode
+					"",                 // errorCode
+					uint64(0),          // bytesSent
+					uint64(0),          // objectSize
+					float32(0),         // totalTime
+					float32(0),         // turnAroundTime
+					"",                 // referer
+					"",                 // userAgent
+					"",                 // versionId
+					"",                 // signatureVersion
+					"",                 // cipherSuite
+					"",                 // authenticationType
+					"",                 // hostHeader
+					"",                 // tlsVersion
+					"",                 // aclRequired
+					time.Now(),         // timestamp
+					oldTime,            // insertedAt (old)
+					"",                 // loggingTargetBucket
+					"",                 // loggingTargetPrefix
+					uint16(0),          // raftSessionID
 				)
 				Expect(err).NotTo(HaveOccurred())
-			}
 
-			time.Sleep(100 * time.Millisecond)
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].Bucket).To(Equal("test-bucket"))
+			})
 
-			// Set offset to req-002 (skip first 3 logs)
-			offsetQuery := fmt.Sprintf(
-				"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
-				helper.DatabaseName)
-			err := helper.Client.Exec(ctx, offsetQuery,
-				"test-bucket", uint16(0),
-				insertedAt,
-				timestamp,
-				"req-002")
-			Expect(err).NotTo(HaveOccurred())
+			It("should return batch when both thresholds met", func() {
+				oldTime := time.Now().Add(-2 * time.Hour)
 
-			// BatchFinder should only find logs after composite offset
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						oldTime,                        // insertedAt (old)
+						"test-bucket",                  // bucketName
+						oldTime,                        // timestamp
+						fmt.Sprintf("req-%03d", i),     // req_id
+						"GetObject",                    // operation
+						true,                           // loggingEnabled
+						uint16(0),                      // raftSessionID
+						"/test-bucket/key",             // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
 
-			// Should find 1 batch with 2 logs (req-003, req-004)
-			Expect(batches).To(HaveLen(1))
-			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].Bucket).To(Equal("test-bucket"))
+				Expect(batches[0].LogCount).To(BeNumerically(">=", 6))
+			})
+
+			It("should not return batches when neither threshold met", func() {
+				for i := 0; i < 3; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "test-bucket",
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(BeEmpty())
+			})
+		})
+
+		Describe("Composite Offset Filtering", func() {
+			It("should filter when offset differs in insertedAt", func() {
+				baseTime := time.Now().Add(-2 * time.Hour)
+				timestamp := baseTime
+				reqID := "req-1"
+
+				// Insert 6 logs with insertedAt from T to T+5s, same timestamp and reqID
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						baseTime.Add(time.Duration(i)*time.Second), // insertedAt varies
+						"test-bucket",                              // bucketName
+						timestamp,                                  // timestamp (same for all)
+						reqID,                                      // req_id (same for all)
+						"GetObject",                                // operation
+						true,                                       // loggingEnabled
+						uint16(0),                                  // raftSessionID
+						"/test-bucket/key",                         // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Set offset to insertedAt=T+3s
+				offsetTime := baseTime.Add(3 * time.Second)
+				offsetQuery := fmt.Sprintf(
+					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName)
+				err := helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), offsetTime, timestamp, reqID)
+				Expect(err).NotTo(HaveOccurred())
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Should find logs with insertedAt > T+3s (i.e., T+4s, T+5s = 2 logs)
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].LogCount).To(Equal(uint64(2)))
+			})
+
+			It("should filter when offset differs in timestamp (same insertedAt)", func() {
+				baseTime := time.Now().Add(-2 * time.Hour)
+				insertedAt := baseTime
+
+				// Insert 6 logs with same insertedAt, varying timestamps
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						insertedAt,                                 // insertedAt (same for all)
+						"test-bucket",                              // bucketName
+						baseTime.Add(time.Duration(i)*time.Second), // timestamp varies
+						fmt.Sprintf("req-%03d", i),                 // req_id
+						"GetObject",                                // operation
+						true,                                       // loggingEnabled
+						uint16(0),                                  // raftSessionID
+						"/test-bucket/key",                         // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Set offset to (insertedAt=T, timestamp=T+3s, reqID="req-003")
+				offsetTimestamp := baseTime.Add(3 * time.Second)
+				offsetQuery := fmt.Sprintf(
+					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName)
+				err := helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), insertedAt, offsetTimestamp, "req-003")
+				Expect(err).NotTo(HaveOccurred())
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Should find logs with timestamp > T+3s (i.e., T+4s, T+5s = 2 logs)
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].LogCount).To(Equal(uint64(2)))
+			})
+
+			It("should use most recent offset when multiple offsets exist", func() {
+				baseTime := time.Now().Add(-2 * time.Hour)
+
+				// Insert logs at T0, T1, T2, T3
+				for i := 0; i < 4; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					insertedAt := baseTime.Add(time.Duration(i) * time.Second)
+					err := helper.Client.Exec(ctx, query,
+						insertedAt,                     // insertedAt
+						"test-bucket",                  // bucketName
+						insertedAt,                     // timestamp
+						fmt.Sprintf("req-%03d", i),     // req_id
+						"GetObject",                    // operation
+						true,                           // loggingEnabled
+						uint16(0),                      // raftSessionID
+						"/test-bucket/key",             // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Insert 3 offset records: T0, T2, T1 (in this order to test ROW_NUMBER)
+				offsetQuery := fmt.Sprintf(
+					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName)
+
+				t0 := baseTime
+				err := helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), t0, t0, "req-000")
+				Expect(err).NotTo(HaveOccurred())
+
+				t2 := baseTime.Add(2 * time.Second)
+				err = helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), t2, t2, "req-002")
+				Expect(err).NotTo(HaveOccurred())
+
+				t1 := baseTime.Add(1 * time.Second)
+				err = helper.Client.Exec(ctx, offsetQuery,
+					"test-bucket", uint16(0), t1, t1, "req-001")
+				Expect(err).NotTo(HaveOccurred())
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				// ROW_NUMBER should pick T2 (highest), so only log at T3 should be found
+				Expect(batches).To(HaveLen(1))
+				Expect(batches[0].LogCount).To(Equal(uint64(1)))
+				Expect(batches[0].LastProcessedOffset.InsertedAt.Unix()).To(Equal(t2.Unix()))
+				Expect(batches[0].LastProcessedOffset.ReqID).To(Equal("req-002"))
+			})
+		})
+
+		Describe("Multiple Buckets", func() {
+			It("should handle multiple buckets", func() {
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "bucket-1",
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-1-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "bucket-2",
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-2-%d", i),
+						Action:         "PutObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(2))
+
+				buckets := []string{batches[0].Bucket, batches[1].Bucket}
+				Expect(buckets).To(ConsistOf("bucket-1", "bucket-2"))
+			})
+
+			It("should order multiple batches by oldest first", func() {
+				oldTime := time.Now().Add(-2 * time.Hour)
+				newerTime := time.Now().Add(-1 * time.Hour)
+
+				// Insert logs for bucket-A with older insertedAt
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						oldTime,                        // insertedAt (older)
+						"bucket-A",                     // bucketName
+						oldTime,                        // timestamp
+						fmt.Sprintf("req-a-%03d", i),   // req_id
+						"GetObject",                    // operation
+						true,                           // loggingEnabled
+						uint16(0),                      // raftSessionID
+						"/bucket-A/key",                // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Insert logs for bucket-B with newer insertedAt
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.access_logs
+						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName)
+					err := helper.Client.Exec(ctx, query,
+						newerTime,                      // insertedAt (newer)
+						"bucket-B",                     // bucketName
+						newerTime,                      // timestamp
+						fmt.Sprintf("req-b-%03d", i),   // req_id
+						"GetObject",                    // operation
+						true,                           // loggingEnabled
+						uint16(0),                      // raftSessionID
+						"/bucket-B/key",                // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(2))
+
+				// bucket-A should come first
+				Expect(batches[0].Bucket).To(Equal("bucket-A"))
+				Expect(batches[1].Bucket).To(Equal("bucket-B"))
+			})
+		})
+
+		Describe("RaftSessionID Separation", func() {
+			It("should return separate batches for same bucket with different raftSessionIDs", func() {
+				// Insert logs for test-bucket with raftSessionID=1
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "test-bucket",
+						RaftSessionID:  1,
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-1-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				// Insert logs for test-bucket with raftSessionID=2
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "test-bucket",
+						RaftSessionID:  2,
+						Timestamp:      time.Now(),
+						ReqID:          fmt.Sprintf("req-2-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(2))
+
+				// Both batches should be for test-bucket but different raftSessionIDs
+				Expect(batches[0].Bucket).To(Equal("test-bucket"))
+				Expect(batches[1].Bucket).To(Equal("test-bucket"))
+
+				raftSessionIDs := []uint16{batches[0].RaftSessionID, batches[1].RaftSessionID}
+				Expect(raftSessionIDs).To(ConsistOf(uint16(1), uint16(2)))
+			})
 		})
 
 		It("should not reprocess logs when insertedAt order differs from timestamp order", func() {
