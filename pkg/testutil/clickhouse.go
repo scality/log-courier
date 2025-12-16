@@ -66,7 +66,26 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		return fmt.Errorf("failed to create database: %w", err)
 	}
 
-	// Create ingest table (Null engine - doesn't store data)
+	if err := h.createIngestTable(ctx); err != nil {
+		return err
+	}
+
+	if err := h.createFederatedLogsTable(ctx); err != nil {
+		return err
+	}
+
+	if err := h.createMaterializedView(ctx); err != nil {
+		return err
+	}
+
+	if err := h.createFederatedOffsetsTable(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *ClickHouseTestHelper) createIngestTable(ctx context.Context) error {
 	ingestTableSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
@@ -112,30 +131,26 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	if err := h.Client.Exec(ctx, ingestTableSQL); err != nil {
 		return fmt.Errorf("failed to create ingest table: %w", err)
 	}
+	return nil
+}
 
-	// Create access logs table (MergeTree - simplified from ReplicatedMergeTree for single-node)
-	logsTableSQL := fmt.Sprintf(`
+func (h *ClickHouseTestHelper) createFederatedLogsTable(ctx context.Context) error {
+	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
+	// For single-node tests, create federated table as MergeTree (fake distributed table).
+	federatedTableSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.%s
 		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
 		ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
-	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, tableAccessLogsIngest)
-	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
-		return fmt.Errorf("failed to create logs table: %w", err)
-	}
-
-	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create federated table as a VIEW pointing to local table.
-	federatedTableSQL := fmt.Sprintf(`
-		CREATE VIEW IF NOT EXISTS %s.%s
-		AS SELECT * FROM %s.%s
-	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogs)
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, tableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
-		return fmt.Errorf("failed to create federated table: %w", err)
+		return fmt.Errorf("failed to create federated logs table: %w", err)
 	}
+	return nil
+}
 
-	// Create materialized view that filters loggingEnabled = true
+func (h *ClickHouseTestHelper) createMaterializedView(ctx context.Context) error {
 	mvSQL := fmt.Sprintf(`
 		CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s
 		TO %s.%s
@@ -143,13 +158,17 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		SELECT *
 		FROM %s.%s
 		WHERE loggingEnabled = true
-	`, h.DatabaseName, viewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, tableAccessLogsIngest)
+	`, h.DatabaseName, viewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, tableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, mvSQL); err != nil {
 		return fmt.Errorf("failed to create materialized view: %w", err)
 	}
+	return nil
+}
 
-	// Create offsets table (MergeTree - simplified for single-node)
-	offsetsTableSQL := fmt.Sprintf(`
+func (h *ClickHouseTestHelper) createFederatedOffsetsTable(ctx context.Context) error {
+	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
+	// For single-node tests, create federated table as MergeTree (fake distributed table).
+	offsetsFederatedTableSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			bucketName                String,
@@ -160,11 +179,10 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		)
 		ENGINE = MergeTree()
 		ORDER BY (bucketName, raftSessionID)
-	`, h.DatabaseName, clickhouse.TableOffsets)
-	if err := h.Client.Exec(ctx, offsetsTableSQL); err != nil {
-		return fmt.Errorf("failed to create offsets table: %w", err)
+	`, h.DatabaseName, clickhouse.TableOffsetsFederated)
+	if err := h.Client.Exec(ctx, offsetsFederatedTableSQL); err != nil {
+		return fmt.Errorf("failed to create federated offsets table: %w", err)
 	}
-
 	return nil
 }
 
