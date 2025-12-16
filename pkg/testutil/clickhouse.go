@@ -12,6 +12,15 @@ import (
 	"github.com/scality/log-courier/pkg/logcourier"
 )
 
+// Test-only table and view names
+const (
+	// tableAccessLogsIngest is the ingest table for incoming log records (Null engine)
+	tableAccessLogsIngest = "access_logs_ingest"
+
+	// viewAccessLogsIngestMV is the materialized view filtering loggingEnabled=true records
+	viewAccessLogsIngestMV = "access_logs_ingest_mv"
+)
+
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
 type ClickHouseTestHelper struct {
 	Client       *clickhouse.Client
@@ -99,7 +108,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 			raftSessionID          UInt16
 		)
 		ENGINE = Null()
-	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+	`, h.DatabaseName, tableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, ingestTableSQL); err != nil {
 		return fmt.Errorf("failed to create ingest table: %w", err)
 	}
@@ -111,7 +120,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
 		ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
-	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+	`, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, tableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, logsTableSQL); err != nil {
 		return fmt.Errorf("failed to create logs table: %w", err)
 	}
@@ -134,7 +143,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		SELECT *
 		FROM %s.%s
 		WHERE loggingEnabled = true
-	`, h.DatabaseName, clickhouse.ViewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+	`, h.DatabaseName, viewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogs, h.DatabaseName, tableAccessLogsIngest)
 	if err := h.Client.Exec(ctx, mvSQL); err != nil {
 		return fmt.Errorf("failed to create materialized view: %w", err)
 	}
@@ -192,7 +201,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+	`, h.DatabaseName, tableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,      // timestamp
@@ -246,7 +255,7 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, h.DatabaseName, clickhouse.TableAccessLogsIngest)
+	`, h.DatabaseName, tableAccessLogsIngest)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,      // timestamp
