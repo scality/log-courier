@@ -340,5 +340,29 @@ var _ = Describe("Configuration", Ordered, func() {
 			err = logcourier.ValidateConfig()
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should reject zero for max-buckets-per-discovery", func() {
+			err := logcourier.ValidateMaxBuckets(0)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+		})
+
+		It("should reject negative values for max-buckets-per-discovery", func() {
+			err := logcourier.ValidateMaxBuckets(-1)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+		})
+
+		It("should reject zero for max-logs-per-batch", func() {
+			err := logcourier.ValidateMaxLogsPerBatch(0)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+		})
+
+		It("should reject negative values for max-logs-per-batch", func() {
+			err := logcourier.ValidateMaxLogsPerBatch(-1)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+		})
 	})
 })

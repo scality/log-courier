@@ -1,6 +1,10 @@
 package logcourier
 
-import "github.com/scality/log-courier/pkg/util"
+import (
+	"fmt"
+
+	"github.com/scality/log-courier/pkg/util"
+)
 
 // ConfigSpec defines all configuration items for log-courier
 //
@@ -64,6 +68,16 @@ var ConfigSpec = util.ConfigSpec{
 		Help:         "Number of parallel workers for batch processing",
 		DefaultValue: 10,
 		EnvVar:       "LOG_COURIER_CONSUMER_NUM_WORKERS",
+	},
+	"consumer.max-buckets-per-discovery": util.ConfigVarSpec{
+		Help:         "Maximum number of buckets to discover per discovery cycle",
+		DefaultValue: 100,
+		EnvVar:       "LOG_COURIER_CONSUMER_MAX_BUCKETS_PER_DISCOVERY",
+	},
+	"consumer.max-logs-per-batch": util.ConfigVarSpec{
+		Help:         "Maximum number of logs per bucket per batch (also max logs per S3 object)",
+		DefaultValue: 10000,
+		EnvVar:       "LOG_COURIER_CONSUMER_MAX_LOGS_PER_BATCH",
 	},
 
 	// Retry configuration
@@ -155,4 +169,20 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 30,
 		EnvVar:       "LOG_COURIER_SHUTDOWN_TIMEOUT_SECONDS",
 	},
+}
+
+// ValidateMaxBuckets validates consumer.max-buckets-per-discovery config value
+func ValidateMaxBuckets(value int) error {
+	if value <= 0 {
+		return fmt.Errorf("consumer.max-buckets-per-discovery must be > 0, got %d", value)
+	}
+	return nil
+}
+
+// ValidateMaxLogsPerBatch validates consumer.max-logs-per-batch config value
+func ValidateMaxLogsPerBatch(value int) error {
+	if value <= 0 {
+		return fmt.Errorf("consumer.max-logs-per-batch must be > 0, got %d", value)
+	}
+	return nil
 }
