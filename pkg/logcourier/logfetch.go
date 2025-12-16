@@ -9,15 +9,17 @@ import (
 
 // LogFetcher fetches logs from ClickHouse
 type LogFetcher struct {
-	client   *clickhouse.Client
-	database string
+	client          *clickhouse.Client
+	database        string
+	maxLogsPerBatch int
 }
 
 // NewLogFetcher creates a new log fetcher
-func NewLogFetcher(client *clickhouse.Client, database string) *LogFetcher {
+func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch int) *LogFetcher {
 	return &LogFetcher{
-		client:   client,
-		database: database,
+		client:          client,
+		database:        database,
+		maxLogsPerBatch: maxLogsPerBatch,
 	}
 }
 
@@ -66,6 +68,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		      OR (insertedAt = ? AND timestamp = ? AND req_id > ?)
 		  )
 		ORDER BY insertedAt ASC, timestamp ASC, req_id ASC
+		LIMIT ?
 	`, lf.database, clickhouse.TableAccessLogsFederated)
 
 	rows, err := lf.client.Query(ctx, query,
@@ -74,6 +77,7 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		batch.LastProcessedOffset.InsertedAt,
 		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp,
 		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp, batch.LastProcessedOffset.ReqID,
+		lf.maxLogsPerBatch,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)

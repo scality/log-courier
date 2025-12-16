@@ -29,7 +29,7 @@ var _ = Describe("LogFetcher", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		fetcher = logcourier.NewLogFetcher(helper.Client, helper.DatabaseName)
+		fetcher = logcourier.NewLogFetcher(helper.Client, helper.DatabaseName, 5)
 	})
 
 	AfterEach(func() {
@@ -56,9 +56,8 @@ var _ = Describe("LogFetcher", func() {
 			}
 
 			batch := logcourier.LogBatch{
-				Bucket:       "test-bucket",
+				Bucket:              "test-bucket",
 				LastProcessedOffset: logcourier.Offset{},
-				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -166,9 +165,8 @@ var _ = Describe("LogFetcher", func() {
 
 			// Fetch only bucket-1
 			batch := logcourier.LogBatch{
-				Bucket:       "bucket-1",
+				Bucket:              "bucket-1",
 				LastProcessedOffset: logcourier.Offset{},
-				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -179,9 +177,8 @@ var _ = Describe("LogFetcher", func() {
 
 		It("should return empty list when no logs match", func() {
 			batch := logcourier.LogBatch{
-				Bucket:       "nonexistent-bucket",
+				Bucket:              "nonexistent-bucket",
 				LastProcessedOffset: logcourier.Offset{},
-				
 			}
 
 			records, err := fetcher.FetchLogs(ctx, batch)
@@ -401,6 +398,64 @@ var _ = Describe("LogFetcher", func() {
 			Expect(rec.RaftSessionID).To(Equal(uint16(0)))
 			Expect(rec.InsertedAt).NotTo(BeZero())
 			Expect(rec.Timestamp).NotTo(BeZero())
+		})
+
+		It("should respect maxLogsPerBatch limit", func() {
+			baseTime := time.Now().Add(-1 * time.Hour)
+			for i := 0; i < 6; i++ {
+				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+					LoggingEnabled: true,
+					BucketName:     "test-bucket",
+					Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
+					ReqID:          fmt.Sprintf("req-%03d", i),
+					Action:         "GetObject",
+				})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			batch := logcourier.LogBatch{
+				Bucket:              "test-bucket",
+				LastProcessedOffset: logcourier.Offset{},
+				LogCount:            5,
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(records).To(HaveLen(5))
+
+			Expect(records[0].ReqID).To(Equal("req-000"))
+			Expect(records[4].ReqID).To(Equal("req-004"))
+		})
+
+		It("should order by insertedAt", func() {
+			// Insert logs with different timestamps
+			baseTime := time.Now().Add(-1 * time.Hour)
+			for i := 0; i < 5; i++ {
+				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+					LoggingEnabled: true,
+					BucketName:     "test-bucket",
+					Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
+					ReqID:          fmt.Sprintf("req-%03d", i),
+					Action:         "GetObject",
+				})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			batch := logcourier.LogBatch{
+				Bucket:              "test-bucket",
+				LastProcessedOffset: logcourier.Offset{},
+				LogCount:            10,
+			}
+
+			records, err := fetcher.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify chronological order by checking insertedAt is non-decreasing
+			for i := 1; i < len(records); i++ {
+				Expect(records[i].InsertedAt.Before(records[i-1].InsertedAt)).To(BeFalse(),
+					"records should be ordered by insertedAt ascending")
+			}
 		})
 	})
 })
