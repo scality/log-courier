@@ -13,4 +13,7 @@ const (
 
 	// TableOffsets is the table tracking processing offsets per bucket (MergeTree)
 	TableOffsets = "offsets"
+
+	// TableOffsetsFederated is the distributed table for offsets across all shards
+	TableOffsetsFederated = "offsets_federated"
 )
