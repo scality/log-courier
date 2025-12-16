@@ -91,6 +91,10 @@ type Config struct {
 	TimeThresholdSec int
 	// NumWorkers is the number of parallel workers for batch processing
 	NumWorkers int
+	// MaxBucketsPerDiscovery is the maximum number of buckets to discover per cycle
+	MaxBucketsPerDiscovery int
+	// MaxLogsPerBatch is the maximum number of logs per bucket per batch
+	MaxLogsPerBatch int
 
 	// MaxRetries is the maximum number of retry attempts for failed operations
 	MaxRetries int
@@ -182,8 +186,14 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	return &Processor{
 		clickhouseClient:              chClient,
 		s3Uploader:                    s3Uploader,
-		workDiscovery:                 NewBatchFinder(chClient, database, cfg.CountThreshold, cfg.TimeThresholdSec),
-		logFetcher:                    NewLogFetcher(chClient, database),
+		workDiscovery: NewBatchFinder(
+			chClient,
+			database,
+			cfg.CountThreshold,
+			cfg.TimeThresholdSec,
+			cfg.MaxBucketsPerDiscovery,
+		),
+		logFetcher: NewLogFetcher(chClient, database, cfg.MaxLogsPerBatch),
 		logBuilder:                    NewLogObjectBuilder(),
 		offsetManager:                 offsetManager,
 		minDiscoveryInterval:          cfg.MinDiscoveryInterval,
