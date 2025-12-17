@@ -26,6 +26,7 @@ type Config struct {
 	MaxRetries     int
 	InitialBackoff time.Duration
 	MaxBackoff     time.Duration
+	NumWorkers     int // Number of parallel workers, used to size connection pool
 	Logger         *slog.Logger
 }
 
@@ -47,6 +48,11 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		// This prevents queries from hanging indefinitely
 		ReadTimeout:      cfg.Timeout,
 		ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
+		// Connection pool sized to match number of workers
+		MaxOpenConns: cfg.NumWorkers,
+		MaxIdleConns: cfg.NumWorkers,
+		// Rotate connections regularly to utilize round-robin strategy
+		ConnMaxLifetime: 5 * time.Minute,
 	}
 
 	var conn driver.Conn
