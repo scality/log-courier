@@ -29,7 +29,7 @@ var _ = Describe("BatchFinder", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		finder = logcourier.NewBatchFinder(helper.Client, helper.DatabaseName, 5, 60)
+		finder = logcourier.NewBatchFinder(helper.Client, helper.DatabaseName, 5, 60, 3)
 	})
 
 	AfterEach(func() {
@@ -508,7 +508,7 @@ var _ = Describe("BatchFinder", func() {
 			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
 
 			// Cycle 1: Fetch logs and simulate processing
-			fetcher := logcourier.NewLogFetcher(helper.Client, helper.DatabaseName)
+			fetcher := logcourier.NewLogFetcher(helper.Client, helper.DatabaseName, 10000)
 			records, err := fetcher.FetchLogs(ctx, batches[0])
 			Expect(err).NotTo(HaveOccurred())
 			Expect(records).To(HaveLen(2))
@@ -529,6 +529,84 @@ var _ = Describe("BatchFinder", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(batches).To(BeEmpty(), "Expected no batches after processing all logs, but found %d batch(es)", len(batches))
+		})
+
+		It("should sort batches by oldest min_ts first", func() {
+			recentTime := time.Now()
+			for i := 0; i < 5; i++ {
+				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+					LoggingEnabled: true,
+					BucketName:     "bucket-recent",
+					Timestamp:      recentTime,
+					ReqID:          fmt.Sprintf("req-recent-%d", i),
+					Action:         "GetObject",
+				})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			// Insert logs for bucket-old with old timestamp
+			oldTime := time.Now().Add(-2 * time.Hour)
+			query := fmt.Sprintf(`
+				INSERT INTO %s.access_logs
+				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName)
+
+			for i := 0; i < 5; i++ {
+				err := helper.Client.Exec(ctx, query,
+					oldTime,
+					"bucket-old",
+					oldTime,
+					fmt.Sprintf("req-old-%d", i),
+					"GetObject",
+					true,
+					uint16(0),
+					"/bucket-old/key",
+				)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			batches, err := finder.FindBatches(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(batches).To(HaveLen(2))
+
+			// First batch should be the older one
+			Expect(batches[0].Bucket).To(Equal("bucket-old"))
+			Expect(batches[1].Bucket).To(Equal("bucket-recent"))
+		})
+
+		It("should limit number of buckets returned", func() {
+			for bucketNum := 0; bucketNum < 5; bucketNum++ {
+				bucketName := fmt.Sprintf("bucket-%d", bucketNum)
+				insertTime := time.Now().Add(-time.Duration(4-bucketNum) * time.Hour)
+
+				query := fmt.Sprintf(`
+					INSERT INTO %s.access_logs
+					(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				`, helper.DatabaseName)
+
+				for i := 0; i < 5; i++ {
+					err := helper.Client.Exec(ctx, query,
+						insertTime,
+						bucketName,
+						insertTime,
+						fmt.Sprintf("req-%d-%d", bucketNum, i),
+						"GetObject",
+						true,
+						uint16(0),
+						fmt.Sprintf("/%s/key", bucketName),
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			}
+
+			batches, err := finder.FindBatches(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(batches).To(HaveLen(3))
+			bucketNames := []string{batches[0].Bucket, batches[1].Bucket, batches[2].Bucket}
+			Expect(bucketNames).To(Equal([]string{"bucket-0", "bucket-1", "bucket-2"}))
 		})
 	})
 })

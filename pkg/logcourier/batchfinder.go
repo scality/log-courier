@@ -13,15 +13,23 @@ type BatchFinder struct {
 	database         string
 	countThreshold   int
 	timeThresholdSec int
+	maxBuckets       int
 }
 
 // NewBatchFinder creates a new batch finder instance
-func NewBatchFinder(client *clickhouse.Client, database string, countThreshold, timeThresholdSec int) *BatchFinder {
+func NewBatchFinder(
+	client *clickhouse.Client,
+	database string,
+	countThreshold int,
+	timeThresholdSec int,
+	maxBuckets int,
+) *BatchFinder {
 	return &BatchFinder{
 		client:           client,
 		database:         database,
 		countThreshold:   countThreshold,
 		timeThresholdSec: timeThresholdSec,
+		maxBuckets:       maxBuckets,
 	}
 }
 
@@ -108,14 +116,16 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         --   2. Its oldest unprocessed log is older than timeThresholdSec (age condition)
         --
         -- Results are ordered by min_ts (oldest first) to prioritize buckets with oldest logs.
+        -- LIMIT ensures we only process maxBuckets per discovery cycle.
         SELECT bucketName, raftSessionID, new_log_count, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId
         FROM new_logs_by_bucket
         WHERE new_log_count >= ?
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
+        LIMIT ?
     `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
 
-	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
+	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
 	if err != nil {
 		return nil, fmt.Errorf("batch finder query failed: %w", err)
 	}

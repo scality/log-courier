@@ -59,23 +59,24 @@ var _ = Describe("Processor", func() {
 		Describe("NewProcessor", func() {
 			It("should create processor successfully", func() {
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHouseTimeout:    30 * time.Second,
-					CountThreshold:       5,
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
-					NumWorkers:           2,
-					MaxRetries:           3,
-					InitialBackoff:       1 * time.Second,
-					MaxBackoff:           30 * time.Second,
-					S3Endpoint:           "http://localhost:8000",
-					S3AccessKeyID:        "test-key",
-					S3SecretAccessKey:    "test-secret",
+					Logger:                  logger,
+					ClickHouseHosts:         logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername:      logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHousePassword:      logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseDatabase:      helper.DatabaseName,
+					ClickHouseTimeout:       30 * time.Second,
+					CountThreshold:          5,
+					TimeThresholdSec:        60,
+					MinDiscoveryInterval:    5 * time.Second,
+					MaxDiscoveryInterval:    60 * time.Second,
+					NumWorkers:              2,
+					MaxBucketsPerDiscovery:  100,
+					MaxRetries:              3,
+					InitialBackoff:          1 * time.Second,
+					MaxBackoff:              30 * time.Second,
+					S3Endpoint:              "http://localhost:8000",
+					S3AccessKeyID:           "test-key",
+					S3SecretAccessKey:       "test-secret",
 				}
 
 				processor, err := logcourier.NewProcessor(ctx, cfg)
@@ -88,23 +89,24 @@ var _ = Describe("Processor", func() {
 
 			It("should fail with invalid ClickHouse URL", func() {
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      []string{"invalid://url:9000"},
-					ClickHouseUsername:   "default",
-					ClickHousePassword:   "",
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHouseTimeout:    30 * time.Second,
-					CountThreshold:       5,
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
-					NumWorkers:           2,
-					MaxRetries:           3,
-					InitialBackoff:       1 * time.Second,
-					MaxBackoff:           30 * time.Second,
-					S3Endpoint:           "http://localhost:8000",
-					S3AccessKeyID:        "test-key",
-					S3SecretAccessKey:    "test-secret",
+					Logger:                 logger,
+					ClickHouseHosts:        []string{"invalid://url:9000"},
+					ClickHouseUsername:     "default",
+					ClickHousePassword:     "",
+					ClickHouseDatabase:     helper.DatabaseName,
+					ClickHouseTimeout:      30 * time.Second,
+					CountThreshold:         5,
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   5 * time.Second,
+					MaxDiscoveryInterval:   60 * time.Second,
+					NumWorkers:             2,
+					MaxBucketsPerDiscovery: 100,
+					MaxRetries:             3,
+					InitialBackoff:         1 * time.Second,
+					MaxBackoff:             30 * time.Second,
+					S3Endpoint:             "http://localhost:8000",
+					S3AccessKeyID:          "test-key",
+					S3SecretAccessKey:      "test-secret",
 				}
 
 				processor, err := logcourier.NewProcessor(ctx, cfg)
@@ -125,6 +127,8 @@ var _ = Describe("Processor", func() {
 					MinDiscoveryInterval: 5 * time.Second,
 					MaxDiscoveryInterval: 60 * time.Second,
 					NumWorkers:           2,
+					MaxBucketsPerDiscovery: 100,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           3,
 					InitialBackoff:       1 * time.Second,
 					MaxBackoff:           30 * time.Second,
@@ -181,6 +185,8 @@ var _ = Describe("Processor", func() {
 					MinDiscoveryInterval: 5 * time.Second,
 					MaxDiscoveryInterval: 60 * time.Second,
 					NumWorkers:           2,
+					MaxBucketsPerDiscovery: 100,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           3,
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           5 * time.Second,
@@ -280,6 +286,8 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 2 * time.Second,
 						MaxDiscoveryInterval: 2 * time.Second,
 						NumWorkers:           2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -379,6 +387,8 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -459,6 +469,8 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -624,6 +636,8 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -746,6 +760,106 @@ var _ = Describe("Processor", func() {
 
 			})
 
+			Describe("Pagination", func() {
+				It("should process multiple buckets and many logs across multiple cycles", func() {
+					// Create processor with low pagination limits to force multiple cycles
+					cfg := logcourier.Config{
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   1 * time.Second,
+						MaxDiscoveryInterval:   1 * time.Second,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 2,  // Process 2 buckets per cycle
+						MaxLogsPerBucket:        10, // Fetch 10 logs per batch
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Endpoint:             testS3Endpoint,
+						S3AccessKeyID:          workbenchAccessKey,
+						S3SecretAccessKey:      workbenchSecretKey,
+					}
+
+					processor, err := logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = processor.Close() }()
+
+					// Insert 20 logs for each of 3 buckets = 60 total logs
+					// This will require multiple cycles to process all buckets and all logs
+					timestamp := time.Now()
+					for bucketNum := 0; bucketNum < 3; bucketNum++ {
+						bucketName := fmt.Sprintf("pagination-bucket-%d", bucketNum)
+						for i := 0; i < 20; i++ {
+							insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+								LoggingEnabled: true,
+								BucketName:     bucketName,
+								RaftSessionID:  1,
+								Timestamp:      timestamp.Add(time.Duration(bucketNum*100+i) * time.Second),
+								ReqID:          fmt.Sprintf("req-%d-%03d", bucketNum, i),
+								Action:         "GetObject",
+								HttpCode:       200,
+							}, testTargetBucket, fmt.Sprintf("pagination/%d/", bucketNum))
+							Expect(insertErr).NotTo(HaveOccurred())
+						}
+					}
+
+					// Run processor with enough time for multiple cycles
+					testCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+					defer cancel()
+
+					go func() {
+						_ = processor.Run(testCtx)
+					}()
+
+					// Wait for all 60 logs to be processed
+					// With MaxLogsPerBucket=10, we expect at least 6 S3 objects
+					// (3 buckets * 20 logs each / 10 logs per object = 6 objects minimum)
+					Eventually(func() int {
+						totalObjects := 0
+						for bucketNum := 0; bucketNum < 3; bucketNum++ {
+							objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, fmt.Sprintf("pagination/%d/", bucketNum))
+							if listErr == nil {
+								totalObjects += len(objects)
+							}
+						}
+						return totalObjects
+					}).WithTimeout(12 * time.Second).WithPolling(200 * time.Millisecond).Should(
+						BeNumerically(">=", 6),
+						"Expected at least 6 S3 objects for 60 logs with MaxLogsPerBucket=10",
+					)
+
+					cancel()
+
+					// Verify all buckets were processed
+					for bucketNum := 0; bucketNum < 3; bucketNum++ {
+						bucketName := fmt.Sprintf("pagination-bucket-%d", bucketNum)
+						objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, fmt.Sprintf("pagination/%d/", bucketNum))
+						Expect(listErr).NotTo(HaveOccurred())
+						Expect(objects).NotTo(BeEmpty(), "Expected bucket %s to have log objects", bucketName)
+
+						// Count total logs across all objects for this bucket
+						totalLogs := 0
+						for _, objKey := range objects {
+							content, getErr := s3Helper.GetObject(ctx, testTargetBucket, objKey)
+							Expect(getErr).NotTo(HaveOccurred())
+							totalLogs += strings.Count(string(content), "\n")
+						}
+						Expect(totalLogs).To(Equal(20), "Expected bucket %s to have exactly 20 logs", bucketName)
+
+						// Verify offset was committed for this bucket
+						offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+						offset, offsetErr := offsetMgr.GetOffset(ctx, bucketName, 1)
+						Expect(offsetErr).NotTo(HaveOccurred())
+						Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be committed for %s", bucketName)
+					}
+				})
+			})
+
 			Describe("Fault Isolation", func() {
 				It("should process successful batches when one batch fails", func() {
 					// Create real S3 client and wrap with counting uploader
@@ -768,6 +882,8 @@ var _ = Describe("Processor", func() {
 						TimeThresholdSec:     60,
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:        10000,
 						NumWorkers:           3, // Allow parallel processing
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
@@ -922,6 +1038,8 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
+					MaxBucketsPerDiscovery: 100,
+					MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -1042,6 +1160,8 @@ var _ = Describe("Processor", func() {
 					MinDiscoveryInterval: 1 * time.Second,
 					MaxDiscoveryInterval: 10 * time.Second,
 					NumWorkers:           2,
+					MaxBucketsPerDiscovery: 100,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           1,
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           500 * time.Millisecond,
@@ -1139,6 +1259,8 @@ var _ = Describe("Processor", func() {
 					MinDiscoveryInterval: 1 * time.Second,
 					MaxDiscoveryInterval: 10 * time.Second,
 					NumWorkers:           2,
+					MaxBucketsPerDiscovery: 100,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           1, // 2 total attempts (0 and 1)
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           500 * time.Millisecond,
