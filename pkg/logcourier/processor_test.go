@@ -128,7 +128,7 @@ var _ = Describe("Processor", func() {
 					MaxDiscoveryInterval: 60 * time.Second,
 					NumWorkers:           2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBatch:        10000,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           3,
 					InitialBackoff:       1 * time.Second,
 					MaxBackoff:           30 * time.Second,
@@ -186,7 +186,7 @@ var _ = Describe("Processor", func() {
 					MaxDiscoveryInterval: 60 * time.Second,
 					NumWorkers:           2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBatch:        10000,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           3,
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           5 * time.Second,
@@ -287,7 +287,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval: 2 * time.Second,
 						NumWorkers:           2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBatch:        10000,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -388,7 +388,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBatch:        10000,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -470,7 +470,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBatch:        10000,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -637,7 +637,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBatch:        10000,
+						MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -776,7 +776,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval:   1 * time.Second,
 						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 2,  // Process 2 buckets per cycle
-						MaxLogsPerBatch:        10, // Fetch 10 logs per batch
+						MaxLogsPerBucket:        10, // Fetch 10 logs per batch
 						MaxRetries:             3,
 						InitialBackoff:         100 * time.Millisecond,
 						MaxBackoff:             5 * time.Second,
@@ -817,7 +817,7 @@ var _ = Describe("Processor", func() {
 					}()
 
 					// Wait for all 60 logs to be processed
-					// With MaxLogsPerBatch=10, we expect at least 6 S3 objects
+					// With MaxLogsPerBucket=10, we expect at least 6 S3 objects
 					// (3 buckets * 20 logs each / 10 logs per object = 6 objects minimum)
 					Eventually(func() int {
 						totalObjects := 0
@@ -830,7 +830,7 @@ var _ = Describe("Processor", func() {
 						return totalObjects
 					}).WithTimeout(12 * time.Second).WithPolling(200 * time.Millisecond).Should(
 						BeNumerically(">=", 6),
-						"Expected at least 6 S3 objects for 60 logs with MaxLogsPerBatch=10",
+						"Expected at least 6 S3 objects for 60 logs with MaxLogsPerBucket=10",
 					)
 
 					cancel()
@@ -883,7 +883,7 @@ var _ = Describe("Processor", func() {
 						MinDiscoveryInterval: 5 * time.Second,
 						MaxDiscoveryInterval: 60 * time.Second,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBatch:        10000,
+						MaxLogsPerBucket:        10000,
 						NumWorkers:           3, // Allow parallel processing
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
@@ -1039,7 +1039,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval: 60 * time.Second,
 						NumWorkers:           2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBatch:        10000,
+					MaxLogsPerBucket:        10000,
 						MaxRetries:           3,
 						InitialBackoff:       100 * time.Millisecond,
 						MaxBackoff:           5 * time.Second,
@@ -1161,7 +1161,7 @@ var _ = Describe("Processor", func() {
 					MaxDiscoveryInterval: 10 * time.Second,
 					NumWorkers:           2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBatch:        10000,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           1,
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           500 * time.Millisecond,
@@ -1260,7 +1260,7 @@ var _ = Describe("Processor", func() {
 					MaxDiscoveryInterval: 10 * time.Second,
 					NumWorkers:           2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBatch:        10000,
+					MaxLogsPerBucket:        10000,
 					MaxRetries:           1, // 2 total attempts (0 and 1)
 					InitialBackoff:       100 * time.Millisecond,
 					MaxBackoff:           500 * time.Millisecond,
