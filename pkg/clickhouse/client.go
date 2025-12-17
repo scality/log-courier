@@ -45,7 +45,8 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		DialTimeout: cfg.Timeout,
 		// ReadTimeout applies to reading from the connection (query execution)
 		// This prevents queries from hanging indefinitely
-		ReadTimeout: cfg.Timeout,
+		ReadTimeout:      cfg.Timeout,
+		ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
 	}
 
 	var conn driver.Conn
