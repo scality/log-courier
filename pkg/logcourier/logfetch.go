@@ -22,7 +22,9 @@ func NewLogFetcher(client *clickhouse.Client, database string) *LogFetcher {
 }
 
 // FetchLogs fetches logs for a batch
-// Returns logs sorted by time (ascending).
+// Returns logs sorted by insertedAt, timestamp, req_id
+// LogBuilder will re-sort by timestamp for S3 file ordering.
+// Uses composite filter to fetch only logs after LastProcessedOffset.
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
 	query := fmt.Sprintf(`
 		SELECT
@@ -57,12 +59,22 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			raftSessionID
 		FROM %s.%s
 		WHERE bucketName = ?
-		  AND insertedAt >= ?
-		  AND insertedAt <= ?
-		ORDER BY timestamp ASC, req_id ASC
+		  AND raftSessionID = ?
+		  AND (
+		      insertedAt > ?
+		      OR (insertedAt = ? AND timestamp > ?)
+		      OR (insertedAt = ? AND timestamp = ? AND req_id > ?)
+		  )
+		ORDER BY insertedAt ASC, timestamp ASC, req_id ASC
 	`, lf.database, clickhouse.TableAccessLogs)
 
-	rows, err := lf.client.Query(ctx, query, batch.Bucket, batch.MinTimestamp, batch.MaxTimestamp)
+	rows, err := lf.client.Query(ctx, query,
+		batch.Bucket,
+		batch.RaftSessionID,
+		batch.LastProcessedOffset.InsertedAt,
+		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp,
+		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp, batch.LastProcessedOffset.ReqID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}

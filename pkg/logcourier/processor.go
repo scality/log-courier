@@ -530,8 +530,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
-		"minTimestamp", batch.MinTimestamp,
-		"maxTimestamp", batch.MaxTimestamp)
+		"afterOffset", batch.LastProcessedOffset.InsertedAt)
 
 	// 1. Fetch logs
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
@@ -543,13 +542,20 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		p.logger.Error("no logs fetched for batch but BatchFinder expected logs",
 			"bucketName", batch.Bucket,
 			"expectedLogCount", batch.LogCount,
-			"minTimestamp", batch.MinTimestamp,
-			"maxTimestamp", batch.MaxTimestamp)
+			"afterOffset", batch.LastProcessedOffset.InsertedAt)
 		return nil, fmt.Errorf("zero records fetched but BatchFinder expected %d logs for bucket %s",
 			batch.LogCount, batch.Bucket)
 	}
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
+
+	lastLog := records[len(records)-1]
+	offset := Offset{
+		InsertedAt: lastLog.InsertedAt,
+		Timestamp:  lastLog.Timestamp,
+		ReqID:      lastLog.ReqID,
+	}
+	raftSessionID := lastLog.RaftSessionID
 
 	// 2. Build log object
 	logObj, err := p.logBuilder.Build(records)
@@ -582,16 +588,9 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		"s3Key", logObj.Key,
 		"sizeBytes", len(logObj.Content))
 
-	// Get triple composite offset from last log
-	lastLog := records[len(records)-1]
-
 	return &ProcessResult{
 		Records: records,
-		Offset: Offset{
-			InsertedAt: lastLog.InsertedAt,
-			Timestamp:  lastLog.Timestamp,
-			ReqID:      lastLog.ReqID,
-		},
-		RaftSessionID: lastLog.RaftSessionID,
+		Offset:  offset,
+		RaftSessionID: raftSessionID,
 	}, nil
 }

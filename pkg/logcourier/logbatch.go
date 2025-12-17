@@ -2,19 +2,22 @@ package logcourier
 
 import (
 	"fmt"
-	"time"
 )
 
 // LogBatch represents a batch of logs ready for processing
 type LogBatch struct {
-	MinTimestamp time.Time
-	MaxTimestamp time.Time
-	Bucket       string
-	LogCount     uint64
+	LastProcessedOffset Offset // Offset to filter from (empty if no previous processing)
+	Bucket              string
+	RaftSessionID       uint16
+	LogCount            uint64
 }
 
 // String returns a string representation for logging
 func (lb LogBatch) String() string {
-	return fmt.Sprintf("LogBatch{Bucket: %s, Logs: %d, TimeRange: [%s, %s]}",
-		lb.Bucket, lb.LogCount, lb.MinTimestamp, lb.MaxTimestamp)
+	if lb.LastProcessedOffset.InsertedAt.IsZero() {
+		return fmt.Sprintf("LogBatch{Bucket: %s, Logs: %d, FirstProcessing: true}",
+			lb.Bucket, lb.LogCount)
+	}
+	return fmt.Sprintf("LogBatch{Bucket: %s, Logs: %d, AfterOffset: %s}",
+		lb.Bucket, lb.LogCount, lb.LastProcessedOffset.InsertedAt)
 }
