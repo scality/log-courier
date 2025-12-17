@@ -82,6 +82,10 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		return err
 	}
 
+	if err := h.createOffsetsView(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -182,6 +186,20 @@ func (h *ClickHouseTestHelper) createFederatedOffsetsTable(ctx context.Context) 
 	`, h.DatabaseName, clickhouse.TableOffsetsFederated)
 	if err := h.Client.Exec(ctx, offsetsFederatedTableSQL); err != nil {
 		return fmt.Errorf("failed to create federated offsets table: %w", err)
+	}
+	return nil
+}
+
+func (h *ClickHouseTestHelper) createOffsetsView(ctx context.Context) error {
+	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
+	// For single-node tests, create offsets as a view to offsets_federated.
+	// This simulates the production setup where offsets is the local table.
+	offsetsViewSQL := fmt.Sprintf(`
+		CREATE VIEW IF NOT EXISTS %s.%s
+		AS SELECT * FROM %s.%s
+	`, h.DatabaseName, clickhouse.TableOffsets, h.DatabaseName, clickhouse.TableOffsetsFederated)
+	if err := h.Client.Exec(ctx, offsetsViewSQL); err != nil {
+		return fmt.Errorf("failed to create offsets view: %w", err)
 	}
 	return nil
 }
