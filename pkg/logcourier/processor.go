@@ -141,6 +141,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		MaxRetries:     cfg.MaxRetries,
 		InitialBackoff: cfg.InitialBackoff,
 		MaxBackoff:     cfg.MaxBackoff,
+		NumWorkers:     cfg.NumWorkers,
 		Logger:         cfg.Logger,
 	})
 	if err != nil {
