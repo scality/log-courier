@@ -76,7 +76,7 @@ var ConfigSpec = util.ConfigSpec{
 	},
 	"consumer.max-logs-per-bucket": util.ConfigVarSpec{
 		Help:         "Maximum number of logs per bucket per batch (also max logs per S3 object)",
-		DefaultValue: 10000,
+		DefaultValue: 100000,
 		EnvVar:       "LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET",
 	},
 
