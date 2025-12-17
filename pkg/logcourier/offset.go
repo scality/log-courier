@@ -71,7 +71,7 @@ func (om *OffsetManager) CommitOffset(ctx context.Context, bucket string, raftSe
 	query := fmt.Sprintf(`
         INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId)
         VALUES (?, ?, ?, ?, ?)
-    `, om.database, clickhouse.TableOffsets)
+    `, om.database, clickhouse.TableOffsetsFederated)
 
 	err := om.client.Exec(ctx, query, bucket, raftSessionID, offset.InsertedAt, offset.Timestamp, offset.ReqID)
 	if err != nil {
@@ -100,7 +100,7 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
         WHERE bucketName = ? AND raftSessionID = ?
         ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
         LIMIT 1
-    `, om.database, clickhouse.TableOffsets)
+    `, om.database, clickhouse.TableOffsetsFederated)
 
 	row := om.client.QueryRow(ctx, query, bucket, raftSessionID)
 

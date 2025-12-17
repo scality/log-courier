@@ -103,7 +103,7 @@ var _ = Describe("ClickHouse Client", func() {
 
 			// Verify tables exist
 			var tableCount uint64
-			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_ingest', 'access_logs', 'offsets')", helper.DatabaseName)
+			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_ingest', 'access_logs_federated', 'offsets_federated')", helper.DatabaseName)
 			err = helper.Client.QueryRow(ctx, query).Scan(&tableCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(tableCount).To(Equal(uint64(3)))
@@ -191,21 +191,21 @@ var _ = Describe("ClickHouse Client", func() {
 
 			// Verify only loggingEnabled=true record is in access_logs table
 			var count uint64
-			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err = helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(1)))
 
 			// Verify it's the correct record
 			var reqID string
-			query = fmt.Sprintf("SELECT req_id FROM %s.access_logs WHERE bucketName = 'test-bucket-enabled'", helper.DatabaseName)
+			query = fmt.Sprintf("SELECT req_id FROM %s.%s WHERE bucketName = 'test-bucket-enabled'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err = helper.Client.QueryRow(ctx, query).Scan(&reqID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(reqID).To(Equal("req-enabled"))
 
 			// Verify disabled record is NOT in access_logs
 			var disabledCount uint64
-			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-disabled'", helper.DatabaseName)
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket-disabled'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err = helper.Client.QueryRow(ctx, query).Scan(&disabledCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(disabledCount).To(Equal(uint64(0)))
@@ -232,7 +232,7 @@ var _ = Describe("ClickHouse Client", func() {
 
 			// Verify all 5 records are present
 			var count uint64
-			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.access_logs WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err := helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(5)))

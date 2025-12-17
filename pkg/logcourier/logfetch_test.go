@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/scality/log-courier/pkg/clickhouse"
 	"github.com/scality/log-courier/pkg/logcourier"
 	"github.com/scality/log-courier/pkg/testutil"
 )
@@ -75,10 +76,10 @@ var _ = Describe("LogFetcher", func() {
 			// Log D: Earliest insertedAt (should be fetched first)
 
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Log D: insertedAt=1s, timestamp=4s (earliest insertedAt)
 			err := helper.Client.Exec(ctx, query,
@@ -190,10 +191,10 @@ var _ = Describe("LogFetcher", func() {
 			baseTime := time.Now().Add(-1 * time.Hour)
 
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs with sequential insertedAt and timestamps
 			err := helper.Client.Exec(ctx, query,
@@ -233,10 +234,10 @@ var _ = Describe("LogFetcher", func() {
 			insertedAt := baseTime.Truncate(time.Second) // Same for all logs
 
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs: same insertedAt, different timestamps
 			err := helper.Client.Exec(ctx, query,
@@ -280,10 +281,10 @@ var _ = Describe("LogFetcher", func() {
 			baseTime := time.Now().Add(-1 * time.Hour)
 
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert a single log
 			insertedAt := baseTime.Add(1 * time.Second)
@@ -316,10 +317,10 @@ var _ = Describe("LogFetcher", func() {
 			timestamp := baseTime.Truncate(time.Second)
 
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs: same insertedAt, same timestamp, different reqIDs
 			err := helper.Client.Exec(ctx, query,

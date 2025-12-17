@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/scality/log-courier/pkg/clickhouse"
 	"github.com/scality/log-courier/pkg/logcourier"
 	"github.com/scality/log-courier/pkg/testutil"
 )
@@ -75,10 +76,10 @@ var _ = Describe("BatchFinder", func() {
 
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						oldTime.Add(time.Duration(i)*time.Second), // insertedAt
 						"test-bucket",                              // bucketName
@@ -95,8 +96,8 @@ var _ = Describe("BatchFinder", func() {
 				// Set offset to last log
 				lastLogTime := oldTime.Add(5 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
-					helper.DatabaseName)
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client.Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), lastLogTime, lastLogTime, "req-007")
 				Expect(err).NotTo(HaveOccurred())
@@ -113,14 +114,14 @@ var _ = Describe("BatchFinder", func() {
 				// This bypasses the materialized view to set insertedAt manually
 				oldTime := time.Now().Add(-2 * time.Hour)
 				query := fmt.Sprintf(`
-					INSERT INTO %s.access_logs
+					INSERT INTO %s.%s
 					(bucketOwner, bucketName, startTime, clientIP, requester, req_id, operation,
 					 objectKey, requestURI, httpCode, errorCode, bytesSent, objectSize, totalTime,
 					 turnAroundTime, referer, userAgent, versionId, signatureVersion, cipherSuite,
 					 authenticationType, hostHeader, tlsVersion, aclRequired, timestamp, insertedAt,
 					 loggingTargetBucket, loggingTargetPrefix, raftSessionID)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				`, helper.DatabaseName)
+				`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 				err := helper.Client.Exec(ctx, query,
 					"",                 // bucketOwner
 					"test-bucket",      // bucketName
@@ -165,10 +166,10 @@ var _ = Describe("BatchFinder", func() {
 
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						oldTime,                        // insertedAt (old)
 						"test-bucket",                  // bucketName
@@ -216,10 +217,10 @@ var _ = Describe("BatchFinder", func() {
 				// Insert 6 logs with insertedAt from T to T+5s, same timestamp and reqID
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						baseTime.Add(time.Duration(i)*time.Second), // insertedAt varies
 						"test-bucket",                              // bucketName
@@ -236,8 +237,8 @@ var _ = Describe("BatchFinder", func() {
 				// Set offset to insertedAt=T+3s
 				offsetTime := baseTime.Add(3 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
-					helper.DatabaseName)
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client.Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), offsetTime, timestamp, reqID)
 				Expect(err).NotTo(HaveOccurred())
@@ -257,10 +258,10 @@ var _ = Describe("BatchFinder", func() {
 				// Insert 6 logs with same insertedAt, varying timestamps
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						insertedAt,                                 // insertedAt (same for all)
 						"test-bucket",                              // bucketName
@@ -277,8 +278,8 @@ var _ = Describe("BatchFinder", func() {
 				// Set offset to (insertedAt=T, timestamp=T+3s, reqID="req-003")
 				offsetTimestamp := baseTime.Add(3 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
-					helper.DatabaseName)
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client.Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), insertedAt, offsetTimestamp, "req-003")
 				Expect(err).NotTo(HaveOccurred())
@@ -297,10 +298,10 @@ var _ = Describe("BatchFinder", func() {
 				// Insert logs at T0, T1, T2, T3
 				for i := 0; i < 4; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					insertedAt := baseTime.Add(time.Duration(i) * time.Second)
 					err := helper.Client.Exec(ctx, query,
 						insertedAt,                     // insertedAt
@@ -317,8 +318,8 @@ var _ = Describe("BatchFinder", func() {
 
 				// Insert 3 offset records: T0, T2, T1 (in this order to test ROW_NUMBER)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.offsets (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
-					helper.DatabaseName)
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 
 				t0 := baseTime
 				err := helper.Client.Exec(ctx, offsetQuery,
@@ -385,10 +386,10 @@ var _ = Describe("BatchFinder", func() {
 				// Insert logs for bucket-A with older insertedAt
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						oldTime,                        // insertedAt (older)
 						"bucket-A",                     // bucketName
@@ -405,10 +406,10 @@ var _ = Describe("BatchFinder", func() {
 				// Insert logs for bucket-B with newer insertedAt
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
-						INSERT INTO %s.access_logs
+						INSERT INTO %s.%s
 						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client.Exec(ctx, query,
 						newerTime,                      // insertedAt (newer)
 						"bucket-B",                     // bucketName
@@ -484,10 +485,10 @@ var _ = Describe("BatchFinder", func() {
 			logATimestamp := baseTime.Add(2 * time.Second)
 			logAInsertedAt := baseTime.Add(3 * time.Second)
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err := helper.Client.Exec(ctx, query,
 				logAInsertedAt, "test-bucket", logATimestamp, "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
@@ -547,10 +548,10 @@ var _ = Describe("BatchFinder", func() {
 			// Insert logs for bucket-old with old timestamp
 			oldTime := time.Now().Add(-2 * time.Hour)
 			query := fmt.Sprintf(`
-				INSERT INTO %s.access_logs
+				INSERT INTO %s.%s
 				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			for i := 0; i < 5; i++ {
 				err := helper.Client.Exec(ctx, query,
@@ -581,10 +582,10 @@ var _ = Describe("BatchFinder", func() {
 				insertTime := time.Now().Add(-time.Duration(4-bucketNum) * time.Hour)
 
 				query := fmt.Sprintf(`
-					INSERT INTO %s.access_logs
+					INSERT INTO %s.%s
 					(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-				`, helper.DatabaseName)
+				`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 				for i := 0; i < 5; i++ {
 					err := helper.Client.Exec(ctx, query,
