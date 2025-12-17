@@ -84,5 +84,10 @@ func ValidateConfig() error {
 			initialBackoff, maxBackoff)
 	}
 
+	numWorkers := ConfigSpec.GetInt("consumer.num-workers")
+	if numWorkers <= 0 {
+		return fmt.Errorf("consumer.num-workers must be positive, got %d", numWorkers)
+	}
+
 	return nil
 }
