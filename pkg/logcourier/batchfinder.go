@@ -56,7 +56,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                             PARTITION BY bucketName, raftSessionID
                             ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
                         ) as rn
-                    FROM %s.offsets
+                    FROM %s.%s
                 ) offsets_ordered
                 WHERE rn = 1
             ),
@@ -71,31 +71,33 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
             --   2. insertedAt = offset.insertedAt AND timestamp > offset.timestamp, OR
             --   3. insertedAt = offset.insertedAt AND timestamp = offset.timestamp AND reqID > offset.reqID
             --
-            -- For buckets with no offset, COALESCE defaults to epoch, so all logs are unprocessed.
+            -- For buckets with no offset, LEFT JOIN returns NULL values which are handled explicitly in WHERE clause.
             new_logs_by_bucket AS (
                 SELECT
                     l.bucketName,
                     l.raftSessionID,
                     count() AS new_log_count,
                     min(l.insertedAt) as min_ts,
-                    COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00')) as lastProcessedInsertedAt,
-                    COALESCE(o.lastProcessedTimestamp, toDateTime64('1970-01-01 00:00:00', 3)) as lastProcessedTimestamp,
-                    COALESCE(o.lastProcessedReqId, '') as lastProcessedReqId
-                FROM %s.access_logs AS l
+                    o.lastProcessedInsertedAt,
+                    o.lastProcessedTimestamp,
+                    o.lastProcessedReqId
+                FROM %s.%s AS l
                 LEFT JOIN bucket_offsets AS o
                     ON l.bucketName = o.bucketName
                     AND l.raftSessionID = o.raftSessionID
                 WHERE
                     -- Triple composite offset comparison: log > offset
-                    l.insertedAt > COALESCE(o.lastProcessedInsertedAt, toDateTime('1970-01-01 00:00:00'))
+                    -- When no offset exists (NULL from LEFT JOIN), include all logs
+                    o.lastProcessedInsertedAt IS NULL
+                    OR l.insertedAt > o.lastProcessedInsertedAt
                     OR (
                         l.insertedAt = o.lastProcessedInsertedAt
-                        AND l.timestamp > COALESCE(o.lastProcessedTimestamp, toDateTime64('1970-01-01 00:00:00', 3))
+                        AND l.timestamp > o.lastProcessedTimestamp
                     )
                     OR (
                         l.insertedAt = o.lastProcessedInsertedAt
                         AND l.timestamp = o.lastProcessedTimestamp
-                        AND l.req_id > COALESCE(o.lastProcessedReqId, '')
+                        AND l.req_id > o.lastProcessedReqId
                     )
                 GROUP BY l.bucketName, l.raftSessionID, o.lastProcessedInsertedAt, o.lastProcessedTimestamp, o.lastProcessedReqId
             )
@@ -111,7 +113,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         WHERE new_log_count >= ?
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
-    `, bf.database, bf.database)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec)
 	if err != nil {
