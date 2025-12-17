@@ -123,7 +123,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
         LIMIT ?
-    `, bf.database, clickhouse.TableOffsetsFederated, bf.database, clickhouse.TableAccessLogsFederated)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
 	if err != nil {
