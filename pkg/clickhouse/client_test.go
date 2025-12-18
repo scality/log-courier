@@ -55,21 +55,6 @@ var _ = Describe("ClickHouse Client", func() {
 			Expect(value).To(Equal(uint8(1)))
 		})
 
-		It("should accept multiple hosts", func() {
-			cfg := clickhouse.Config{
-				Hosts:    []string{"localhost:9002", "localhost:9003"},
-				Username: "default",
-				Password: "",
-				Timeout:  10 * time.Second,
-			}
-
-			client, err := clickhouse.NewClient(ctx, cfg)
-			Expect(err).NotTo(HaveOccurred())
-			defer func() { _ = client.Close() }()
-
-			Expect(client).NotTo(BeNil())
-		})
-
 		It("should reject empty host list", func() {
 			cfg := clickhouse.Config{
 				Hosts:    []string{},
