@@ -17,24 +17,6 @@ services:
       timeout: 5s
       retries: 5
 
-  clickhouse-2:
-    image: docker.io/clickhouse/clickhouse-server:24.3.2.23-alpine
-    container_name: log-courier-clickhouse-2
-    ports:
-      - "9003:9000"  # Native protocol
-      - "8124:8123"  # HTTP interface
-    environment:
-      CLICKHOUSE_DB: logs
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
-    volumes:
-      - clickhouse-data-2:/var/lib/clickhouse
-    healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   log-courier:
     build:
       context: .
@@ -55,6 +37,4 @@ services:
 
 volumes:
   clickhouse-data-1:
-    driver: local
-  clickhouse-data-2:
     driver: local
