@@ -12,15 +12,6 @@ import (
 	"github.com/scality/log-courier/pkg/logcourier"
 )
 
-// Test-only table and view names
-const (
-	// tableAccessLogsIngest is the ingest table for incoming log records (Null engine)
-	tableAccessLogsIngest = "access_logs_ingest"
-
-	// viewAccessLogsIngestMV is the materialized view filtering loggingEnabled=true records
-	viewAccessLogsIngestMV = "access_logs_ingest_mv"
-)
-
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
 type ClickHouseTestHelper struct {
 	Client       *clickhouse.Client
@@ -66,15 +57,7 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 		return fmt.Errorf("failed to create database: %w", err)
 	}
 
-	if err := h.createIngestTable(ctx); err != nil {
-		return err
-	}
-
 	if err := h.createFederatedLogsTable(ctx); err != nil {
-		return err
-	}
-
-	if err := h.createMaterializedView(ctx); err != nil {
 		return err
 	}
 
@@ -89,8 +72,10 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 	return nil
 }
 
-func (h *ClickHouseTestHelper) createIngestTable(ctx context.Context) error {
-	ingestTableSQL := fmt.Sprintf(`
+func (h *ClickHouseTestHelper) createFederatedLogsTable(ctx context.Context) error {
+	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
+	// For single-node tests, create federated table as MergeTree (fake distributed table).
+	federatedTableSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.%s
 		(
 			timestamp              DateTime,
@@ -130,41 +115,12 @@ func (h *ClickHouseTestHelper) createIngestTable(ctx context.Context) error {
 			awsAccessKeyID         String,
 			raftSessionID          UInt16
 		)
-		ENGINE = Null()
-	`, h.DatabaseName, tableAccessLogsIngest)
-	if err := h.Client.Exec(ctx, ingestTableSQL); err != nil {
-		return fmt.Errorf("failed to create ingest table: %w", err)
-	}
-	return nil
-}
-
-func (h *ClickHouseTestHelper) createFederatedLogsTable(ctx context.Context) error {
-	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create federated table as MergeTree (fake distributed table).
-	federatedTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.%s
-		AS %s.%s
 		ENGINE = MergeTree()
 		PARTITION BY toStartOfDay(insertedAt)
 		ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
-	`, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, tableAccessLogsIngest)
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
 		return fmt.Errorf("failed to create federated logs table: %w", err)
-	}
-	return nil
-}
-
-func (h *ClickHouseTestHelper) createMaterializedView(ctx context.Context) error {
-	mvSQL := fmt.Sprintf(`
-		CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s
-		TO %s.%s
-		AS
-		SELECT *
-		FROM %s.%s
-		WHERE loggingEnabled = true
-	`, h.DatabaseName, viewAccessLogsIngestMV, h.DatabaseName, clickhouse.TableAccessLogsFederated, h.DatabaseName, tableAccessLogsIngest)
-	if err := h.Client.Exec(ctx, mvSQL); err != nil {
-		return fmt.Errorf("failed to create materialized view: %w", err)
 	}
 	return nil
 }
@@ -227,7 +183,7 @@ type TestLogRecord struct {
 	LoggingEnabled bool
 }
 
-// InsertTestLog inserts a test log record into the ingest table
+// InsertTestLog inserts a test log record into the federated table
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
@@ -237,7 +193,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, h.DatabaseName, tableAccessLogsIngest)
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,      // timestamp
@@ -291,7 +247,7 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, h.DatabaseName, tableAccessLogsIngest)
+	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 	return h.Client.Exec(ctx, query,
 		log.Timestamp,      // timestamp
