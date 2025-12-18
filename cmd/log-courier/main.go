@@ -41,6 +41,8 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 		BackoffJitterFactor:           logcourier.ConfigSpec.GetFloat64("retry.backoff-jitter-factor"),
 		UploadOperationTimeout:        time.Duration(logcourier.ConfigSpec.GetInt("timeout.upload-operation-seconds")) * time.Second,
 		CommitOperationTimeout:        time.Duration(logcourier.ConfigSpec.GetInt("timeout.commit-operation-seconds")) * time.Second,
+		OffsetFlushTimeThreshold:      time.Duration(logcourier.ConfigSpec.GetInt("offset.flush-time-threshold-ms")) * time.Millisecond,
+		OffsetFlushCountThreshold:     logcourier.ConfigSpec.GetInt("offset.flush-count-threshold"),
 		S3Endpoint:                    logcourier.ConfigSpec.GetString("s3.endpoint"),
 		S3AccessKeyID:                 logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		S3SecretAccessKey:             logcourier.ConfigSpec.GetString("s3.secret-access-key"),
