@@ -12,6 +12,88 @@ import (
 	"github.com/scality/log-courier/pkg/logcourier"
 )
 
+// ==========================================
+// Test Schema Definitions
+// ==========================================
+// These are simplified single-node versions of the production schemas.
+// Production schemas (with replication and distribution) are maintained in:
+//   ~/scality/Federation/roles/run-s3-analytics-clickhouse/files/sql/
+//
+// Key simplifications for testing:
+//   - MergeTree instead of ReplicatedMergeTree (no replication)
+//   - access_logs_federated uses MergeTree, not Distributed engine
+//   - offsets_federated is the actual MergeTree table
+//   - offsets is a view to offsets_federated (inverted from production)
+//   - No TTL policies
+//   - Daily partitioning instead of configurable hourly partitioning
+
+const schemaAccessLogsFederated = `
+CREATE TABLE IF NOT EXISTS %s.%s
+(
+	timestamp              DateTime,
+	insertedAt             DateTime DEFAULT now(),
+	hostname               LowCardinality(String),
+
+	startTime              DateTime64(3),
+	requester              String,
+	operation              String,
+	requestURI             String,
+	errorCode              String,
+	objectSize             UInt64,
+	totalTime              Float32,
+	turnAroundTime         Float32,
+	referer                String,
+	userAgent              String,
+	versionId              String,
+	signatureVersion       LowCardinality(String),
+	cipherSuite            LowCardinality(String),
+	authenticationType     LowCardinality(String),
+	hostHeader             String,
+	tlsVersion             LowCardinality(String),
+	aclRequired            LowCardinality(String),
+
+	bucketOwner            String,
+	bucketName             String,
+	req_id                 String,
+	bytesSent              UInt64,
+	clientIP               String,
+	httpCode               UInt16,
+	objectKey              String,
+
+	logFormatVersion       LowCardinality(String),
+	loggingEnabled         Bool,
+	loggingTargetBucket    String,
+	loggingTargetPrefix    String,
+	awsAccessKeyID         String,
+	raftSessionID          UInt16
+)
+ENGINE = MergeTree()
+PARTITION BY toStartOfDay(insertedAt)
+ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
+`
+
+const schemaOffsetsFederated = `
+CREATE TABLE IF NOT EXISTS %s.%s
+(
+	bucketName                String,
+	raftSessionID             UInt16,
+	lastProcessedInsertedAt   DateTime,
+	lastProcessedTimestamp    DateTime64(3),
+	lastProcessedReqId        String
+)
+ENGINE = MergeTree()
+ORDER BY (bucketName, raftSessionID)
+`
+
+const schemaOffsetsView = `
+CREATE VIEW IF NOT EXISTS %s.%s
+AS SELECT * FROM %s.%s
+`
+
+// ==========================================
+// Test Helper
+// ==========================================
+
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
 type ClickHouseTestHelper struct {
 	Client       *clickhouse.Client
@@ -73,88 +155,24 @@ func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
 }
 
 func (h *ClickHouseTestHelper) createFederatedLogsTable(ctx context.Context) error {
-	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create federated table as MergeTree (fake distributed table).
-	federatedTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.%s
-		(
-			timestamp              DateTime,
-			insertedAt             DateTime DEFAULT now(),
-			hostname               LowCardinality(String),
-
-			startTime              DateTime64(3),
-			requester              String,
-			operation              String,
-			requestURI             String,
-			errorCode              String,
-			objectSize             UInt64,
-			totalTime              Float32,
-			turnAroundTime         Float32,
-			referer                String,
-			userAgent              String,
-			versionId              String,
-			signatureVersion       LowCardinality(String),
-			cipherSuite            LowCardinality(String),
-			authenticationType     LowCardinality(String),
-			hostHeader             String,
-			tlsVersion             LowCardinality(String),
-			aclRequired            LowCardinality(String),
-
-			bucketOwner            String,
-			bucketName             String,
-			req_id                 String,
-			bytesSent              UInt64,
-			clientIP               String,
-			httpCode               UInt16,
-			objectKey              String,
-
-			logFormatVersion       LowCardinality(String),
-			loggingEnabled         Bool,
-			loggingTargetBucket    String,
-			loggingTargetPrefix    String,
-			awsAccessKeyID         String,
-			raftSessionID          UInt16
-		)
-		ENGINE = MergeTree()
-		PARTITION BY toStartOfDay(insertedAt)
-		ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
-	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
-	if err := h.Client.Exec(ctx, federatedTableSQL); err != nil {
+	sql := fmt.Sprintf(schemaAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogsFederated)
+	if err := h.Client.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("failed to create federated logs table: %w", err)
 	}
 	return nil
 }
 
 func (h *ClickHouseTestHelper) createFederatedOffsetsTable(ctx context.Context) error {
-	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create federated table as MergeTree (fake distributed table).
-	offsetsFederatedTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.%s
-		(
-			bucketName                String,
-			raftSessionID             UInt16,
-			lastProcessedInsertedAt   DateTime,
-			lastProcessedTimestamp    DateTime64(3),
-			lastProcessedReqId        String
-		)
-		ENGINE = MergeTree()
-		ORDER BY (bucketName, raftSessionID)
-	`, h.DatabaseName, clickhouse.TableOffsetsFederated)
-	if err := h.Client.Exec(ctx, offsetsFederatedTableSQL); err != nil {
+	sql := fmt.Sprintf(schemaOffsetsFederated, h.DatabaseName, clickhouse.TableOffsetsFederated)
+	if err := h.Client.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("failed to create federated offsets table: %w", err)
 	}
 	return nil
 }
 
 func (h *ClickHouseTestHelper) createOffsetsView(ctx context.Context) error {
-	// TODO: LOGC-21 - Implement distributed ClickHouse setup for tests.
-	// For single-node tests, create offsets as a view to offsets_federated.
-	// This simulates the production setup where offsets is the local table.
-	offsetsViewSQL := fmt.Sprintf(`
-		CREATE VIEW IF NOT EXISTS %s.%s
-		AS SELECT * FROM %s.%s
-	`, h.DatabaseName, clickhouse.TableOffsets, h.DatabaseName, clickhouse.TableOffsetsFederated)
-	if err := h.Client.Exec(ctx, offsetsViewSQL); err != nil {
+	sql := fmt.Sprintf(schemaOffsetsView, h.DatabaseName, clickhouse.TableOffsets, h.DatabaseName, clickhouse.TableOffsetsFederated)
+	if err := h.Client.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("failed to create offsets view: %w", err)
 	}
 	return nil
