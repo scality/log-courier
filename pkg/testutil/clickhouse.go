@@ -351,6 +351,15 @@ func (f *FailingOffsetManager) CommitOffset(ctx context.Context, bucket string, 
 	return f.manager.CommitOffset(ctx, bucket, raftSessionID, offset)
 }
 
+// CommitOffsetsBatch wraps the underlying manager's CommitOffsetsBatch and fails until failUntilCount
+func (f *FailingOffsetManager) CommitOffsetsBatch(ctx context.Context, commits []logcourier.OffsetCommit) error {
+	count := f.commitCount.Add(1)
+	if count <= f.failUntilCount {
+		return fmt.Errorf("simulated offset commit failure (attempt %d)", count)
+	}
+	return f.manager.CommitOffsetsBatch(ctx, commits)
+}
+
 // GetOffset delegates to the underlying manager
 func (f *FailingOffsetManager) GetOffset(ctx context.Context, bucket string, raftSessionID uint16) (logcourier.Offset, error) {
 	return f.manager.GetOffset(ctx, bucket, raftSessionID)
