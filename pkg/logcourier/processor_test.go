@@ -859,6 +859,113 @@ var _ = Describe("Processor", func() {
 						Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be committed for %s", bucketName)
 					}
 				})
+
+				It("should not rediscover processed batches across cycles", func() {
+					// Create real S3 client and wrap with counting uploader to detect duplicates
+					s3Config := testutil.GetS3Config()
+					s3Client, err := s3.NewClient(ctx, s3Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					uploader := s3.NewUploader(s3Client)
+					countingUploader := testutil.NewCountingUploader(uploader)
+
+					// Create processor with short discovery interval to ensure multiple cycles
+					cfg := logcourier.Config{
+						Logger:                     logger,
+						ClickHouseHosts:            logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:         logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:         helper.DatabaseName,
+						ClickHousePassword:         logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:          30 * time.Second,
+						CountThreshold:             5,
+						TimeThresholdSec:           60,
+						MinDiscoveryInterval:       500 * time.Millisecond, // Short interval for fast cycle 2
+						MaxDiscoveryInterval:       500 * time.Millisecond,
+						NumWorkers:                 2,
+						MaxBucketsPerDiscovery:     100,
+						MaxLogsPerBucket:           10000,
+						MaxRetries:                 3,
+						InitialBackoff:             100 * time.Millisecond,
+						MaxBackoff:                 5 * time.Second,
+						S3Uploader:                 countingUploader,
+						OffsetFlushTimeThreshold:   1 * time.Second,
+						OffsetFlushCountThreshold:  50,
+					}
+
+					processor, err := logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = processor.Close() }()
+
+					// Insert exactly 6 logs to meet count threshold (5)
+					timestamp := time.Now()
+					for i := 0; i < 6; i++ {
+						insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "no-rediscovery-bucket",
+							RaftSessionID:  1,
+							Timestamp:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-norediscover-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, testTargetBucket, "no-rediscovery/")
+						Expect(insertErr).NotTo(HaveOccurred())
+					}
+
+					// Run processor for multiple cycles
+					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					errChan := make(chan error, 1)
+					go func() {
+						errChan <- processor.Run(testCtx)
+					}()
+
+					// Wait for initial upload (Cycle 1)
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}).WithTimeout(3 * time.Second).WithPolling(100 * time.Millisecond).Should(
+						Equal(int64(1)),
+						"Expected exactly 1 upload in Cycle 1",
+					)
+
+					// Capture upload count after Cycle 1
+					uploadCountAfterCycle1 := countingUploader.GetUploadCount()
+					Expect(uploadCountAfterCycle1).To(Equal(int64(1)), "Cycle 1 should produce exactly 1 upload")
+
+					// Verify upload count remains 1 across multiple discovery cycles
+					// MinDiscoveryInterval = 500ms, so 2 seconds covers ~4 cycles
+					// If rediscovery happens, upload count will increase and Consistently will fail
+					Consistently(func() int64 {
+						return countingUploader.GetUploadCount()
+					}).WithTimeout(2 * time.Second).WithPolling(100 * time.Millisecond).Should(
+						Equal(int64(1)),
+						"Upload count should remain 1 across multiple cycles - batch should not be rediscovered",
+					)
+
+					// Cancel and wait for processor to stop
+					cancel()
+					<-errChan
+
+					// Explicitly close processor to flush buffered offsets
+					closeErr := processor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
+
+					// Verify offset was committed and is visible in ClickHouse
+					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offset, offsetErr := offsetMgr.GetOffset(ctx, "no-rediscovery-bucket", 1)
+					Expect(offsetErr).NotTo(HaveOccurred())
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Offset should be committed")
+
+					// Verify S3 object exists and contains exactly 6 log lines
+					objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, "no-rediscovery/")
+					Expect(listErr).NotTo(HaveOccurred())
+					Expect(objects).To(HaveLen(1), "Expected exactly 1 S3 object")
+
+					content, getErr := s3Helper.GetObject(ctx, testTargetBucket, objects[0])
+					Expect(getErr).NotTo(HaveOccurred())
+					logLineCount := strings.Count(string(content), "\n")
+					Expect(logLineCount).To(Equal(6), "Expected exactly 6 log lines in S3 object")
+				})
 			})
 
 			Describe("Fault Isolation", func() {
