@@ -194,28 +194,22 @@ func (ob *OffsetBuffer) performFlush(ctx context.Context, reason FlushReason) er
 		return nil
 	}
 
-	// Take snapshot of offsets to flush
-	offsetsToFlush := make(map[offsetKey]Offset, len(ob.offsets))
-	for k, v := range ob.offsets {
-		offsetsToFlush[k] = v
-	}
+	offsetCount := len(ob.offsets)
 
-	if err := ob.flushBatch(ctx, offsetsToFlush); err != nil {
+	if err := ob.flushBatch(ctx, ob.offsets); err != nil {
 		ob.logger.Error("offset flush failed",
 			"reason", reason,
-			"bufferedOffsets", len(offsetsToFlush),
+			"bufferedOffsets", offsetCount,
 			"error", err)
 		return err
 	}
 
 	// Clear successfully flushed offsets
-	for key := range offsetsToFlush {
-		delete(ob.offsets, key)
-	}
+	clear(ob.offsets)
 
 	ob.logger.Info("flushed offsets",
 		"reason", reason,
-		"offsetCount", len(offsetsToFlush))
+		"offsetCount", offsetCount)
 
 	return nil
 }

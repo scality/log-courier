@@ -115,10 +115,10 @@ var ConfigSpec = util.ConfigSpec{
 	},
 
 	// Offset flushing
-	"offset.flush-time-threshold-ms": util.ConfigVarSpec{
-		Help:         "Time threshold in milliseconds for offset flushing (0 to disable time-based flushing)",
-		DefaultValue: 1000,
-		EnvVar:       "LOG_COURIER_OFFSET_FLUSH_TIME_THRESHOLD_MS",
+	"offset.flush-time-threshold-seconds": util.ConfigVarSpec{
+		Help:         "Time threshold in seconds for offset flushing (0 to disable time-based flushing)",
+		DefaultValue: 1,
+		EnvVar:       "LOG_COURIER_OFFSET_FLUSH_TIME_THRESHOLD_SECONDS",
 	},
 	"offset.flush-count-threshold": util.ConfigVarSpec{
 		Help:         "Count threshold for offset flushing (0 to disable count-based flushing)",
