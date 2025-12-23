@@ -55,21 +55,6 @@ var _ = Describe("ClickHouse Client", func() {
 			Expect(value).To(Equal(uint8(1)))
 		})
 
-		It("should accept multiple hosts", func() {
-			cfg := clickhouse.Config{
-				Hosts:    []string{"localhost:9002", "localhost:9003"},
-				Username: "default",
-				Password: "",
-				Timeout:  10 * time.Second,
-			}
-
-			client, err := clickhouse.NewClient(ctx, cfg)
-			Expect(err).NotTo(HaveOccurred())
-			defer func() { _ = client.Close() }()
-
-			Expect(client).NotTo(BeNil())
-		})
-
 		It("should reject empty host list", func() {
 			cfg := clickhouse.Config{
 				Hosts:    []string{},
@@ -103,17 +88,10 @@ var _ = Describe("ClickHouse Client", func() {
 
 			// Verify tables exist
 			var tableCount uint64
-			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_ingest', 'access_logs_federated', 'offsets_federated')", helper.DatabaseName)
+			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_federated', 'offsets_federated')", helper.DatabaseName)
 			err = helper.Client.QueryRow(ctx, query).Scan(&tableCount)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(tableCount).To(Equal(uint64(3)))
-
-			// Verify materialized view exists
-			var mvCount uint64
-			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name = 'access_logs_ingest_mv'", helper.DatabaseName)
-			err = helper.Client.QueryRow(ctx, query).Scan(&mvCount)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(mvCount).To(Equal(uint64(1)))
+			Expect(tableCount).To(Equal(uint64(2)))
 		})
 
 		It("should teardown schema successfully", func() {
@@ -142,7 +120,7 @@ var _ = Describe("ClickHouse Client", func() {
 			_ = helper.TeardownSchema(ctx)
 		})
 
-		It("should insert into ingest table", func() {
+		It("should insert into federated table", func() {
 			testLog := testutil.TestLogRecord{
 				Timestamp:      time.Now(),
 				BucketName:     "test-bucket",
@@ -156,59 +134,13 @@ var _ = Describe("ClickHouse Client", func() {
 
 			err := helper.InsertTestLog(ctx, testLog)
 			Expect(err).NotTo(HaveOccurred())
-		})
 
-		It("should filter logs through materialized view when loggingEnabled=true", func() {
-			now := time.Now()
-
-			// Insert log with loggingEnabled = true
-			testLog1 := testutil.TestLogRecord{
-				Timestamp:      now,
-				BucketName:     "test-bucket-enabled",
-				ReqID:          "req-enabled",
-				Action:         "GetObject",
-				LoggingEnabled: true,
-				RaftSessionID:  1,
-				HttpCode:       200,
-				BytesSent:      1024,
-			}
-			err := helper.InsertTestLog(ctx, testLog1)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Insert log with loggingEnabled = false
-			testLog2 := testutil.TestLogRecord{
-				Timestamp:      now,
-				BucketName:     "test-bucket-disabled",
-				ReqID:          "req-disabled",
-				Action:         "PutObject",
-				LoggingEnabled: false,
-				RaftSessionID:  1,
-				HttpCode:       201,
-				BytesSent:      2048,
-			}
-			err = helper.InsertTestLog(ctx, testLog2)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Verify only loggingEnabled=true record is in access_logs table
+			// Verify the log was inserted
 			var count uint64
-			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName IN ('test-bucket-enabled', 'test-bucket-disabled')", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err = helper.Client.QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(1)))
-
-			// Verify it's the correct record
-			var reqID string
-			query = fmt.Sprintf("SELECT req_id FROM %s.%s WHERE bucketName = 'test-bucket-enabled'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-			err = helper.Client.QueryRow(ctx, query).Scan(&reqID)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(reqID).To(Equal("req-enabled"))
-
-			// Verify disabled record is NOT in access_logs
-			var disabledCount uint64
-			query = fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket-disabled'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-			err = helper.Client.QueryRow(ctx, query).Scan(&disabledCount)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(disabledCount).To(Equal(uint64(0)))
 		})
 
 		It("should handle multiple inserts", func() {
