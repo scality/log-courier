@@ -60,6 +60,9 @@ RUN mkdir ${LOG_DIR} && \
     mkdir -p ${HOME_DIR}/log-courier/bin && \
     chown -R ${USER}:${USER} ${HOME_DIR}/log-courier
 
+ARG BALLOT_VERSION=1.0.4
+ADD --chmod=0755 https://github.com/scality/ballot/releases/download/v${BALLOT_VERSION}/ballot-v${BALLOT_VERSION}-linux-amd64 /usr/local/bin/ballot
+
 USER ${USER}
 WORKDIR ${HOME_DIR}/log-courier
 
