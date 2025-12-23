@@ -286,9 +286,6 @@ func (ob *OffsetBuffer) flushBatch(ctx context.Context, offsets map[offsetKey]Of
 		}
 
 		lastErr = err
-		ob.logger.Warn("transient error, will retry offset flush",
-			"attempt", attempt,
-			"error", err)
 	}
 
 	return fmt.Errorf("max retries (%d) exceeded for offset flush: %w", ob.maxRetries, lastErr)
