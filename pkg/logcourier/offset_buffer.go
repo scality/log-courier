@@ -258,7 +258,6 @@ func (ob *OffsetBuffer) flushBatch(ctx context.Context, offsets map[offsetKey]Of
 
 	for attempt := 0; attempt <= ob.maxRetries; attempt++ {
 		if attempt > 0 {
-			// Apply jitter to the backoff
 			actualBackoff := applyJitter(backoff, ob.backoffJitterFactor)
 
 			ob.logger.Info("retrying offset flush after backoff",
@@ -267,6 +266,7 @@ func (ob *OffsetBuffer) flushBatch(ctx context.Context, offsets map[offsetKey]Of
 
 			select {
 			case <-time.After(actualBackoff):
+				// Backoff period elapsed, proceed with retry
 			case <-ctx.Done():
 				return ctx.Err()
 			}
