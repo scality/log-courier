@@ -134,6 +134,22 @@ func (ob *OffsetBuffer) drainPendingCommits() {
 	}
 }
 
+// handleOffsetCommit processes an offset commit and checks if count-based flush is needed
+func (ob *OffsetBuffer) handleOffsetCommit(ctx context.Context, commit offsetCommitRequest, ticker *time.Ticker) {
+	ob.offsets[commit.key] = commit.offset
+
+	// Check count threshold
+	if ob.flushCountThreshold > 0 && len(ob.offsets) >= ob.flushCountThreshold {
+		if err := ob.performFlush(ctx, FlushReasonCountThreshold); err != nil {
+			ob.logger.Error("count-based flush failed", "error", err)
+		}
+		// Reset ticker to avoid immediate time-based flush after count-based flush
+		if ticker != nil {
+			ticker.Reset(ob.flushTimeThreshold)
+		}
+	}
+}
+
 // flushLoop is the goroutine that manages all offset operations.
 // It receives offsets from Put(), handles time-based and count-based flush triggers,
 // and processes explicit flush requests.
@@ -150,18 +166,7 @@ func (ob *OffsetBuffer) flushLoop(ctx context.Context) {
 	for {
 		select {
 		case commit := <-ob.offsetCh:
-			ob.offsets[commit.key] = commit.offset
-
-			// Check count threshold
-			if ob.flushCountThreshold > 0 && len(ob.offsets) >= ob.flushCountThreshold {
-				if err := ob.performFlush(ctx, FlushReasonCountThreshold); err != nil {
-					ob.logger.Error("count-based flush failed", "error", err)
-				}
-				// Reset ticker to avoid immediate time-based flush after count-based flush
-				if ticker != nil {
-					ticker.Reset(ob.flushTimeThreshold)
-				}
-			}
+			ob.handleOffsetCommit(ctx, commit, ticker)
 
 		case <-tickerCh:
 			// Time-based flush
