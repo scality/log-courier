@@ -157,6 +157,10 @@ func (ob *OffsetBuffer) flushLoop(ctx context.Context) {
 				if err := ob.performFlush(ctx, FlushReasonCountThreshold); err != nil {
 					ob.logger.Error("count-based flush failed", "error", err)
 				}
+				// Reset ticker to avoid immediate time-based flush after count-based flush
+				if ticker != nil {
+					ticker.Reset(ob.flushTimeThreshold)
+				}
 			}
 
 		case <-tickerCh:
