@@ -114,6 +114,18 @@ var ConfigSpec = util.ConfigSpec{
 		EnvVar:       "LOG_COURIER_TIMEOUT_COMMIT_OPERATION_SECONDS",
 	},
 
+	// Offset flushing
+	"offset.flush-time-threshold-ms": util.ConfigVarSpec{
+		Help:         "Time threshold in milliseconds for offset flushing (0 to disable time-based flushing)",
+		DefaultValue: 1000,
+		EnvVar:       "LOG_COURIER_OFFSET_FLUSH_TIME_THRESHOLD_MS",
+	},
+	"offset.flush-count-threshold": util.ConfigVarSpec{
+		Help:         "Count threshold for offset flushing (0 to disable count-based flushing)",
+		DefaultValue: 50,
+		EnvVar:       "LOG_COURIER_OFFSET_FLUSH_COUNT_THRESHOLD",
+	},
+
 	// S3 configuration
 	"s3.endpoint": util.ConfigVarSpec{
 		Help:         "S3 endpoint URL",

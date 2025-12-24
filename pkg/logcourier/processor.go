@@ -48,7 +48,11 @@ type Processor struct {
 	logFetcher       *LogFetcher
 	logBuilder       *LogObjectBuilder
 	offsetManager    OffsetManagerInterface
+	offsetBuffer     *OffsetBuffer
 	logger           *slog.Logger
+
+	// Lifecycle
+	stopOffsetBuffer func()
 
 	// Configuration
 	minDiscoveryInterval          time.Duration
@@ -109,6 +113,11 @@ type Config struct {
 	UploadOperationTimeout time.Duration
 	// CommitOperationTimeout is the maximum time for offset commit operations
 	CommitOperationTimeout time.Duration
+
+	// OffsetFlushTimeThreshold is the time threshold for offset flushing
+	OffsetFlushTimeThreshold time.Duration
+	// OffsetFlushCountThreshold is the count threshold for offset flushing
+	OffsetFlushCountThreshold int
 
 	ClickHouseHosts    []string
 	ClickHouseUsername string
@@ -184,6 +193,18 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		commitTimeout = 30 * time.Second // Default: 30 seconds
 	}
 
+	offsetBuffer := NewOffsetBuffer(OffsetBufferOptions{
+		MaxRetries:          cfg.MaxRetries,
+		InitialBackoff:      cfg.InitialBackoff,
+		MaxBackoff:          cfg.MaxBackoff,
+		BackoffJitterFactor: cfg.BackoffJitterFactor,
+		OffsetManager:       offsetManager,
+		Logger:              cfg.Logger,
+		FlushTimeThreshold:  cfg.OffsetFlushTimeThreshold,
+		FlushCountThreshold: cfg.OffsetFlushCountThreshold,
+		NumWorkers:          cfg.NumWorkers,
+	})
+
 	return &Processor{
 		clickhouseClient:              chClient,
 		s3Uploader:                    s3Uploader,
@@ -197,6 +218,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		logFetcher: NewLogFetcher(chClient, database, cfg.MaxLogsPerBucket),
 		logBuilder:                    NewLogObjectBuilder(),
 		offsetManager:                 offsetManager,
+		offsetBuffer:                  offsetBuffer,
 		minDiscoveryInterval:          cfg.MinDiscoveryInterval,
 		maxDiscoveryInterval:          cfg.MaxDiscoveryInterval,
 		discoveryIntervalJitterFactor: cfg.DiscoveryIntervalJitterFactor,
@@ -213,6 +235,11 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 
 // Close closes the processor and releases resources
 func (p *Processor) Close() error {
+	// Stop offset buffer if it was started
+	if p.stopOffsetBuffer != nil {
+		p.stopOffsetBuffer()
+	}
+
 	if p.clickhouseClient != nil {
 		return p.clickhouseClient.Close()
 	}
@@ -227,12 +254,26 @@ func (p *Processor) Close() error {
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
+	// Start offset buffer flush loop
+	if p.offsetBuffer != nil {
+		p.stopOffsetBuffer = p.offsetBuffer.Start(ctx)
+	}
+
 	// Run initial cycle
 	cycleStart := time.Now()
 	batchCount, err := p.runCycle(ctx)
 	if err != nil {
 		p.logger.Error("cycle failed", "error", err)
 		batchCount = 0 // Treat error as no work found
+	}
+
+	// Mandatory flush after cycle completes
+	// This ensures the next cycle's BatchFinder sees up-to-date offsets.
+	// Without this flush, BatchFinder would query stale offsets from ClickHouse
+	// and rediscover batches we've already processed.
+	if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
+		p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
+		// Continue anyway - offsets remain buffered for next cycle
 	}
 
 	for {
@@ -273,6 +314,12 @@ func (p *Processor) Run(ctx context.Context) error {
 			if err != nil {
 				p.logger.Error("cycle failed", "error", err)
 				batchCount = 0 // Treat error as no work found
+			}
+
+			// Mandatory flush after cycle completes (see comment above)
+			if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
+				p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
+				// Continue anyway - offsets remain buffered for next cycle
 			}
 		}
 	}
@@ -390,7 +437,9 @@ func (p *Processor) processLogBatchWithRetry(ctx context.Context, batch LogBatch
 		return err
 	}
 
-	return p.commitOffsetWithRetry(ctx, batch.Bucket, result.RaftSessionID, result.Offset)
+	p.offsetBuffer.Put(batch.Bucket, result.RaftSessionID, result.Offset)
+
+	return nil
 }
 
 // retryWithBackoff executes an operation with exponential backoff retry logic
@@ -477,33 +526,6 @@ func (p *Processor) uploadLogBatchWithRetry(ctx context.Context, batch LogBatch)
 	}
 
 	return result, err
-}
-
-// commitOffsetWithRetry handles committing the offset to ClickHouse with retries
-func (p *Processor) commitOffsetWithRetry(ctx context.Context, bucket string, raftSessionID uint16, offset Offset) error {
-	logger := p.logger.With(
-		"bucketName", bucket,
-		"raftSessionID", raftSessionID,
-		"insertedAt", offset.InsertedAt,
-		"timestamp", offset.Timestamp,
-		"reqID", offset.ReqID)
-
-	commitCtx, cancel := context.WithTimeout(ctx, p.commitOperationTimeout)
-	defer cancel()
-
-	err := p.retryWithBackoff(commitCtx, func() error {
-		return p.offsetManager.CommitOffset(commitCtx, bucket, raftSessionID, offset)
-	}, nil, "offset commit", logger)
-
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		p.logger.Error("offset commit operation exceeded timeout",
-			"bucketName", bucket,
-			"raftSessionID", raftSessionID,
-			"timeout", p.commitOperationTimeout,
-			"error", err)
-	}
-
-	return err
 }
 
 // IsPermanentError determines if an error is permanent or transient
