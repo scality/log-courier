@@ -13,7 +13,7 @@ var ConfigSpec = util.ConfigSpec{
 	// ClickHouse connection
 	"clickhouse.url": util.ConfigVarSpec{
 		Help:         "ClickHouse connection URL(s) - single host or comma-separated list (e.g., 'host1:9000,host2:9000')",
-		DefaultValue: "localhost:9002",
+		DefaultValue: []string{"localhost:9002", "localhost:9003"},
 		EnvVar:       "LOG_COURIER_CLICKHOUSE_URL",
 		ParseFunc: func(rawValue any) (any, error) {
 			if str, ok := rawValue.(string); ok {
