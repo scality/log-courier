@@ -267,7 +267,7 @@ var _ = Describe("Processor", func() {
 					Expect(closeErr).NotTo(HaveOccurred())
 
 					// Verify offset was committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, err := offsetMgr.GetOffset(ctx, "source-bucket", 1)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after processing")
@@ -357,7 +357,7 @@ var _ = Describe("Processor", func() {
 					Expect(closeErr).NotTo(HaveOccurred())
 
 					// Verify offset was committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "time-threshold-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be set after time-based processing")
@@ -441,7 +441,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "perm-error-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -523,7 +523,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "invalid-creds-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -690,7 +690,7 @@ var _ = Describe("Processor", func() {
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "access-denied-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeTrue(), "Offset should not be committed after permanent error")
@@ -853,7 +853,7 @@ var _ = Describe("Processor", func() {
 						Expect(totalLogs).To(Equal(20), "Expected bucket %s to have exactly 20 logs", bucketName)
 
 						// Verify offset was committed for this bucket
-						offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+						offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 						offset, offsetErr := offsetMgr.GetOffset(ctx, bucketName, 1)
 						Expect(offsetErr).NotTo(HaveOccurred())
 						Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be committed for %s", bucketName)
@@ -951,7 +951,7 @@ var _ = Describe("Processor", func() {
 					Expect(closeErr).NotTo(HaveOccurred())
 
 					// Verify offset was committed and is visible in ClickHouse
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					offset, offsetErr := offsetMgr.GetOffset(ctx, "no-rediscovery-bucket", 1)
 					Expect(offsetErr).NotTo(HaveOccurred())
 					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Offset should be committed")
@@ -1093,7 +1093,7 @@ var _ = Describe("Processor", func() {
 					Expect(good2Objects).To(HaveLen(1), "Expected good-bucket-2 to be processed despite bad-bucket failure")
 
 					// Verify offsets were committed for successful buckets only
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 
 					offset1, err := offsetMgr.GetOffset(ctx, "good-bucket-1", 1)
 					Expect(err).NotTo(HaveOccurred())
@@ -1122,7 +1122,7 @@ var _ = Describe("Processor", func() {
 					countingUploader := testutil.NewCountingUploader(uploader)
 
 					// Create offset manager and wrap it to inject failures
-					offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 					failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2) // Fail first 2 attempts
 
 					// Create processor with both wrappers
@@ -1342,7 +1342,7 @@ var _ = Describe("Processor", func() {
 				// Create offset manager that will:
 				// - Fail attempts 1 and 2 (first cycle exhausts retries)
 				// - Succeed on attempt 3 (second cycle succeeds)
-				offsetMgr := logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+				offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 				failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2)
 
 				// Create processor with MaxRetries=1 (2 total attempts per cycle)
@@ -1353,6 +1353,9 @@ var _ = Describe("Processor", func() {
 					ClickHouseDatabase:   helper.DatabaseName,
 					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
 					ClickHouseTimeout:    30 * time.Second,
+					ClickHouseSettings: map[string]interface{}{
+						"insert_distributed_sync": 1,
+					},
 					CountThreshold:       5,
 					TimeThresholdSec:     60,
 					MinDiscoveryInterval: 1 * time.Second,

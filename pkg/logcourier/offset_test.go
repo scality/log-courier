@@ -28,7 +28,7 @@ var _ = Describe("OffsetManager", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		om = logcourier.NewOffsetManager(helper.Client, helper.DatabaseName)
+		om = logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 	})
 
 	AfterEach(func() {
