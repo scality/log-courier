@@ -28,6 +28,7 @@ type Config struct {
 	MaxBackoff     time.Duration
 	NumWorkers     int // Number of parallel workers, used to size connection pool
 	Logger         *slog.Logger
+	Settings       map[string]interface{} // Optional ClickHouse settings (e.g., for tests)
 }
 
 // NewClient creates a new ClickHouse client
@@ -53,6 +54,11 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 		MaxIdleConns: cfg.NumWorkers,
 		// Rotate connections regularly to utilize round-robin strategy
 		ConnMaxLifetime: 5 * time.Minute,
+	}
+
+	// Apply optional settings if provided (e.g., for test configuration)
+	if len(cfg.Settings) > 0 {
+		options.Settings = clickhouse.Settings(cfg.Settings)
 	}
 
 	var conn driver.Conn
