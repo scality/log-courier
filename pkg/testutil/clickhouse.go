@@ -15,18 +15,14 @@ import (
 // ==========================================
 // Test Schema Definitions
 // ==========================================
-// These are simplified single-node versions of the production schemas.
-// Production schemas2 are maintained in:
-//   Federation/roles/run-s3-analytics-clickhouse/files/sql/
+// These schemas mirror the Federation ClickHouse setup but without replication.
+// Federation schemas are maintained in roles/run-s3-analytics-clickhouse/
 //
-// Key simplifications for testing:
+// Key differences from Federation:
 //   - MergeTree instead of ReplicatedMergeTree (no replication)
-//   - access_logs_federated and offsets_federated use MergeTree, not Distributed engine
-//   - offsets is a view to offsets_federated
-//   - No TTL policies
 
-const schemaAccessLogsFederated = `
-CREATE TABLE IF NOT EXISTS %s.%s
+const schemaAccessLogsLocal = `
+CREATE TABLE IF NOT EXISTS %s.access_logs
 (
 	timestamp              DateTime,
 	insertedAt             DateTime DEFAULT now(),
@@ -66,12 +62,17 @@ CREATE TABLE IF NOT EXISTS %s.%s
 	raftSessionID          UInt16
 )
 ENGINE = MergeTree()
-PARTITION BY toStartOfDay(insertedAt)
+PARTITION BY toStartOfInterval(insertedAt, INTERVAL 1 HOUR)
 ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
 `
 
-const schemaOffsetsFederated = `
-CREATE TABLE IF NOT EXISTS %s.%s
+const schemaAccessLogsFederated = `
+CREATE TABLE IF NOT EXISTS %s.access_logs_federated AS %s.access_logs
+ENGINE = Distributed(test_cluster, %s, access_logs, raftSessionID)
+`
+
+const schemaOffsetsLocal = `
+CREATE TABLE IF NOT EXISTS %s.offsets
 (
 	bucketName                String,
 	raftSessionID             UInt16,
@@ -83,9 +84,9 @@ ENGINE = MergeTree()
 ORDER BY (bucketName, raftSessionID)
 `
 
-const schemaOffsetsView = `
-CREATE VIEW IF NOT EXISTS %s.%s
-AS SELECT * FROM %s.%s
+const schemaOffsetsFederated = `
+CREATE TABLE IF NOT EXISTS %s.offsets_federated AS %s.offsets
+ENGINE = Distributed(test_cluster, %s, offsets, raftSessionID)
 `
 
 // ==========================================
@@ -94,12 +95,25 @@ AS SELECT * FROM %s.%s
 
 // ClickHouseTestHelper provides utilities for testing with ClickHouse
 type ClickHouseTestHelper struct {
-	Client       *clickhouse.Client
+	Clients      []*clickhouse.Client
 	DatabaseName string
+	Hosts        []string
+}
+
+// Client returns the primary client (first shard) for backward compatibility
+// This allows existing tests to continue using helper.Client
+func (h *ClickHouseTestHelper) Client() *clickhouse.Client {
+	if len(h.Clients) == 0 {
+		return nil
+	}
+	return h.Clients[0]
 }
 
 // NewClickHouseTestHelper creates a new test helper with a unique database
 func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error) {
+	// Reset config to ensure clean state for each test (prevents config pollution between tests)
+	logcourier.ConfigSpec.Reset()
+
 	err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -108,81 +122,199 @@ func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error)
 	// Create a no-op logger for tests
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cfg := clickhouse.Config{
-		Hosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-		Username: logcourier.ConfigSpec.GetString("clickhouse.username"),
-		Password: logcourier.ConfigSpec.GetString("clickhouse.password"),
-		Timeout:  time.Duration(logcourier.ConfigSpec.GetInt("clickhouse.timeout-seconds")) * time.Second,
-		Logger:   logger,
-	}
-
-	client, err := clickhouse.NewClient(ctx, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to test ClickHouse: %w", err)
+	hosts := logcourier.ConfigSpec.GetStringSlice("clickhouse.url")
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no ClickHouse hosts configured")
 	}
 
 	// Generate unique database name for test isolation
 	dbName := fmt.Sprintf("logs_test_%d", time.Now().UnixNano())
 
+	// Create clients for each shard
+	clients := make([]*clickhouse.Client, len(hosts))
+	for i, host := range hosts {
+		cfg := clickhouse.Config{
+			Hosts:    []string{host}, // Single host per client
+			Username: logcourier.ConfigSpec.GetString("clickhouse.username"),
+			Password: logcourier.ConfigSpec.GetString("clickhouse.password"),
+			Timeout:  time.Duration(logcourier.ConfigSpec.GetInt("clickhouse.timeout-seconds")) * time.Second,
+			Logger:   logger,
+			Settings: map[string]interface{}{
+				"insert_distributed_sync": 1, // Enable synchronous inserts for tests
+			},
+		}
+
+		client, err := clickhouse.NewClient(ctx, cfg)
+		if err != nil {
+			// Clean up any already-created clients
+			for j := 0; j < i; j++ {
+				_ = clients[j].Close()
+			}
+			return nil, fmt.Errorf("failed to connect to ClickHouse shard %d (%s): %w", i+1, host, err)
+		}
+		clients[i] = client
+	}
+
 	return &ClickHouseTestHelper{
-		Client:       client,
+		Clients:      clients,
 		DatabaseName: dbName,
+		Hosts:        hosts,
 	}, nil
 }
 
-// SetupSchema creates schema for testing (simplified single-node version)
+// SetupSchema creates distributed schema on all shards
 func (h *ClickHouseTestHelper) SetupSchema(ctx context.Context) error {
-	// Create database
-	if err := h.Client.Exec(ctx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", h.DatabaseName)); err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
+	// Verify we have multiple shards configured - panic if not to catch misconfiguration immediately
+	if len(h.Clients) < 2 {
+		panic(fmt.Sprintf("FATAL: distributed setup requires at least 2 shards, but only %d configured (hosts: %v)", len(h.Clients), h.Hosts))
 	}
 
-	if err := h.createFederatedLogsTable(ctx); err != nil {
+	// Create database on all shards
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", h.DatabaseName)); err != nil {
+			return fmt.Errorf("failed to create database on shard %d: %w", i+1, err)
+		}
+	}
+
+	// Verify database exists on all shards before proceeding
+	// This ensures metadata is synchronized across the cluster
+	for i, client := range h.Clients {
+		var dbExists uint64
+		query := fmt.Sprintf("SELECT count() FROM system.databases WHERE name = '%s'", h.DatabaseName)
+		if err := client.QueryRow(ctx, query).Scan(&dbExists); err != nil {
+			return fmt.Errorf("failed to verify database on shard %d: %w", i+1, err)
+		}
+		if dbExists == 0 {
+			return fmt.Errorf("database %s not found on shard %d after creation", h.DatabaseName, i+1)
+		}
+	}
+
+	// Create local tables on all shards
+	if err := h.createLocalAccessLogsTable(ctx); err != nil {
+		return err
+	}
+	if err := h.verifyTableExists(ctx, "access_logs"); err != nil {
 		return err
 	}
 
-	if err := h.createFederatedOffsetsTable(ctx); err != nil {
+	if err := h.createLocalOffsetsTable(ctx); err != nil {
+		return err
+	}
+	if err := h.verifyTableExists(ctx, "offsets"); err != nil {
 		return err
 	}
 
-	if err := h.createOffsetsView(ctx); err != nil {
+	// Create distributed tables on all shards
+	if err := h.createDistributedAccessLogsTable(ctx); err != nil {
+		return err
+	}
+	if err := h.verifyTableExists(ctx, "access_logs_federated"); err != nil {
+		return err
+	}
+
+	if err := h.createDistributedOffsetsTable(ctx); err != nil {
+		return err
+	}
+	if err := h.verifyTableExists(ctx, "offsets_federated"); err != nil {
+		return err
+	}
+
+	// Verify distributed tables are actually queryable via cluster connections
+	// This ensures metadata is visible not just via direct connections but also
+	// via the cluster network path that distributed queries use
+	if err := h.verifyDistributedTableAccessible(ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *ClickHouseTestHelper) createFederatedLogsTable(ctx context.Context) error {
-	sql := fmt.Sprintf(schemaAccessLogsFederated, h.DatabaseName, clickhouse.TableAccessLogsFederated)
-	if err := h.Client.Exec(ctx, sql); err != nil {
-		return fmt.Errorf("failed to create federated logs table: %w", err)
+func (h *ClickHouseTestHelper) createLocalAccessLogsTable(ctx context.Context) error {
+	sql := fmt.Sprintf(schemaAccessLogsLocal, h.DatabaseName)
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("failed to create local access_logs table on shard %d: %w", i+1, err)
+		}
 	}
 	return nil
 }
 
-func (h *ClickHouseTestHelper) createFederatedOffsetsTable(ctx context.Context) error {
-	sql := fmt.Sprintf(schemaOffsetsFederated, h.DatabaseName, clickhouse.TableOffsetsFederated)
-	if err := h.Client.Exec(ctx, sql); err != nil {
-		return fmt.Errorf("failed to create federated offsets table: %w", err)
+func (h *ClickHouseTestHelper) createLocalOffsetsTable(ctx context.Context) error {
+	sql := fmt.Sprintf(schemaOffsetsLocal, h.DatabaseName)
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("failed to create local offsets table on shard %d: %w", i+1, err)
+		}
 	}
 	return nil
 }
 
-func (h *ClickHouseTestHelper) createOffsetsView(ctx context.Context) error {
-	sql := fmt.Sprintf(schemaOffsetsView, h.DatabaseName, clickhouse.TableOffsets, h.DatabaseName, clickhouse.TableOffsetsFederated)
-	if err := h.Client.Exec(ctx, sql); err != nil {
-		return fmt.Errorf("failed to create offsets view: %w", err)
+func (h *ClickHouseTestHelper) createDistributedAccessLogsTable(ctx context.Context) error {
+	sql := fmt.Sprintf(schemaAccessLogsFederated, h.DatabaseName, h.DatabaseName, h.DatabaseName)
+
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("failed to create distributed access_logs_federated table on shard %d: %w", i+1, err)
+		}
 	}
 	return nil
 }
 
-// TeardownSchema drops all test tables and database
+func (h *ClickHouseTestHelper) createDistributedOffsetsTable(ctx context.Context) error {
+	sql := fmt.Sprintf(schemaOffsetsFederated, h.DatabaseName, h.DatabaseName, h.DatabaseName)
+
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("failed to create distributed offsets_federated table on shard %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+// verifyTableExists ensures a table exists on all shards
+// This ensures metadata is synchronized across the cluster
+func (h *ClickHouseTestHelper) verifyTableExists(ctx context.Context, tableName string) error {
+	for i, client := range h.Clients {
+		var tableExists uint64
+		query := fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name = '%s'", h.DatabaseName, tableName)
+		if err := client.QueryRow(ctx, query).Scan(&tableExists); err != nil {
+			return fmt.Errorf("failed to verify table %s on shard %d: %w", tableName, i+1, err)
+		}
+		if tableExists == 0 {
+			return fmt.Errorf("table %s.%s not found on shard %d after creation", h.DatabaseName, tableName, i+1)
+		}
+	}
+	return nil
+}
+
+// verifyDistributedTableAccessible ensures distributed tables can actually query
+// the local tables on all shards via cluster connections. This catches metadata
+// visibility issues that might not be detected by direct shard queries.
+func (h *ClickHouseTestHelper) verifyDistributedTableAccessible(ctx context.Context) error {
+	// Simple verification: try to query the distributed table from each shard
+	for i, client := range h.Clients {
+		query := fmt.Sprintf("SELECT count() FROM %s.access_logs_federated", h.DatabaseName)
+		var count uint64
+		if err := client.QueryRow(ctx, query).Scan(&count); err != nil {
+			return fmt.Errorf("shard %d cannot query access_logs_federated: %w", i+1, err)
+		}
+
+		query = fmt.Sprintf("SELECT count() FROM %s.offsets_federated", h.DatabaseName)
+		if err := client.QueryRow(ctx, query).Scan(&count); err != nil {
+			return fmt.Errorf("shard %d cannot query offsets_federated: %w", i+1, err)
+		}
+	}
+
+	return nil
+}
+
+// TeardownSchema drops all test tables and database from all shards
 func (h *ClickHouseTestHelper) TeardownSchema(ctx context.Context) error {
-	// Drop the entire test database (which drops all tables and views)
-	if err := h.Client.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", h.DatabaseName)); err != nil {
-		return fmt.Errorf("failed to drop database: %w", err)
+	for i, client := range h.Clients {
+		if err := client.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", h.DatabaseName)); err != nil {
+			return fmt.Errorf("failed to drop database on shard %d: %w", i+1, err)
+		}
 	}
-
 	return nil
 }
 
@@ -200,6 +332,7 @@ type TestLogRecord struct {
 }
 
 // InsertTestLog inserts a test log record into the federated table
+// The Distributed engine will route to the correct shard based on raftSessionID
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
@@ -211,7 +344,7 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
-	return h.Client.Exec(ctx, query,
+	return h.Clients[0].Exec(ctx, query,
 		log.Timestamp,      // timestamp
 		time.Now(),         // insertedAt
 		log.Timestamp,      // startTime
@@ -245,15 +378,25 @@ func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRec
 	)
 }
 
-// Close closes the test helper
+// Close closes all shard clients
 func (h *ClickHouseTestHelper) Close() error {
-	if h.Client != nil {
-		return h.Client.Close()
+	var errs []error
+	for i, client := range h.Clients {
+		if client != nil {
+			if err := client.Close(); err != nil {
+				errs = append(errs, fmt.Errorf("failed to close client %d: %w", i+1, err))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors closing clients: %v", errs)
 	}
 	return nil
 }
 
 // InsertTestLogWithTargetBucket inserts a test log record with logging target bucket/prefix
+// The Distributed engine will route to the correct shard based on raftSessionID
 func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context, log TestLogRecord, targetBucket, targetPrefix string) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
@@ -265,7 +408,7 @@ func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
-	return h.Client.Exec(ctx, query,
+	return h.Clients[0].Exec(ctx, query,
 		log.Timestamp,      // timestamp
 		time.Now(),         // insertedAt
 		log.Timestamp,      // startTime

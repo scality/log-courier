@@ -119,13 +119,14 @@ type Config struct {
 	// OffsetFlushCountThreshold is the count threshold for offset flushing
 	OffsetFlushCountThreshold int
 
-	ClickHouseHosts    []string
-	ClickHouseUsername string
-	ClickHousePassword string
-	ClickHouseDatabase string
-	S3Endpoint         string
-	S3AccessKeyID      string
-	S3SecretAccessKey  string
+	ClickHouseHosts     []string
+	ClickHouseUsername  string
+	ClickHousePassword  string
+	ClickHouseDatabase  string
+	ClickHouseSettings  map[string]interface{} // Optional ClickHouse settings (e.g., for tests)
+	S3Endpoint          string
+	S3AccessKeyID       string
+	S3SecretAccessKey   string
 
 	// S3Uploader is an optional S3 uploader for testing (if nil, one will be created)
 	S3Uploader s3.UploaderInterface
@@ -152,6 +153,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		MaxBackoff:     cfg.MaxBackoff,
 		NumWorkers:     cfg.NumWorkers,
 		Logger:         cfg.Logger,
+		Settings:       cfg.ClickHouseSettings,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse client: %w", err)

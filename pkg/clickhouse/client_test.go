@@ -35,16 +35,16 @@ var _ = Describe("ClickHouse Client", func() {
 
 	Describe("Connection", func() {
 		It("should connect successfully", func() {
-			Expect(helper.Client).NotTo(BeNil())
+			Expect(helper.Client()).NotTo(BeNil())
 		})
 
 		It("should execute simple queries", func() {
-			err := helper.Client.Exec(ctx, "SELECT 1")
+			err := helper.Client().Exec(ctx, "SELECT 1")
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should query and return results", func() {
-			rows, err := helper.Client.Query(ctx, "SELECT 1 AS value")
+			rows, err := helper.Client().Query(ctx, "SELECT 1 AS value")
 			Expect(err).NotTo(HaveOccurred())
 			defer func() { _ = rows.Close() }()
 
@@ -82,14 +82,14 @@ var _ = Describe("ClickHouse Client", func() {
 			// Verify database exists
 			var dbCount uint64
 			query := fmt.Sprintf("SELECT count() FROM system.databases WHERE name = '%s'", helper.DatabaseName)
-			err = helper.Client.QueryRow(ctx, query).Scan(&dbCount)
+			err = helper.Client().QueryRow(ctx, query).Scan(&dbCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dbCount).To(Equal(uint64(1)))
 
 			// Verify tables exist
 			var tableCount uint64
 			query = fmt.Sprintf("SELECT count() FROM system.tables WHERE database = '%s' AND name IN ('access_logs_federated', 'offsets_federated')", helper.DatabaseName)
-			err = helper.Client.QueryRow(ctx, query).Scan(&tableCount)
+			err = helper.Client().QueryRow(ctx, query).Scan(&tableCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(tableCount).To(Equal(uint64(2)))
 		})
@@ -104,7 +104,7 @@ var _ = Describe("ClickHouse Client", func() {
 			// Verify database is gone
 			var dbCount uint64
 			query := fmt.Sprintf("SELECT count() FROM system.databases WHERE name = '%s'", helper.DatabaseName)
-			err = helper.Client.QueryRow(ctx, query).Scan(&dbCount)
+			err = helper.Client().QueryRow(ctx, query).Scan(&dbCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dbCount).To(Equal(uint64(0)))
 		})
@@ -138,7 +138,7 @@ var _ = Describe("ClickHouse Client", func() {
 			// Verify the log was inserted
 			var count uint64
 			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-			err = helper.Client.QueryRow(ctx, query).Scan(&count)
+			err = helper.Client().QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(1)))
 		})
@@ -165,7 +165,7 @@ var _ = Describe("ClickHouse Client", func() {
 			// Verify all 5 records are present
 			var count uint64
 			query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE bucketName = 'test-bucket-multi'", helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-			err := helper.Client.QueryRow(ctx, query).Scan(&count)
+			err := helper.Client().QueryRow(ctx, query).Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(uint64(5)))
 		})

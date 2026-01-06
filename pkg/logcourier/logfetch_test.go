@@ -30,7 +30,7 @@ var _ = Describe("LogFetcher", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		fetcher = logcourier.NewLogFetcher(helper.Client, helper.DatabaseName, 5)
+		fetcher = logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 5)
 	})
 
 	AfterEach(func() {
@@ -82,25 +82,25 @@ var _ = Describe("LogFetcher", func() {
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Log D: insertedAt=1s, timestamp=4s (earliest insertedAt)
-			err := helper.Client.Exec(ctx, query,
+			err := helper.Client().Exec(ctx, query,
 				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(4*time.Second), "req-D",
 				"GetObject", true, uint16(0), "/test-bucket/key-d")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log A: insertedAt=3s, timestamp=1s
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log B: insertedAt=3s, timestamp=2s (same insertedAt as A, later timestamp)
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log C: insertedAt=5s, timestamp=3s (latest insertedAt)
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				baseTime.Add(5*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
@@ -197,17 +197,17 @@ var _ = Describe("LogFetcher", func() {
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs with sequential insertedAt and timestamps
-			err := helper.Client.Exec(ctx, query,
+			err := helper.Client().Exec(ctx, query,
 				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-001",
 				"GetObject", true, uint16(0), "/test-bucket/key-1")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				baseTime.Add(2*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-002",
 				"GetObject", true, uint16(0), "/test-bucket/key-2")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-003",
 				"GetObject", true, uint16(0), "/test-bucket/key-3")
 			Expect(err).NotTo(HaveOccurred())
@@ -240,17 +240,17 @@ var _ = Describe("LogFetcher", func() {
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs: same insertedAt, different timestamps
-			err := helper.Client.Exec(ctx, query,
+			err := helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", baseTime.Add(1*time.Second), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", baseTime.Add(2*time.Second), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", baseTime.Add(3*time.Second), "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
@@ -291,7 +291,7 @@ var _ = Describe("LogFetcher", func() {
 			timestamp := baseTime.Add(1 * time.Second)
 			reqID := "req-exact"
 
-			err := helper.Client.Exec(ctx, query,
+			err := helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", timestamp, reqID,
 				"GetObject", true, uint16(0), "/test-bucket/key")
 			Expect(err).NotTo(HaveOccurred())
@@ -323,17 +323,17 @@ var _ = Describe("LogFetcher", func() {
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 			// Insert 3 logs: same insertedAt, same timestamp, different reqIDs
-			err := helper.Client.Exec(ctx, query,
+			err := helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", timestamp, "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", timestamp, "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = helper.Client.Exec(ctx, query,
+			err = helper.Client().Exec(ctx, query,
 				insertedAt, "test-bucket", timestamp, "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())

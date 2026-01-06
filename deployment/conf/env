@@ -1,5 +1,5 @@
 # ClickHouse configuration
-export LOG_COURIER_CLICKHOUSE_URL="localhost:9002"
+export LOG_COURIER_CLICKHOUSE_URL="localhost:9002,localhost:9003"
 export LOG_COURIER_CLICKHOUSE_USERNAME="default"
 export LOG_COURIER_CLICKHOUSE_PASSWORD=""
 
