@@ -42,6 +42,8 @@ jobs:
 
       - name: Start Workbench
         uses: scality/workbench@improvement/WKBCH-13
+        with:
+          environment: unit-tests
 
       - name: Wait for ClickHouse setup and fix permissions
         run: |
@@ -89,5 +91,5 @@ jobs:
       - name: Stop Workbench
         if: always()
         run: |
-          workbench logs
-          workbench down
+          workbench logs -n unit-tests
+          workbench down -n unit-tests
