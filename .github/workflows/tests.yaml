@@ -36,7 +36,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Start Workbench
-        uses: scality/workbench@v0.8.0
+        uses: scality/workbench@improvement/WKBCH-13-clickhouse
 
       - name: Run GolangCI linter
         uses: golangci/golangci-lint-action@v9
