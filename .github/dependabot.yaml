@@ -16,3 +16,17 @@ updates:
     directory: "/images/svc-base/"
     schedule:
       interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directories:
+      - /workbench/env
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "clickhouse/clickhouse-server"
+    groups:
+      workbench:
+        patterns:
+          - "*"
+        update-types:
+          - patch
