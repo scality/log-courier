@@ -68,7 +68,7 @@ ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
 
 const schemaAccessLogsFederated = `
 CREATE TABLE IF NOT EXISTS %s.access_logs_federated AS %s.access_logs
-ENGINE = Distributed(test_cluster, %s, access_logs, raftSessionID)
+ENGINE = Distributed(workbench_cluster, %s, access_logs, raftSessionID)
 `
 
 const schemaOffsetsLocal = `
@@ -86,7 +86,7 @@ ORDER BY (bucketName, raftSessionID)
 
 const schemaOffsetsFederated = `
 CREATE TABLE IF NOT EXISTS %s.offsets_federated AS %s.offsets
-ENGINE = Distributed(test_cluster, %s, offsets, raftSessionID)
+ENGINE = Distributed(workbench_cluster, %s, offsets, raftSessionID)
 `
 
 // ==========================================
