@@ -28,7 +28,7 @@ clean:
 
 test: all
 	mkdir -p $(COVDATA_DIR)
-	COVDATA_DIR=$(COVDATA_DIR) go test $(COVER_TESTFLAGS) -v ./...
+	COVDATA_DIR=$(COVDATA_DIR) go test $(COVER_TESTFLAGS) -v ./cmd/... ./pkg/...
 
 test-coverage: COVER_BUILDFLAGS=$(COVER_COMMONFLAGS)
 test-coverage: COVER_TESTFLAGS=$(COVER_COMMONFLAGS) -coverprofile cover.out

@@ -2,16 +2,17 @@ global:
   log_level: info
 
 features:
-  scuba:
-    enabled: false
-    enable_service_user: false
-
+  access_logging:
+    enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:7.70.77
+  image: ghcr.io/scality/cloudserver:9.2.14
 
 vault:
-  image: ghcr.io/scality/vault:7.81.0
+  image: ghcr.io/scality/vault:7.83.0
 
 s3_metadata:
-  image: ghcr.io/scality/metadata:8.19.0-standalone
+  image: ghcr.io/scality/metadata:9.0.0-standalone
+
+clickhouse:
+  image: clickhouse/clickhouse-server:24.3.2.23-alpine
