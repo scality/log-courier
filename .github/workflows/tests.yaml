@@ -41,7 +41,7 @@ jobs:
           version: v2.1.6
 
       - name: Start Workbench
-        uses: scality/workbench@improvement/WKBCH-13
+        uses: scality/workbench@improvement/WKBCH-13-clickhouse-perms
         with:
           environment: unit-tests
 
@@ -64,10 +64,6 @@ jobs:
             fi
             sleep 2
           done
-
-          # Fix permissions: setup container runs as root, but ClickHouse runs as clickhouse user
-          docker exec workbench-clickhouse-shard-1 chown -R clickhouse:clickhouse /var/lib/clickhouse/
-          docker exec workbench-clickhouse-shard-2 chown -R clickhouse:clickhouse /var/lib/clickhouse/
 
       - name: Run unit tests
         run: make test-coverage
