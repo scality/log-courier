@@ -47,23 +47,46 @@ jobs:
 
       - name: Wait for ClickHouse setup and fix permissions
         run: |
-          # Wait for workbench setup container to complete
+          echo "=== Waiting for workbench setup container to complete ==="
           timeout 60 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-setup-clickhouse 2>/dev/null)" = "exited" ]; do sleep 1; done'
 
-          # Wait for ClickHouse shards to be ready (workbench uses port 9002 internally)
+          echo "=== Setup container logs ==="
+          docker logs workbench-setup-clickhouse || true
+
+          echo "=== Container statuses ==="
+          docker ps -a | grep -E "(workbench-clickhouse|workbench-setup)" || true
+
+          echo "=== Waiting for ClickHouse shard 1 to be ready ==="
           for i in {1..30}; do
             if docker exec workbench-clickhouse-shard-1 clickhouse-client --host localhost --port 9002 --query "SELECT 1" >/dev/null 2>&1; then
+              echo "ClickHouse shard 1 is ready"
               break
             fi
+            if [ $i -eq 30 ]; then
+              echo "=== ClickHouse shard 1 failed to start. Logs: ==="
+              docker logs workbench-clickhouse-shard-1
+              exit 1
+            fi
+            echo "Waiting for shard 1... attempt $i/30"
             sleep 2
           done
 
+          echo "=== Waiting for ClickHouse shard 2 to be ready ==="
           for i in {1..30}; do
             if docker exec workbench-clickhouse-shard-2 clickhouse-client --host localhost --port 9002 --query "SELECT 1" >/dev/null 2>&1; then
+              echo "ClickHouse shard 2 is ready"
               break
             fi
+            if [ $i -eq 30 ]; then
+              echo "=== ClickHouse shard 2 failed to start. Logs: ==="
+              docker logs workbench-clickhouse-shard-2
+              exit 1
+            fi
+            echo "Waiting for shard 2... attempt $i/30"
             sleep 2
           done
+
+          echo "=== Both ClickHouse shards are ready ==="
 
       - name: Run unit tests
         run: make test-coverage
