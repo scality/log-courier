@@ -19,7 +19,7 @@ updates:
 
   - package-ecosystem: "docker"
     directories:
-      - /workbench/env
+      - /env/unit-tests
     schedule:
       interval: "weekly"
     ignore:
