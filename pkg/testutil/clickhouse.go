@@ -13,6 +13,25 @@ import (
 )
 
 // ==========================================
+// Helper Functions for Pointer Values
+// ==========================================
+
+// StrPtr returns a pointer to a string value
+func StrPtr(s string) *string { return &s }
+
+// Uint16Ptr returns a pointer to a uint16 value
+func Uint16Ptr(n uint16) *uint16 { return &n }
+
+// Uint64Ptr returns a pointer to a uint64 value
+func Uint64Ptr(n uint64) *uint64 { return &n }
+
+// Float32Ptr returns a pointer to a float32 value
+func Float32Ptr(f float32) *float32 { return &f }
+
+// TimePtr returns a pointer to a time.Time value
+func TimePtr(t time.Time) *time.Time { return &t }
+
+// ==========================================
 // Test Schema Definitions
 // ==========================================
 // These schemas mirror the Federation ClickHouse setup but without replication.

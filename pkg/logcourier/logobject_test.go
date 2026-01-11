@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/scality/log-courier/pkg/logcourier"
+	"github.com/scality/log-courier/pkg/testutil"
 )
 
 var _ = Describe("LogObjectBuilder", func() {
@@ -22,31 +23,34 @@ var _ = Describe("LogObjectBuilder", func() {
 			now := time.Now()
 			records := []logcourier.LogRecord{
 				{
-					BucketOwner:         "owner1",
+					BucketOwner:         testutil.StrPtr("owner1"),
 					BucketName:          "test-bucket",
-					StartTime:           now,
-					ClientIP:            "192.168.1.1",
-					Requester:           "arn:aws:iam::123456789012:user/alice",
+					StartTime:           testutil.TimePtr(now),
+					ClientIP:            testutil.StrPtr("192.168.1.1"),
+					Requester:           testutil.StrPtr("arn:aws:iam::123456789012:user/alice"),
 					ReqID:               "ABC123XYZ",
-					Operation:           "REST.GET.OBJECT",
-					ObjectKey:           "my-file.txt",
-					RequestURI:          "GET /test-bucket/my-file.txt HTTP/1.1",
-					HttpCode:            200,
-					ErrorCode:           "",
-					BytesSent:           1024,
-					ObjectSize:          1024,
-					TotalTime:           45.5,
-					TurnAroundTime:      15.2,
-					Referer:             "http://example.com",
-					UserAgent:           "curl/7.64.1",
-					VersionID:           "",
-					SignatureVersion:    "SigV4",
-					CipherSuite:         "ECDHE-RSA-AES128-GCM-SHA256",
-					AuthenticationType:  "AuthHeader",
-					HostHeader:          "s3.amazonaws.com",
-					TlsVersion:          "TLSv1.2",
-					AclRequired:         "Yes",
+					Operation:           testutil.StrPtr("REST.GET.OBJECT"),
+					ObjectKey:           testutil.StrPtr("my-file.txt"),
+					RequestURI:          testutil.StrPtr("GET /test-bucket/my-file.txt HTTP/1.1"),
+					HttpCode:            testutil.Uint16Ptr(200),
+					ErrorCode:           testutil.StrPtr(""),
+					BytesSent:           testutil.Uint64Ptr(1024),
+					ObjectSize:          testutil.Uint64Ptr(1024),
+					TotalTime:           testutil.Float32Ptr(45.5),
+					TurnAroundTime:      testutil.Float32Ptr(15.2),
+					Referer:             testutil.StrPtr("http://example.com"),
+					UserAgent:           testutil.StrPtr("curl/7.64.1"),
+					VersionID:           testutil.StrPtr(""),
+					SignatureVersion:    testutil.StrPtr("SigV4"),
+					CipherSuite:         testutil.StrPtr("ECDHE-RSA-AES128-GCM-SHA256"),
+					AuthenticationType:  testutil.StrPtr("AuthHeader"),
+					HostHeader:          testutil.StrPtr("s3.amazonaws.com"),
+					TlsVersion:          testutil.StrPtr("TLSv1.2"),
+					AclRequired:         testutil.StrPtr("Yes"),
+					Timestamp:           now,
+					InsertedAt:          time.Now(),
 					LoggingTargetPrefix: "logs/",
+					RaftSessionID:       0,
 				},
 			}
 
@@ -68,8 +72,10 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "mylogs/",
-					StartTime:           now,
+					StartTime:           testutil.TimePtr(now),
 					Timestamp:           now,
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -92,8 +98,10 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "",
-					StartTime:           now,
+					StartTime:           testutil.TimePtr(now),
 					Timestamp:           now,
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -110,8 +118,11 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           testutil.TimePtr(startTime),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -127,19 +138,27 @@ var _ = Describe("LogObjectBuilder", func() {
 			startTime := time.Date(2025, 10, 28, 10, 0, 0, 0, time.UTC)
 			records := []logcourier.LogRecord{
 				{
-					BucketOwner:         "",
+					BucketOwner:         testutil.StrPtr(""),
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
-					ClientIP:            "",
-					Requester:           "",
+					StartTime:           testutil.TimePtr(startTime),
+					ClientIP:            testutil.StrPtr(""),
+					Requester:           testutil.StrPtr(""),
 					ReqID:               "ABC123",
-					Operation:           "GET",
-					ObjectKey:           "",
-					RequestURI:          "",
-					ErrorCode:           "",
-					VersionID:           "",
-					SignatureVersion:    "",
+					Operation:           testutil.StrPtr("GET"),
+					ObjectKey:           testutil.StrPtr(""),
+					RequestURI:          testutil.StrPtr(""),
+					HttpCode:            testutil.Uint16Ptr(0),
+					ErrorCode:           testutil.StrPtr(""),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					VersionID:           testutil.StrPtr(""),
+					SignatureVersion:    testutil.StrPtr(""),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -159,11 +178,19 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
-					RequestURI:          "GET /bucket/key?versionId=123 HTTP/1.1",
-					Referer:             "http://example.com/page",
-					UserAgent:           "Mozilla/5.0",
+					StartTime:           testutil.TimePtr(startTime),
+					RequestURI:          testutil.StrPtr("GET /bucket/key?versionId=123 HTTP/1.1"),
+					Referer:             testutil.StrPtr("http://example.com/page"),
+					UserAgent:           testutil.StrPtr("Mozilla/5.0"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -183,13 +210,16 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
-					HttpCode:            200,
-					BytesSent:           1024,
-					ObjectSize:          2048,
-					TotalTime:           45.5,
-					TurnAroundTime:      15.2,
+					StartTime:           testutil.TimePtr(startTime),
+					HttpCode:            testutil.Uint16Ptr(200),
+					BytesSent:           testutil.Uint64Ptr(1024),
+					ObjectSize:          testutil.Uint64Ptr(2048),
+					TotalTime:           testutil.Float32Ptr(45.5),
+					TurnAroundTime:      testutil.Float32Ptr(15.2),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -209,14 +239,17 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           testutil.TimePtr(startTime),
 					ReqID:               "test-123",
-					HttpCode:            200,
-					BytesSent:           0,
-					ObjectSize:          0,
-					TotalTime:           0,
-					TurnAroundTime:      0,
+					HttpCode:            testutil.Uint16Ptr(200),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -236,24 +269,48 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           testutil.TimePtr(startTime),
 					ReqID:               "req-1",
-					Operation:           "GET",
+					Operation:           testutil.StrPtr("GET"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime.Add(1 * time.Second),
+					StartTime:           testutil.TimePtr(startTime.Add(1 * time.Second)),
 					ReqID:               "req-2",
-					Operation:           "PUT",
+					Operation:           testutil.StrPtr("PUT"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime.Add(1 * time.Second),
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime.Add(2 * time.Second),
+					StartTime:           testutil.TimePtr(startTime.Add(2 * time.Second)),
 					ReqID:               "req-3",
-					Operation:           "DELETE",
+					Operation:           testutil.StrPtr("DELETE"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime.Add(2 * time.Second),
 					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -280,32 +337,34 @@ var _ = Describe("LogObjectBuilder", func() {
 			startTime := time.Date(2025, 10, 28, 14, 30, 45, 0, time.UTC)
 			records := []logcourier.LogRecord{
 				{
-					BucketOwner:         "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+					BucketOwner:         testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					BucketName:          "my-bucket",
-					StartTime:           startTime,
+					StartTime:           testutil.TimePtr(startTime),
 					Timestamp:           startTime,
-					ClientIP:            "192.0.2.3",
-					Requester:           "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be",
+					ClientIP:            testutil.StrPtr("192.0.2.3"),
+					Requester:           testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					ReqID:               "3E57427F3EXAMPLE",
-					Operation:           "REST.GET.VERSIONING",
-					ObjectKey:           "",
-					RequestURI:          "GET /my-bucket?versioning HTTP/1.1",
-					HttpCode:            200,
-					ErrorCode:           "",
-					BytesSent:           113,
-					ObjectSize:          0,
-					TotalTime:           7,
-					TurnAroundTime:      4,
-					Referer:             "",
-					UserAgent:           "S3Console/0.4",
-					VersionID:           "",
-					SignatureVersion:    "SigV4",
-					CipherSuite:         "ECDHE-RSA-AES128-GCM-SHA256",
-					AuthenticationType:  "AuthHeader",
-					HostHeader:          "my-bucket.s3.amazonaws.com",
-					TlsVersion:          "TLSv1.2",
-					AclRequired:         "-",
+					Operation:           testutil.StrPtr("REST.GET.VERSIONING"),
+					ObjectKey:           testutil.StrPtr(""),
+					RequestURI:          testutil.StrPtr("GET /my-bucket?versioning HTTP/1.1"),
+					HttpCode:            testutil.Uint16Ptr(200),
+					ErrorCode:           testutil.StrPtr(""),
+					BytesSent:           testutil.Uint64Ptr(113),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(7),
+					TurnAroundTime:      testutil.Float32Ptr(4),
+					Referer:             testutil.StrPtr(""),
+					UserAgent:           testutil.StrPtr("S3Console/0.4"),
+					VersionID:           testutil.StrPtr(""),
+					SignatureVersion:    testutil.StrPtr("SigV4"),
+					CipherSuite:         testutil.StrPtr("ECDHE-RSA-AES128-GCM-SHA256"),
+					AuthenticationType:  testutil.StrPtr("AuthHeader"),
+					HostHeader:          testutil.StrPtr("my-bucket.s3.amazonaws.com"),
+					TlsVersion:          testutil.StrPtr("TLSv1.2"),
+					AclRequired:         testutil.StrPtr("-"),
 					LoggingTargetPrefix: "logs/",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
 				},
 			}
 
@@ -318,6 +377,99 @@ var _ = Describe("LogObjectBuilder", func() {
 
 			expectedLine := "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be my-bucket [28/Oct/2025:14:30:45 +0000] 192.0.2.3 79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be 3E57427F3EXAMPLE REST.GET.VERSIONING - \"GET /my-bucket?versioning HTTP/1.1\" 200 - 113 0 7 4 - \"S3Console/0.4\" - - SigV4 ECDHE-RSA-AES128-GCM-SHA256 AuthHeader my-bucket.s3.amazonaws.com TLSv1.2 - -"
 			Expect(lines[0]).To(Equal(expectedLine))
+		})
+
+		It("should output dash for NULL string fields", func() {
+			startTime := time.Date(2025, 10, 28, 10, 0, 0, 0, time.UTC)
+			records := []logcourier.LogRecord{
+				{
+					BucketName:          "test-bucket",
+					StartTime:           testutil.TimePtr(startTime),
+					ReqID:               "ABC123",
+					Operation:           nil,
+					ErrorCode:           nil,
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					Timestamp:           startTime,
+					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
+				},
+			}
+
+			obj, err := builder.Build(records)
+			Expect(err).NotTo(HaveOccurred())
+
+			content := string(obj.Content)
+			Expect(content).To(ContainSubstring("ABC123 - -")) // ReqID Operation(NULL) ObjectKey(NULL)
+		})
+
+		It("should distinguish NULL from zero for numeric fields", func() {
+			startTime := time.Date(2025, 10, 28, 10, 0, 0, 0, time.UTC)
+
+			recordNULL := logcourier.LogRecord{
+				BucketName:          "test-bucket",
+				StartTime:           testutil.TimePtr(startTime),
+				ReqID:               "req-null",
+				HttpCode:            nil,
+				BytesSent:           nil,
+				ObjectSize:          nil,
+				TotalTime:           nil,
+				TurnAroundTime:      nil,
+				Timestamp:           startTime,
+				LoggingTargetPrefix: "",
+				InsertedAt:          time.Now(),
+				RaftSessionID:       0,
+			}
+
+			recordZero := logcourier.LogRecord{
+				BucketName:          "test-bucket",
+				StartTime:           testutil.TimePtr(startTime.Add(1 * time.Second)),
+				ReqID:               "req-zero",
+				HttpCode:            testutil.Uint16Ptr(0),
+				BytesSent:           testutil.Uint64Ptr(0),
+				ObjectSize:          testutil.Uint64Ptr(0),
+				TotalTime:           testutil.Float32Ptr(0.0),
+				TurnAroundTime:      testutil.Float32Ptr(0.0),
+				Timestamp:           startTime.Add(1 * time.Second),
+				LoggingTargetPrefix: "",
+				InsertedAt:          time.Now(),
+				RaftSessionID:       0,
+			}
+
+			obj, err := builder.Build([]logcourier.LogRecord{recordNULL, recordZero})
+			Expect(err).NotTo(HaveOccurred())
+
+			content := string(obj.Content)
+			lines := strings.Split(strings.TrimSpace(content), "\n")
+			Expect(lines).To(HaveLen(2))
+
+			Expect(lines[0]).To(ContainSubstring("- - - - - -")) // HttpCode(NULL), ErrorCode(NULL), BytesSent(NULL), ObjectSize(NULL), TotalTime(NULL), TurnAroundTime(NULL)
+			Expect(lines[1]).To(ContainSubstring("0 - 0 0 0 0")) // HttpCode=0, ErrorCode(NULL), BytesSent=0, ObjectSize=0, TotalTime=0, TurnAroundTime=0
+		})
+
+		It("should handle NULL timestamp as dash", func() {
+			now := time.Now()
+			records := []logcourier.LogRecord{
+				{
+					BucketName:          "test-bucket",
+					StartTime:           nil,
+					ReqID:               "req-1",
+					Timestamp:           now,
+					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
+				},
+			}
+
+			obj, err := builder.Build(records)
+			Expect(err).NotTo(HaveOccurred())
+
+			content := string(obj.Content)
+			Expect(content).To(ContainSubstring("test-bucket - -")) // BucketName StartTime(NULL) ClientIP(NULL)
 		})
 	})
 })
