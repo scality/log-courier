@@ -102,148 +102,167 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 	factory := promauto.With(reg)
 
 	return &Metrics{
-		General: GeneralMetrics{
-			BatchesProcessed: factory.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: "log_courier_batches_processed_total",
-					Help: "Total number of log batches processed",
-				},
-				[]string{"status"}, // status: success, failed_permanent, failed_transient
-			),
-			RecordsLost: factory.NewCounter(
-				prometheus.CounterOpts{
-					Name: "log_courier_records_lost_total",
-					Help: "Total number of log records lost due to permanent errors",
-				},
-			),
-			BatchProcessingDuration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_batch_processing_duration_seconds",
-					Help:    "End-to-end batch processing time (fetch + build + upload)",
-					Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300}, // 100ms to 5min
-				},
-			),
-		},
+		General:   newGeneralMetrics(factory),
+		Discovery: newDiscoveryMetrics(factory),
+		Fetch:     newFetchMetrics(factory),
+		Build:     newBuildMetrics(factory),
+		Upload:    newUploadMetrics(factory),
+		Commit:    newCommitMetrics(factory),
+	}
+}
 
-		Discovery: DiscoveryMetrics{
+func newGeneralMetrics(factory promauto.Factory) GeneralMetrics {
+	return GeneralMetrics{
+		BatchesProcessed: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_batches_processed_total",
+				Help: "Total number of log batches processed",
+			},
+			[]string{"status"}, // status: success, failed_permanent, failed_transient
+		),
+		RecordsLost: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_records_lost_total",
+				Help: "Total number of log records lost due to permanent errors",
+			},
+		),
+		BatchProcessingDuration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_batch_processing_duration_seconds",
+				Help:    "End-to-end batch processing time (fetch + build + upload)",
+				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300}, // 100ms to 5min
+			},
+		),
+	}
+}
+
+func newDiscoveryMetrics(factory promauto.Factory) DiscoveryMetrics {
+	return DiscoveryMetrics{
 			BatchesFound: factory.NewCounter(
 				prometheus.CounterOpts{
 					Name: "log_courier_discovery_batches_found_total",
 					Help: "Total number of log batches discovered during work discovery",
 				},
 			),
-			BucketsWithLogging: factory.NewGauge(
-				prometheus.GaugeOpts{
-					Name: "log_courier_discovery_buckets_with_logging",
-					Help: "Number of buckets with logging enabled and pending logs",
-				},
-			),
-			PendingBatches: factory.NewGauge(
-				prometheus.GaugeOpts{
-					Name: "log_courier_discovery_pending_batches",
-					Help: "Number of batches pending processing",
-				},
-			),
-			Duration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_discovery_duration_seconds",
-					Help:    "Time spent discovering batches in ClickHouse",
-					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
-				},
-			),
-		},
+		BucketsWithLogging: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "log_courier_discovery_buckets_with_logging",
+				Help: "Number of buckets with logging enabled and pending logs",
+			},
+		),
+		PendingBatches: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "log_courier_discovery_pending_batches",
+				Help: "Number of batches pending processing",
+			},
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_discovery_duration_seconds",
+				Help:    "Time spent discovering batches in ClickHouse",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
+			},
+		),
+	}
+}
 
-		Fetch: FetchMetrics{
-			RecordsTotal: factory.NewCounter(
-				prometheus.CounterOpts{
-					Name: "log_courier_fetch_records_total",
-					Help: "Total number of log records fetched from ClickHouse",
-				},
-			),
-			BatchSize: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_fetch_batch_size_records",
-					Help:    "Distribution of number of records fetched per batch",
-					Buckets: prometheus.ExponentialBuckets(10, 2, 15), // 10, 20, 40, ..., up to ~163k
-				},
-			),
-			Duration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_fetch_duration_seconds",
-					Help:    "Time spent fetching log records from ClickHouse",
-					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
-				},
-			),
-		},
+func newFetchMetrics(factory promauto.Factory) FetchMetrics {
+	return FetchMetrics{
+		RecordsTotal: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_fetch_records_total",
+				Help: "Total number of log records fetched from ClickHouse",
+			},
+		),
+		BatchSize: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_fetch_batch_size_records",
+				Help:    "Distribution of number of records fetched per batch",
+				Buckets: prometheus.ExponentialBuckets(10, 2, 15), // 10, 20, 40, ..., up to ~163k
+			},
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_fetch_duration_seconds",
+				Help:    "Time spent fetching log records from ClickHouse",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
+			},
+		),
+	}
+}
 
-		Build: BuildMetrics{
-			ObjectsTotal: factory.NewCounter(
-				prometheus.CounterOpts{
-					Name: "log_courier_build_objects_total",
-					Help: "Total number of log objects built",
-				},
-			),
-			ObjectSizeBytes: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_build_object_size_bytes",
-					Help:    "Size in bytes of log objects built",
-					Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 104857600}, // 1KB to 100MB
-				},
-			),
-			Duration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_build_duration_seconds",
-					Help:    "Time spent building log objects",
-					Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}, // 1ms to 1s
-				},
-			),
-		},
+func newBuildMetrics(factory promauto.Factory) BuildMetrics {
+	return BuildMetrics{
+		ObjectsTotal: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_build_objects_total",
+				Help: "Total number of log objects built",
+			},
+		),
+		ObjectSizeBytes: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_build_object_size_bytes",
+				Help:    "Size in bytes of log objects built",
+				Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 104857600}, // 1KB to 100MB
+			},
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_build_duration_seconds",
+				Help:    "Time spent building log objects",
+				Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}, // 1ms to 1s
+			},
+		),
+	}
+}
 
-		Upload: UploadMetrics{
-			ObjectsTotal: factory.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: "log_courier_upload_objects_total",
-					Help: "Total number of log object upload attempts",
-				},
-				[]string{"status"}, // status: success, failed
-			),
-			Duration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_upload_duration_seconds",
-					Help:    "Time spent uploading log objects to S3",
-					Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60}, // 100ms to 1min
-				},
-			),
-		},
+func newUploadMetrics(factory promauto.Factory) UploadMetrics {
+	return UploadMetrics{
+		ObjectsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_upload_objects_total",
+				Help: "Total number of log object upload attempts",
+			},
+			[]string{"status"}, // status: success, failed
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_upload_duration_seconds",
+				Help:    "Time spent uploading log objects to S3",
+				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60}, // 100ms to 1min
+			},
+		),
+	}
+}
 
-		Commit: CommitMetrics{
-			OffsetsFlushed: factory.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: "log_courier_commit_offsets_flushed_total",
-					Help: "Total number of individual offsets flushed to ClickHouse",
-				},
-				[]string{"status"}, // status: success, failed
-			),
-			FlushesTotal: factory.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: "log_courier_commit_flushes_total",
-					Help: "Total number of flush operations by reason",
-				},
-				[]string{"reason"}, // reason: time_threshold, count_threshold, cycle_boundary, shutdown, explicit
-			),
-			Duration: factory.NewHistogram(
-				prometheus.HistogramOpts{
-					Name:    "log_courier_commit_duration_seconds",
-					Help:    "Time spent committing offsets to ClickHouse",
-					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
-				},
-			),
-			BufferedOffsets: factory.NewGauge(
-				prometheus.GaugeOpts{
-					Name: "log_courier_commit_buffered_offsets",
-					Help: "Number of offsets buffered waiting to be committed",
-				},
-			),
-		},
+func newCommitMetrics(factory promauto.Factory) CommitMetrics {
+	return CommitMetrics{
+		OffsetsFlushed: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_commit_offsets_flushed_total",
+				Help: "Total number of individual offsets flushed to ClickHouse",
+			},
+			[]string{"status"}, // status: success, failed
+		),
+		FlushesTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_commit_flushes_total",
+				Help: "Total number of flush operations by reason",
+			},
+			[]string{"reason"}, // reason: time_threshold, count_threshold, cycle_boundary, shutdown, explicit
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_commit_duration_seconds",
+				Help:    "Time spent committing offsets to ClickHouse",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
+			},
+		),
+		BufferedOffsets: factory.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "log_courier_commit_buffered_offsets",
+				Help: "Number of offsets buffered waiting to be committed",
+			},
+		),
 	}
 }
