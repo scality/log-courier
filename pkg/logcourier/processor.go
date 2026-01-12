@@ -609,7 +609,11 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		"afterOffset", batch.LastProcessedOffset.InsertedAt)
 
 	// 1. Fetch logs
+	fetchStart := time.Now()
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
+	fetchDuration := time.Since(fetchStart)
+	p.metrics.Fetch.Duration.Observe(fetchDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}
@@ -624,6 +628,8 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	}
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
+	p.metrics.Fetch.RecordsTotal.Add(float64(len(records)))
+	p.metrics.Fetch.RecordsPerBucket.Observe(float64(len(records)))
 
 	lastLog := records[len(records)-1]
 	offset := Offset{
