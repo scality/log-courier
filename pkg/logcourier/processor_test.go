@@ -423,21 +423,21 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for upload attempt
+					// Wait for upload to fail
 					Eventually(func() int64 {
-						return countingUploader.GetUploadCount()
+						return countingUploader.GetFailureCount()
 					}).WithTimeout(3 * time.Second).WithPolling(100 * time.Millisecond).Should(
 						BeNumerically(">=", 1),
 					)
 
 					uploadCount := countingUploader.GetUploadCount()
+					failureCount := countingUploader.GetFailureCount()
 					cancel()
 
 					// Verify only one upload attempt was made
 					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
 
 					// Verify the upload failed
-					failureCount := countingUploader.GetFailureCount()
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
@@ -505,21 +505,21 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for upload attempt
+					// Wait for upload to fail
 					Eventually(func() int64 {
-						return countingUploader.GetUploadCount()
+						return countingUploader.GetFailureCount()
 					}).WithTimeout(3 * time.Second).WithPolling(100 * time.Millisecond).Should(
 						BeNumerically(">=", 1),
 					)
 
 					uploadCount := countingUploader.GetUploadCount()
+					failureCount := countingUploader.GetFailureCount()
 					cancel()
 
 					// Verify only one upload attempt was made
 					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
 
 					// Verify the upload failed
-					failureCount := countingUploader.GetFailureCount()
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
@@ -672,21 +672,21 @@ var _ = Describe("Processor", func() {
 						_ = testProcessor.Run(testCtx)
 					}()
 
-					// Wait for upload attempt
+					// Wait for upload to fail
 					Eventually(func() int64 {
-						return countingUploader.GetUploadCount()
+						return countingUploader.GetFailureCount()
 					}).WithTimeout(3 * time.Second).WithPolling(100 * time.Millisecond).Should(
 						BeNumerically(">=", 1),
 					)
 
 					uploadCount := countingUploader.GetUploadCount()
+					failureCount := countingUploader.GetFailureCount()
 					cancel()
 
 					// Verify only one upload attempt was made
 					Expect(uploadCount).To(Equal(int64(1)), "Should attempt upload exactly once")
 
 					// Verify the upload failed
-					failureCount := countingUploader.GetFailureCount()
 					Expect(failureCount).To(Equal(int64(1)), "Upload should have failed")
 
 					// Verify offset was not committed
