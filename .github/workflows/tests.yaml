@@ -41,7 +41,7 @@ jobs:
           version: v2.1.6
 
       - name: Start Workbench
-        uses: scality/workbench@v0.9.0
+        uses: scality/workbench@improvement/WKBCH-14
 
       - name: Wait for ClickHouse setup and fix permissions
         run: |
