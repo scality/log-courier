@@ -25,21 +25,21 @@ func NewLogObjectBuilder() *LogObjectBuilder {
 }
 
 // Build builds a log object from log records
-// Records are sorted by event timestamp.
-// The key is generated using the first record's event timestamp in the format:
+// Records are sorted by StartTime
+// The key is generated using the first record's StartTime in the format:
 // <LoggingTargetPrefix>YYYY-mm-DD-HH-MM-SS-UniqueString
 func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	if len(records) == 0 {
 		return LogObject{}, fmt.Errorf("no records to build log object")
 	}
 
-	// Sort records by timestamp for chronological ordering in S3 files.
+	// Sort records by StartTime for chronological ordering in S3 files.
 	sort.Slice(records, func(i, j int) bool {
-		// Sort by timestamp, then req_id for stable ordering
-		if records[i].Timestamp.Equal(records[j].Timestamp) {
+		// Sort by StartTime, then req_id for stable ordering
+		if records[i].StartTime.Equal(records[j].StartTime) {
 			return records[i].ReqID < records[j].ReqID
 		}
-		return records[i].Timestamp.Before(records[j].Timestamp)
+		return records[i].StartTime.Before(records[j].StartTime)
 	})
 
 	// Configuration Handling: Use logging configuration from the first record.
@@ -56,10 +56,9 @@ func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	// but this adds query complexity for minimal benefit.
 	firstRecord := records[0]
 
-	// Generate object key using first record's event timestamp.
-	// Records are ordered by event timestamp (requirement: "Log records within a log object
-	// must be ordered by log record date"), so first record has the earliest event time.
-	key, err := b.generateKey(firstRecord.LoggingTargetPrefix, firstRecord.Timestamp)
+	// Generate object key using first record's StartTime.
+	// Records are ordered by StartTime, so first record has the earliest time.
+	key, err := b.generateKey(firstRecord.LoggingTargetPrefix, firstRecord.StartTime)
 	if err != nil {
 		return LogObject{}, fmt.Errorf("failed to generate key: %w", err)
 	}
@@ -171,13 +170,9 @@ func (b *LogObjectBuilder) formatQuotedStringPtr(s *string) string {
 }
 
 // formatTimestamp formats a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
-// Always outputs in UTC timezone, or "-" for NULL
-func (b *LogObjectBuilder) formatTimestamp(t *time.Time) string {
-	if t == nil {
-		return "-"
-	}
+// Always outputs in UTC timezone
+func (b *LogObjectBuilder) formatTimestamp(t time.Time) string {
 	utc := t.UTC()
-
 	return utc.Format("[02/Jan/2006:15:04:05 +0000]")
 }
 
