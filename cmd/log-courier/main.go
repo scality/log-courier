@@ -21,7 +21,7 @@ func main() {
 }
 
 // buildProcessorConfig creates processor config from ConfigSpec
-func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
+func buildProcessorConfig(logger *slog.Logger, metrics *logcourier.Metrics) logcourier.Config {
 	return logcourier.Config{
 		ClickHouseHosts:               logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 		ClickHouseUsername:            logcourier.ConfigSpec.GetString("clickhouse.username"),
@@ -47,6 +47,7 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 		S3AccessKeyID:                 logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		S3SecretAccessKey:             logcourier.ConfigSpec.GetString("s3.secret-access-key"),
 		Logger:                        logger,
+		Metrics:                       metrics,
 	}
 }
 
@@ -119,9 +120,12 @@ func run() int {
 	// Get shutdown timeout from config
 	shutdownTimeout := time.Duration(logcourier.ConfigSpec.GetInt("shutdown-timeout-seconds")) * time.Second
 
+	// Create metrics (always create, even if server is disabled, for internal use)
+	metrics := logcourier.NewMetrics()
+
 	// Create processor
 	ctx := context.Background()
-	processorCfg := buildProcessorConfig(logger)
+	processorCfg := buildProcessorConfig(logger, metrics)
 
 	processor, err := logcourier.NewProcessor(ctx, processorCfg)
 	if err != nil {
@@ -134,7 +138,7 @@ func run() int {
 		}
 	}()
 
-	// Start metrics server
+	// Start metrics server (if enabled)
 	metricsServer, err := util.StartMetricsServerIfEnabled(
 		logcourier.ConfigSpec, "metrics-server", logger)
 	if err != nil {
