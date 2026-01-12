@@ -665,10 +665,17 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	// 2. The propagation delay (one batch cycle) is acceptable for config changes
 	destinationBucket := records[0].LoggingTargetBucket
 
+	uploadStart := time.Now()
 	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
+	uploadDuration := time.Since(uploadStart)
+
 	if err != nil {
+		p.metrics.Upload.ObjectsTotal.WithLabelValues("failed").Inc()
 		return nil, fmt.Errorf("failed to upload log object: %w", err)
 	}
+
+	p.metrics.Upload.ObjectsTotal.WithLabelValues("success").Inc()
+	p.metrics.Upload.Duration.Observe(uploadDuration.Seconds())
 
 	p.logger.Info("uploaded log object",
 		"bucketName", batch.Bucket,
