@@ -8,7 +8,8 @@ import (
 // Metrics holds all Prometheus metrics for log-courier, grouped by operation
 // NOTE: No bucket labels are used to avoid high cardinality issues
 type Metrics struct {
-	General GeneralMetrics
+	General   GeneralMetrics
+	Discovery DiscoveryMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -21,6 +22,21 @@ type GeneralMetrics struct {
 
 	// BatchProcessingDuration tracks end-to-end batch processing time
 	BatchProcessingDuration prometheus.Histogram
+}
+
+// DiscoveryMetrics tracks batch discovery operations
+type DiscoveryMetrics struct {
+	// BatchesFound tracks total batches discovered during work discovery
+	BatchesFound prometheus.Counter
+
+	// BucketsWithLogging tracks number of buckets with pending logs
+	BucketsWithLogging prometheus.Gauge
+
+	// PendingBatches tracks number of batches waiting for processing
+	PendingBatches prometheus.Gauge
+
+	// Duration tracks time spent in discovery queries
+	Duration prometheus.Histogram
 }
 
 // NewMetrics creates and registers all Prometheus metrics
@@ -53,6 +69,34 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 					Name:    "log_courier_batch_processing_duration_seconds",
 					Help:    "End-to-end batch processing time (fetch + build + upload)",
 					Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300}, // 100ms to 5min
+				},
+			),
+		},
+
+		Discovery: DiscoveryMetrics{
+			BatchesFound: factory.NewCounter(
+				prometheus.CounterOpts{
+					Name: "log_courier_discovery_batches_found_total",
+					Help: "Total number of log batches discovered during work discovery",
+				},
+			),
+			BucketsWithLogging: factory.NewGauge(
+				prometheus.GaugeOpts{
+					Name: "log_courier_discovery_buckets_with_logging",
+					Help: "Number of buckets with logging enabled and pending logs",
+				},
+			),
+			PendingBatches: factory.NewGauge(
+				prometheus.GaugeOpts{
+					Name: "log_courier_discovery_pending_batches",
+					Help: "Number of batches pending processing",
+				},
+			),
+			Duration: factory.NewHistogram(
+				prometheus.HistogramOpts{
+					Name:    "log_courier_discovery_duration_seconds",
+					Help:    "Time spent discovering batches in ClickHouse",
+					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
 				},
 			),
 		},

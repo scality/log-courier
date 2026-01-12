@@ -354,16 +354,27 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	// Phase 1: Work Discovery
 	p.logger.Debug("starting batch finder")
 
+	discoveryStart := time.Now()
 	batches, err := p.workDiscovery.FindBatches(ctx)
+	discoveryDuration := time.Since(discoveryStart)
+	p.metrics.Discovery.Duration.Observe(discoveryDuration.Seconds())
+
 	if err != nil {
 		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
 	p.logger.Info("batch finder completed", "nBatches", len(batches))
+	p.metrics.Discovery.BucketsWithLogging.Set(float64(len(batches)))
 
 	if len(batches) == 0 {
 		return 0, nil
 	}
+
+	// Record discovered batches
+	p.metrics.Discovery.BatchesFound.Add(float64(len(batches)))
+
+	// Update pending batches gauge
+	p.metrics.Discovery.PendingBatches.Set(float64(len(batches)))
 
 	// Phase 2: Process log batches in parallel
 	var wg sync.WaitGroup
@@ -420,6 +431,9 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	}
 
 	wg.Wait()
+
+	// Reset pending batches
+	p.metrics.Discovery.PendingBatches.Set(0)
 
 	if len(failedBatches) > 0 {
 		p.logger.Warn("batch processing completed",
