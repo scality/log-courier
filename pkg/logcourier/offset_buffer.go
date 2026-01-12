@@ -20,6 +20,24 @@ const (
 	FlushReasonExplicit       FlushReason = "explicit"
 )
 
+// toMetricLabel converts FlushReason to a metric label format (underscores instead of spaces)
+func (r FlushReason) toMetricLabel() string {
+	switch r {
+	case FlushReasonTimeThreshold:
+		return "time_threshold"
+	case FlushReasonCountThreshold:
+		return "count_threshold"
+	case FlushReasonCycleBoundary:
+		return "cycle_boundary"
+	case FlushReasonShutdown:
+		return "shutdown"
+	case FlushReasonExplicit:
+		return "explicit"
+	default:
+		return "unknown"
+	}
+}
+
 // offsetCommitRequest represents a request to commit a single offset
 type offsetCommitRequest struct {
 	offset Offset
@@ -47,6 +65,7 @@ type OffsetBuffer struct {
 
 	offsetManager OffsetManagerInterface
 	logger        *slog.Logger
+	metrics       *Metrics
 
 	// Configuration
 	initialBackoff      time.Duration
@@ -67,6 +86,7 @@ type offsetKey struct {
 type OffsetBufferOptions struct {
 	OffsetManager       OffsetManagerInterface
 	Logger              *slog.Logger
+	Metrics             *Metrics
 	InitialBackoff      time.Duration
 	MaxBackoff          time.Duration
 	BackoffJitterFactor float64
@@ -85,6 +105,11 @@ func NewOffsetBuffer(cfg OffsetBufferOptions) *OffsetBuffer {
 		bufferSize = 10 // Default buffer size for tests and single-worker scenarios
 	}
 
+	metrics := cfg.Metrics
+	if metrics == nil {
+		metrics = NewMetrics()
+	}
+
 	return &OffsetBuffer{
 		offsetCh:            make(chan offsetCommitRequest, bufferSize),
 		flushReqCh:          make(chan flushRequest),
@@ -95,6 +120,7 @@ func NewOffsetBuffer(cfg OffsetBufferOptions) *OffsetBuffer {
 		backoffJitterFactor: cfg.BackoffJitterFactor,
 		offsetManager:       cfg.OffsetManager,
 		logger:              cfg.Logger,
+		metrics:             metrics,
 		flushTimeThreshold:  cfg.FlushTimeThreshold,
 		flushCountThreshold: cfg.FlushCountThreshold,
 	}
@@ -139,6 +165,9 @@ func (ob *OffsetBuffer) drainPendingCommits() {
 // handleOffsetCommit processes an offset commit and checks if count-based flush is needed
 func (ob *OffsetBuffer) handleOffsetCommit(ctx context.Context, commit offsetCommitRequest, ticker *time.Ticker) {
 	ob.offsets[commit.key] = commit.offset
+
+	// Update buffered offsets metric
+	ob.metrics.Commit.BufferedOffsets.Set(float64(len(ob.offsets)))
 
 	// Check count threshold
 	if ob.flushCountThreshold > 0 && len(ob.offsets) >= ob.flushCountThreshold {
@@ -206,17 +235,33 @@ func (ob *OffsetBuffer) performFlush(ctx context.Context, reason FlushReason) er
 	}
 
 	offsetCount := len(ob.offsets)
+	commitStart := time.Now()
 
 	if err := ob.flushBatch(ctx, ob.offsets); err != nil {
 		ob.logger.Error("offset flush failed",
 			"reason", reason,
 			"bufferedOffsets", offsetCount,
 			"error", err)
+
+		// Record failed commits
+		ob.metrics.Commit.OffsetsFlushed.WithLabelValues("failed").Add(float64(offsetCount))
 		return err
 	}
 
+	commitDuration := time.Since(commitStart)
+
+	// Record successful commits
+	ob.metrics.Commit.OffsetsFlushed.WithLabelValues("success").Add(float64(offsetCount))
+	ob.metrics.Commit.Duration.Observe(commitDuration.Seconds())
+
+	// Record flush operation
+	ob.metrics.Commit.FlushesTotal.WithLabelValues(reason.toMetricLabel()).Inc()
+
 	// Clear successfully flushed offsets
 	clear(ob.offsets)
+
+	// Update buffered offsets metric
+	ob.metrics.Commit.BufferedOffsets.Set(0)
 
 	ob.logger.Info("flushed offsets",
 		"reason", reason,

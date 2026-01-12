@@ -13,6 +13,7 @@ type Metrics struct {
 	Fetch     FetchMetrics
 	Build     BuildMetrics
 	Upload    UploadMetrics
+	Commit    CommitMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -73,6 +74,21 @@ type UploadMetrics struct {
 
 	// Duration tracks time spent uploading to S3
 	Duration prometheus.Histogram
+}
+
+// CommitMetrics tracks offset commit operations
+type CommitMetrics struct {
+	// OffsetsFlushed tracks total number of individual offsets flushed
+	OffsetsFlushed *prometheus.CounterVec // labels: status (success/failed)
+
+	// FlushesTotal tracks total flush operations by reason
+	FlushesTotal *prometheus.CounterVec // labels: reason (time_threshold, count_threshold, cycle_boundary, shutdown, explicit)
+
+	// Duration tracks time spent committing offsets
+	Duration prometheus.Histogram
+
+	// BufferedOffsets tracks number of offsets waiting to be committed
+	BufferedOffsets prometheus.Gauge
 }
 
 // NewMetrics creates and registers all Prometheus metrics
@@ -196,6 +212,36 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 					Name:    "log_courier_upload_duration_seconds",
 					Help:    "Time spent uploading log objects to S3",
 					Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60}, // 100ms to 1min
+				},
+			),
+		},
+
+		Commit: CommitMetrics{
+			OffsetsFlushed: factory.NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "log_courier_commit_offsets_flushed_total",
+					Help: "Total number of individual offsets flushed to ClickHouse",
+				},
+				[]string{"status"}, // status: success, failed
+			),
+			FlushesTotal: factory.NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "log_courier_commit_flushes_total",
+					Help: "Total number of flush operations by reason",
+				},
+				[]string{"reason"}, // reason: time_threshold, count_threshold, cycle_boundary, shutdown, explicit
+			),
+			Duration: factory.NewHistogram(
+				prometheus.HistogramOpts{
+					Name:    "log_courier_commit_duration_seconds",
+					Help:    "Time spent committing offsets to ClickHouse",
+					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
+				},
+			),
+			BufferedOffsets: factory.NewGauge(
+				prometheus.GaugeOpts{
+					Name: "log_courier_commit_buffered_offsets",
+					Help: "Number of offsets buffered waiting to be committed",
 				},
 			),
 		},
