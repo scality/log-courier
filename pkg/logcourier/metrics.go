@@ -9,6 +9,7 @@ import (
 type Metrics struct {
 	General   GeneralMetrics
 	Discovery DiscoveryMetrics
+	Fetch     FetchMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -27,6 +28,13 @@ type DiscoveryMetrics struct {
 	Duration prometheus.Histogram
 }
 
+// FetchMetrics tracks log fetching from ClickHouse
+type FetchMetrics struct {
+	RecordsTotal prometheus.Counter
+	RecordsPerBucket prometheus.Histogram
+	Duration prometheus.Histogram
+}
+
 // NewMetrics creates and registers all Prometheus metrics
 func NewMetrics() *Metrics {
 	return NewMetricsWithRegistry(prometheus.DefaultRegisterer)
@@ -40,6 +48,7 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 	return &Metrics{
 		General:   newGeneralMetrics(factory),
 		Discovery: newDiscoveryMetrics(factory),
+		Fetch:     newFetchMetrics(factory),
 	}
 }
 
@@ -102,5 +111,42 @@ func newDiscoveryMetrics(factory promauto.Factory) DiscoveryMetrics {
 				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 20}, // 100ms to 20s
 			},
 		),
-	},
+	}
+}
+
+func newFetchMetrics(factory promauto.Factory) FetchMetrics {
+	// Get max logs per bucket from config (default: 100000)
+	maxLogsPerBucket := ConfigSpec.GetInt("consumer.max-logs-per-bucket")
+	if maxLogsPerBucket <= 0 {
+		maxLogsPerBucket = 100000 // fallback to default if config not loaded
+	}
+
+	// Generate 10 linear buckets
+	promBuckets := prometheus.LinearBuckets(float64(maxLogsPerBucket)/10, float64(maxLogsPerBucket)/10, 10)
+	// Cover 1 log per bucket
+	if promBuckets[0] != 1.0 {
+		promBuckets = append([]float64{1.0}, promBuckets...)
+	}
+	return FetchMetrics{
+		RecordsTotal: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_fetch_records_total",
+				Help: "Total number of log records fetched from ClickHouse",
+			},
+		),
+		RecordsPerBucket: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_fetch_records_per_bucket",
+				Help:    "Distribution records fetched per bucket",
+				Buckets: promBuckets,
+			},
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_fetch_duration_seconds",
+				Help:    "Time spent fetching log records from ClickHouse",
+				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 20}, // 100ms to 20s
+			},
+		),
+	}
 }
