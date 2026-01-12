@@ -9,9 +9,9 @@ import "time"
 type LogRecord struct {
 	// AWS S3 Server Access Log fields (ordered by AWS format)
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html
-	BucketOwner    *string    `ch:"bucketOwner"`    // 1. Bucket Owner
-	BucketName     string     `ch:"bucketName"`     // 2. Bucket
-	StartTime      *time.Time `ch:"startTime"`      // 3. Time
+	BucketOwner    *string   `ch:"bucketOwner"`     // 1. Bucket Owner
+	BucketName     string    `ch:"bucketName"`      // 2. Bucket
+	StartTime      time.Time `ch:"startTime"`       // 3. Time
 	ClientIP       *string    `ch:"clientIP"`       // 4. Remote IP
 	Requester      *string    `ch:"requester"`      // 5. Requester
 	ReqID          string     `ch:"req_id"`         // 6. Request ID

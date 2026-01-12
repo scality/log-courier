@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS %s.access_logs
 	insertedAt             DateTime DEFAULT now(),
 	hostname               LowCardinality(Nullable(String)),
 
-	startTime              Nullable(DateTime64(3)),
+	startTime              DateTime64(3),
 	requester              Nullable(String),
 	operation              Nullable(String),
 	requestURI             Nullable(String),
