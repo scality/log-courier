@@ -10,6 +10,7 @@ import (
 type Metrics struct {
 	General   GeneralMetrics
 	Discovery DiscoveryMetrics
+	Fetch     FetchMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -36,6 +37,18 @@ type DiscoveryMetrics struct {
 	PendingBatches prometheus.Gauge
 
 	// Duration tracks time spent in discovery queries
+	Duration prometheus.Histogram
+}
+
+// FetchMetrics tracks log fetching from ClickHouse
+type FetchMetrics struct {
+	// RecordsTotal tracks total records fetched from ClickHouse
+	RecordsTotal prometheus.Counter
+
+	// BatchSize tracks distribution of records per batch
+	BatchSize prometheus.Histogram
+
+	// Duration tracks time spent fetching logs
 	Duration prometheus.Histogram
 }
 
@@ -96,6 +109,29 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 				prometheus.HistogramOpts{
 					Name:    "log_courier_discovery_duration_seconds",
 					Help:    "Time spent discovering batches in ClickHouse",
+					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
+				},
+			),
+		},
+
+		Fetch: FetchMetrics{
+			RecordsTotal: factory.NewCounter(
+				prometheus.CounterOpts{
+					Name: "log_courier_fetch_records_total",
+					Help: "Total number of log records fetched from ClickHouse",
+				},
+			),
+			BatchSize: factory.NewHistogram(
+				prometheus.HistogramOpts{
+					Name:    "log_courier_fetch_batch_size_records",
+					Help:    "Distribution of number of records fetched per batch",
+					Buckets: prometheus.ExponentialBuckets(10, 2, 15), // 10, 20, 40, ..., up to ~163k
+				},
+			),
+			Duration: factory.NewHistogram(
+				prometheus.HistogramOpts{
+					Name:    "log_courier_fetch_duration_seconds",
+					Help:    "Time spent fetching log records from ClickHouse",
 					Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}, // 10ms to 10s
 				},
 			),
