@@ -96,7 +96,7 @@ var _ = Describe("BatchFinder", func() {
 				// Set offset to last log
 				lastLogTime := oldTime.Add(5 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), lastLogTime, lastLogTime, "req-007")
@@ -237,7 +237,7 @@ var _ = Describe("BatchFinder", func() {
 				// Set offset to insertedAt=T+3s
 				offsetTime := baseTime.Add(3 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), offsetTime, timestamp, reqID)
@@ -251,34 +251,36 @@ var _ = Describe("BatchFinder", func() {
 				Expect(batches[0].LogCount).To(Equal(uint64(2)))
 			})
 
-			It("should filter when offset differs in timestamp (same insertedAt)", func() {
+			It("should filter when offset differs in startTime (same insertedAt)", func() {
 				baseTime := time.Now().Add(-2 * time.Hour)
 				insertedAt := baseTime
 
-				// Insert 6 logs with same insertedAt, varying timestamps
+				// Insert 6 logs with same insertedAt, varying startTime
 				for i := 0; i < 6; i++ {
+					startTime := baseTime.Add(time.Duration(i) * time.Second)
 					query := fmt.Sprintf(`
 						INSERT INTO %s.%s
-						(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+						(insertedAt, bucketName, startTime, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
-						insertedAt,                                 // insertedAt (same for all)
-						"test-bucket",                              // bucketName
-						baseTime.Add(time.Duration(i)*time.Second), // timestamp varies
-						fmt.Sprintf("req-%03d", i),                 // req_id
-						"GetObject",                                // operation
-						true,                                       // loggingEnabled
-						uint16(0),                                  // raftSessionID
-						"/test-bucket/key",                         // requestURI
+						insertedAt,     			// insertedAt (same for all)
+						"test-bucket",  			// bucketName
+						startTime,      			// startTime varies
+						startTime,      			// timestamp (same as startTime)
+						fmt.Sprintf("req-%03d", i), // req_id
+						"GetObject",    			// operation
+						true,           			// loggingEnabled
+						uint16(0),      			// raftSessionID
+						"/test-bucket/key", 		// requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				// Set offset to (insertedAt=T, timestamp=T+3s, reqID="req-003")
+				// Set offset to (insertedAt=T, startTime=T+3s, reqID="req-003")
 				offsetTimestamp := baseTime.Add(3 * time.Second)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
 					"test-bucket", uint16(0), insertedAt, offsetTimestamp, "req-003")
@@ -318,7 +320,7 @@ var _ = Describe("BatchFinder", func() {
 
 				// Insert 3 offset records: T0, T2, T1 (in this order to test ROW_NUMBER)
 				offsetQuery := fmt.Sprintf(
-					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 
 				t0 := baseTime
@@ -520,7 +522,7 @@ var _ = Describe("BatchFinder", func() {
 			offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
 			err = offsetMgr.CommitOffset(ctx, "test-bucket", uint16(0), logcourier.Offset{
 				InsertedAt: lastLog.InsertedAt,
-				Timestamp:  lastLog.Timestamp,
+				StartTime:  lastLog.StartTime,
 				ReqID:      lastLog.ReqID,
 			})
 			Expect(err).NotTo(HaveOccurred())
