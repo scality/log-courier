@@ -54,7 +54,6 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			hostHeader,
 			tlsVersion,
 			aclRequired,
-			timestamp,
 			insertedAt,
 			loggingTargetBucket,
 			loggingTargetPrefix,
