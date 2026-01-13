@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS %s.offsets
 	bucketName                String,
 	raftSessionID             UInt16,
 	lastProcessedInsertedAt   DateTime,
-	lastProcessedTimestamp    DateTime64(3),
+	lastProcessedStartTime    DateTime64(3),
 	lastProcessedReqId        String
 )
 ENGINE = MergeTree()
