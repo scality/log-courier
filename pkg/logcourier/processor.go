@@ -587,7 +587,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	lastLog := records[len(records)-1]
 	offset := Offset{
 		InsertedAt: lastLog.InsertedAt,
-		Timestamp:  lastLog.Timestamp,
+		StartTime:  lastLog.StartTime,
 		ReqID:      lastLog.ReqID,
 	}
 	raftSessionID := lastLog.RaftSessionID
