@@ -122,7 +122,7 @@ var _ = Describe("ClickHouse Client", func() {
 
 		It("should insert into federated table", func() {
 			testLog := testutil.TestLogRecord{
-				Timestamp:      time.Now(),
+				StartTime:      time.Now(),
 				BucketName:     "test-bucket",
 				ReqID:          "req-123",
 				Action:         "GetObject",
@@ -149,7 +149,7 @@ var _ = Describe("ClickHouse Client", func() {
 			// Insert multiple logs
 			for i := 0; i < 5; i++ {
 				testLog := testutil.TestLogRecord{
-					Timestamp:      now.Add(time.Duration(i) * time.Second),
+					StartTime:      now.Add(time.Duration(i) * time.Second),
 					BucketName:     "test-bucket-multi",
 					ReqID:          fmt.Sprintf("req-%d", i),
 					Action:         "GetObject",
