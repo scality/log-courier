@@ -37,7 +37,6 @@ type LogRecord struct {
 	AclRequired *string `ch:"aclRequired"` // 26. ACL Required
 
 	// Internal fields (not part of AWS log format)
-	Timestamp           time.Time `ch:"timestamp"`           // Event timestamp
 	InsertedAt          time.Time `ch:"insertedAt"`          // ClickHouse insertion timestamp
 	LoggingTargetBucket string    `ch:"loggingTargetBucket"` // Destination bucket for log object
 	LoggingTargetPrefix string    `ch:"loggingTargetPrefix"` // Prefix for log object key

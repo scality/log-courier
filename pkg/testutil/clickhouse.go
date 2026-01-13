@@ -43,7 +43,6 @@ func TimePtr(t time.Time) *time.Time { return &t }
 const schemaAccessLogsLocal = `
 CREATE TABLE IF NOT EXISTS %s.access_logs
 (
-	timestamp              DateTime DEFAULT now(),
 	insertedAt             DateTime DEFAULT now(),
 	hostname               LowCardinality(Nullable(String)),
 
@@ -82,7 +81,7 @@ CREATE TABLE IF NOT EXISTS %s.access_logs
 )
 ENGINE = MergeTree()
 PARTITION BY toStartOfInterval(insertedAt, INTERVAL 1 HOUR)
-ORDER BY (raftSessionID, bucketName, insertedAt, timestamp, req_id)
+ORDER BY (raftSessionID, bucketName, insertedAt, startTime, req_id)
 `
 
 const schemaAccessLogsFederated = `
@@ -339,7 +338,7 @@ func (h *ClickHouseTestHelper) TeardownSchema(ctx context.Context) error {
 
 // TestLogRecord represents a minimal test log record for insertion
 type TestLogRecord struct {
-	Timestamp      time.Time
+	StartTime      time.Time
 	BucketName     string
 	ReqID          string
 	Action         string
@@ -355,18 +354,17 @@ type TestLogRecord struct {
 func (h *ClickHouseTestHelper) InsertTestLog(ctx context.Context, log TestLogRecord) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, insertedAt, startTime, requester, operation, requestURI, errorCode,
+		(insertedAt, startTime, requester, operation, requestURI, errorCode,
 		 objectSize, totalTime, turnAroundTime, referer, userAgent, versionId,
 		 signatureVersion, cipherSuite, authenticationType, hostHeader, tlsVersion,
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 	return h.Clients[0].Exec(ctx, query,
-		log.Timestamp,      // timestamp
 		time.Now(),         // insertedAt
-		log.Timestamp,      // startTime
+		log.StartTime,      // startTime
 		"",                 // requester
 		log.Action,         // operation
 		"",                 // requestURI
@@ -419,18 +417,17 @@ func (h *ClickHouseTestHelper) Close() error {
 func (h *ClickHouseTestHelper) InsertTestLogWithTargetBucket(ctx context.Context, log TestLogRecord, targetBucket, targetPrefix string) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.%s
-		(timestamp, insertedAt, startTime, requester, operation, requestURI, errorCode,
+		(insertedAt, startTime, requester, operation, requestURI, errorCode,
 		 objectSize, totalTime, turnAroundTime, referer, userAgent, versionId,
 		 signatureVersion, cipherSuite, authenticationType, hostHeader, tlsVersion,
 		 aclRequired, bucketOwner, bucketName, req_id, bytesSent, clientIP, httpCode,
 		 objectKey, loggingEnabled, loggingTargetBucket, loggingTargetPrefix, raftSessionID)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, h.DatabaseName, clickhouse.TableAccessLogsFederated)
 
 	return h.Clients[0].Exec(ctx, query,
-		log.Timestamp,      // timestamp
 		time.Now(),         // insertedAt
-		log.Timestamp,      // startTime
+		log.StartTime,      // startTime
 		"",                 // requester
 		log.Action,         // operation
 		"",                 // requestURI
