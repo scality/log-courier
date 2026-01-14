@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS %s.offsets
 	lastProcessedStartTime    DateTime64(3),
 	lastProcessedReqId        String
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(lastProcessedInsertedAt)
 ORDER BY (bucketName, raftSessionID)
 `
 
