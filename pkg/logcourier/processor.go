@@ -261,22 +261,9 @@ func (p *Processor) Run(ctx context.Context) error {
 		p.stopOffsetBuffer = p.offsetBuffer.Start(ctx)
 	}
 
-	// Run initial cycle
-	cycleStart := time.Now()
-	batchCount, err := p.runCycle(ctx)
-	if err != nil {
-		p.logger.Error("cycle failed", "error", err)
-		batchCount = 0 // Treat error as no work found
-	}
-
-	// Mandatory flush after cycle completes
-	// This ensures the next cycle's BatchFinder sees up-to-date offsets.
-	// Without this flush, BatchFinder would query stale offsets from ClickHouse
-	// and rediscover batches we've already processed.
-	if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
-		p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
-		// Continue anyway - offsets remain buffered for next cycle
-	}
+	var batchCount int
+	var err error
+	var cycleStart time.Time // Zero value forces first run immediately
 
 	for {
 		// Select base interval based on work found
@@ -291,19 +278,29 @@ func (p *Processor) Run(ctx context.Context) error {
 		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
 
 		// Calculate sleep duration accounting for processing time
-		processingTime := time.Since(cycleStart)
-		sleepDuration := jitteredInterval - processingTime
-		if sleepDuration < 0 {
+		var processingTime time.Duration
+		var sleepDuration time.Duration
+		if !cycleStart.IsZero() {
+			processingTime = time.Since(cycleStart)
+			sleepDuration = jitteredInterval - processingTime
+			if sleepDuration < 0 {
+				sleepDuration = 0
+			}
+		} else {
+			// First run: no sleep needed
 			sleepDuration = 0
 		}
 
-		p.logger.Debug("scheduling next discovery cycle",
-			"batchesFound", batchCount,
-			"processingTimeSeconds", processingTime.Seconds(),
-			"baseIntervalSeconds", baseInterval.Seconds(),
-			"jitteredIntervalSeconds", jitteredInterval.Seconds(),
-			"sleepDurationSeconds", sleepDuration.Seconds(),
-			"intervalMode", intervalMode)
+		// Don't log scheduling for the first run
+		if !cycleStart.IsZero() {
+			p.logger.Debug("scheduling next discovery cycle",
+				"batchesFound", batchCount,
+				"processingTimeSeconds", processingTime.Seconds(),
+				"baseIntervalSeconds", baseInterval.Seconds(),
+				"jitteredIntervalSeconds", jitteredInterval.Seconds(),
+				"sleepDurationSeconds", sleepDuration.Seconds(),
+				"intervalMode", intervalMode)
+		}
 
 		select {
 		case <-ctx.Done():
@@ -318,7 +315,10 @@ func (p *Processor) Run(ctx context.Context) error {
 				batchCount = 0 // Treat error as no work found
 			}
 
-			// Mandatory flush after cycle completes (see comment above)
+			// Mandatory flush after cycle completes
+			// This ensures the next cycle's BatchFinder sees up-to-date offsets.
+			// Without this flush, BatchFinder would query stale offsets from ClickHouse
+			// and rediscover batches we've already processed.
 			if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
 				p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
 				// Continue anyway - offsets remain buffered for next cycle
