@@ -113,30 +113,30 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
 		b.formatStringPtr(rec.BucketOwner),        // 1. Bucket Owner
-		b.formatString(rec.BucketName),        // 2. Bucket
-		b.formatTimestamp(rec.StartTime),      // 3. Time
+		b.formatString(rec.BucketName),            // 2. Bucket
+		b.formatTimestamp(rec.StartTime),          // 3. Time
 		b.formatStringPtr(rec.ClientIP),           // 4. Remote IP
 		b.formatStringPtr(rec.Requester),          // 5. Requester
-		b.formatString(rec.ReqID),             // 6. Request ID
+		b.formatString(rec.ReqID),                 // 6. Request ID
 		b.formatStringPtr(rec.Operation),          // 7. Operation
 		b.formatStringPtr(rec.ObjectKey),          // 8. Key
 		b.formatQuotedStringPtr(rec.RequestURI),   // 9. Request-URI (quoted)
-		b.formatUint16Ptr(rec.HttpCode),       // 10. HTTP Status
+		b.formatUint16Ptr(rec.HttpCode),           // 10. HTTP Status
 		b.formatStringPtr(rec.ErrorCode),          // 11. Error Code
-		b.formatUint64Ptr(rec.BytesSent),      // 12. Bytes Sent
-		b.formatUint64Ptr(rec.ObjectSize),     // 13. Object Size
-		b.formatFloat32Ptr(rec.TotalTime),     // 14. Total Time
-		b.formatFloat32Ptr(rec.TurnAroundTime), // 15. Turn-Around Time
+		b.formatUint64Ptr(rec.BytesSent),          // 12. Bytes Sent
+		b.formatUint64Ptr(rec.ObjectSize),         // 13. Object Size
+		b.formatFloat32Ptr(rec.TotalTime),         // 14. Total Time
+		b.formatFloat32Ptr(rec.TurnAroundTime),    // 15. Turn-Around Time
 		b.formatQuotedStringPtr(rec.Referer),      // 16. Referer (quoted)
 		b.formatQuotedStringPtr(rec.UserAgent),    // 17. User-Agent (quoted)
 		b.formatStringPtr(rec.VersionID),          // 18. Version Id
-		"-",                                   // 19. Host Id (not implemented)
+		"-",                                       // 19. Host Id (not implemented)
 		b.formatStringPtr(rec.SignatureVersion),   // 20. Signature Version
 		b.formatStringPtr(rec.CipherSuite),        // 21. Cipher Suite
 		b.formatStringPtr(rec.AuthenticationType), // 22. Authentication Type
 		b.formatStringPtr(rec.HostHeader),         // 23. Host Header
 		b.formatStringPtr(rec.TlsVersion),         // 24. TLS Version
-		"-",                                   // 25. Access Point ARN (not implemented)
+		"-",                                       // 25. Access Point ARN (not implemented)
 		b.formatStringPtr(rec.AclRequired),        // 26. ACL Required
 	)
 }

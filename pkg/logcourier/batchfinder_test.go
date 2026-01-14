@@ -82,13 +82,13 @@ var _ = Describe("BatchFinder", func() {
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
 						oldTime.Add(time.Duration(i)*time.Second), // insertedAt
-						"test-bucket",                              // bucketName
-						oldTime.Add(time.Duration(i)*time.Second),  // startTime
-						fmt.Sprintf("req-%03d", i),                 // req_id
-						"GetObject",                                // operation
-						true,                                       // loggingEnabled
-						uint16(0),                                  // raftSessionID
-						"/test-bucket/key",                         // requestURI
+						"test-bucket", // bucketName
+						oldTime.Add(time.Duration(i)*time.Second), // startTime
+						fmt.Sprintf("req-%03d", i),                // req_id
+						"GetObject",                               // operation
+						true,                                      // loggingEnabled
+						uint16(0),                                 // raftSessionID
+						"/test-bucket/key",                        // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -170,14 +170,14 @@ var _ = Describe("BatchFinder", func() {
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
-						oldTime,                        // insertedAt (old)
-						"test-bucket",                  // bucketName
-						oldTime,                        // startTime
-						fmt.Sprintf("req-%03d", i),     // req_id
-						"GetObject",                    // operation
-						true,                           // loggingEnabled
-						uint16(0),                      // raftSessionID
-						"/test-bucket/key",             // requestURI
+						oldTime,                    // insertedAt (old)
+						"test-bucket",              // bucketName
+						oldTime,                    // startTime
+						fmt.Sprintf("req-%03d", i), // req_id
+						"GetObject",                // operation
+						true,                       // loggingEnabled
+						uint16(0),                  // raftSessionID
+						"/test-bucket/key",         // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -222,13 +222,13 @@ var _ = Describe("BatchFinder", func() {
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
 						baseTime.Add(time.Duration(i)*time.Second), // insertedAt varies
-						"test-bucket",                              // bucketName
-						startTime,                                  // startTime (same for all)
-						reqID,                                      // req_id (same for all)
-						"GetObject",                                // operation
-						true,                                       // loggingEnabled
-						uint16(0),                                  // raftSessionID
-						"/test-bucket/key",                         // requestURI
+						"test-bucket",      // bucketName
+						startTime,          // startTime (same for all)
+						reqID,              // req_id (same for all)
+						"GetObject",        // operation
+						true,               // loggingEnabled
+						uint16(0),          // raftSessionID
+						"/test-bucket/key", // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -263,14 +263,14 @@ var _ = Describe("BatchFinder", func() {
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
-						insertedAt,     			// insertedAt (same for all)
-						"test-bucket",  			// bucketName
-						startTime,      			// startTime varies
+						insertedAt,                 // insertedAt (same for all)
+						"test-bucket",              // bucketName
+						startTime,                  // startTime varies
 						fmt.Sprintf("req-%03d", i), // req_id
-						"GetObject",    			// operation
-						true,           			// loggingEnabled
-						uint16(0),      			// raftSessionID
-						"/test-bucket/key", 		// requestURI
+						"GetObject",                // operation
+						true,                       // loggingEnabled
+						uint16(0),                  // raftSessionID
+						"/test-bucket/key",         // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -304,14 +304,14 @@ var _ = Describe("BatchFinder", func() {
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					insertedAt := baseTime.Add(time.Duration(i) * time.Second)
 					err := helper.Client().Exec(ctx, query,
-						insertedAt,                     // insertedAt
-						"test-bucket",                  // bucketName
-						insertedAt,                     // startTime
-						fmt.Sprintf("req-%03d", i),     // req_id
-						"GetObject",                    // operation
-						true,                           // loggingEnabled
-						uint16(0),                      // raftSessionID
-						"/test-bucket/key",             // requestURI
+						insertedAt,                 // insertedAt
+						"test-bucket",              // bucketName
+						insertedAt,                 // startTime
+						fmt.Sprintf("req-%03d", i), // req_id
+						"GetObject",                // operation
+						true,                       // loggingEnabled
+						uint16(0),                  // raftSessionID
+						"/test-bucket/key",         // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -391,14 +391,14 @@ var _ = Describe("BatchFinder", func() {
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
-						oldTime,                        // insertedAt (older)
-						"bucket-A",                     // bucketName
-						oldTime,                        // startTime
-						fmt.Sprintf("req-a-%03d", i),   // req_id
-						"GetObject",                    // operation
-						true,                           // loggingEnabled
-						uint16(0),                      // raftSessionID
-						"/bucket-A/key",                // requestURI
+						oldTime,                      // insertedAt (older)
+						"bucket-A",                   // bucketName
+						oldTime,                      // startTime
+						fmt.Sprintf("req-a-%03d", i), // req_id
+						"GetObject",                  // operation
+						true,                         // loggingEnabled
+						uint16(0),                    // raftSessionID
+						"/bucket-A/key",              // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -411,14 +411,14 @@ var _ = Describe("BatchFinder", func() {
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
-						newerTime,                      // insertedAt (newer)
-						"bucket-B",                     // bucketName
-						newerTime,                      // startTime
-						fmt.Sprintf("req-b-%03d", i),   // req_id
-						"GetObject",                    // operation
-						true,                           // loggingEnabled
-						uint16(0),                      // raftSessionID
-						"/bucket-B/key",                // requestURI
+						newerTime,                    // insertedAt (newer)
+						"bucket-B",                   // bucketName
+						newerTime,                    // startTime
+						fmt.Sprintf("req-b-%03d", i), // req_id
+						"GetObject",                  // operation
+						true,                         // loggingEnabled
+						uint16(0),                    // raftSessionID
+						"/bucket-B/key",              // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}

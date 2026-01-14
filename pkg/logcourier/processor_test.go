@@ -59,24 +59,24 @@ var _ = Describe("Processor", func() {
 		Describe("NewProcessor", func() {
 			It("should create processor successfully", func() {
 				cfg := logcourier.Config{
-					Logger:                  logger,
-					ClickHouseHosts:         logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:      logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHousePassword:      logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseDatabase:      helper.DatabaseName,
-					ClickHouseTimeout:       30 * time.Second,
-					CountThreshold:          5,
-					TimeThresholdSec:        60,
-					MinDiscoveryInterval:    5 * time.Second,
-					MaxDiscoveryInterval:    60 * time.Second,
-					NumWorkers:              2,
-					MaxBucketsPerDiscovery:  100,
-					MaxRetries:              3,
-					InitialBackoff:          1 * time.Second,
-					MaxBackoff:              30 * time.Second,
-					S3Endpoint:              "http://localhost:8000",
-					S3AccessKeyID:           "test-key",
-					S3SecretAccessKey:       "test-secret",
+					Logger:                 logger,
+					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseDatabase:     helper.DatabaseName,
+					ClickHouseTimeout:      30 * time.Second,
+					CountThreshold:         5,
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   5 * time.Second,
+					MaxDiscoveryInterval:   60 * time.Second,
+					NumWorkers:             2,
+					MaxBucketsPerDiscovery: 100,
+					MaxRetries:             3,
+					InitialBackoff:         1 * time.Second,
+					MaxBackoff:             30 * time.Second,
+					S3Endpoint:             "http://localhost:8000",
+					S3AccessKeyID:          "test-key",
+					S3SecretAccessKey:      "test-secret",
 				}
 
 				processor, err := logcourier.NewProcessor(ctx, cfg)
@@ -116,25 +116,25 @@ var _ = Describe("Processor", func() {
 
 			It("should fail with empty S3 credentials", func() {
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHouseTimeout:    30 * time.Second,
-					CountThreshold:       5,
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
-					NumWorkers:           2,
+					Logger:                 logger,
+					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseDatabase:     helper.DatabaseName,
+					ClickHouseTimeout:      30 * time.Second,
+					CountThreshold:         5,
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   5 * time.Second,
+					MaxDiscoveryInterval:   60 * time.Second,
+					NumWorkers:             2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:        10000,
-					MaxRetries:           3,
-					InitialBackoff:       1 * time.Second,
-					MaxBackoff:           30 * time.Second,
-					S3Endpoint:           "http://localhost:8000",
-					S3AccessKeyID:        "",
-					S3SecretAccessKey:    "",
+					MaxLogsPerBucket:       10000,
+					MaxRetries:             3,
+					InitialBackoff:         1 * time.Second,
+					MaxBackoff:             30 * time.Second,
+					S3Endpoint:             "http://localhost:8000",
+					S3AccessKeyID:          "",
+					S3SecretAccessKey:      "",
 				}
 
 				processor, err := logcourier.NewProcessor(ctx, cfg)
@@ -174,25 +174,25 @@ var _ = Describe("Processor", func() {
 
 				// Create processor
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHouseTimeout:    30 * time.Second,
-					CountThreshold:       5, // Lower threshold for faster tests
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 5 * time.Second,
-					MaxDiscoveryInterval: 60 * time.Second,
-					NumWorkers:           2,
+					Logger:                 logger,
+					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseDatabase:     helper.DatabaseName,
+					ClickHouseTimeout:      30 * time.Second,
+					CountThreshold:         5, // Lower threshold for faster tests
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   5 * time.Second,
+					MaxDiscoveryInterval:   60 * time.Second,
+					NumWorkers:             2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:        10000,
-					MaxRetries:           3,
-					InitialBackoff:       100 * time.Millisecond,
-					MaxBackoff:           5 * time.Second,
-					S3Endpoint:           testS3Endpoint,
-					S3AccessKeyID:        workbenchAccessKey,
-					S3SecretAccessKey:    workbenchSecretKey,
+					MaxLogsPerBucket:       10000,
+					MaxRetries:             3,
+					InitialBackoff:         100 * time.Millisecond,
+					MaxBackoff:             5 * time.Second,
+					S3Endpoint:             testS3Endpoint,
+					S3AccessKeyID:          workbenchAccessKey,
+					S3SecretAccessKey:      workbenchSecretKey,
 				}
 
 				processor, err = logcourier.NewProcessor(ctx, cfg)
@@ -276,25 +276,25 @@ var _ = Describe("Processor", func() {
 				It("should process batch when time threshold is exceeded", func() {
 					// Create a processor with a short time threshold (2 seconds)
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       10,
-						TimeThresholdSec:     2,
-						MinDiscoveryInterval: 2 * time.Second,
-						MaxDiscoveryInterval: 2 * time.Second,
-						NumWorkers:           2,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         10,
+						TimeThresholdSec:       2,
+						MinDiscoveryInterval:   2 * time.Second,
+						MaxDiscoveryInterval:   2 * time.Second,
+						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBucket:        10000,
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Endpoint:           testS3Endpoint,
-						S3AccessKeyID:        workbenchAccessKey,
-						S3SecretAccessKey:    workbenchSecretKey,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Endpoint:             testS3Endpoint,
+						S3AccessKeyID:          workbenchAccessKey,
+						S3SecretAccessKey:      workbenchSecretKey,
 					}
 
 					timeProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -377,23 +377,23 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with counting uploader
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       5,
-						TimeThresholdSec:     60,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
-						NumWorkers:           2,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   5 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBucket:        10000,
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Uploader:           countingUploader,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
 					}
 
 					testProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -459,23 +459,23 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with invalid credentials uploader
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       5,
-						TimeThresholdSec:     60,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
-						NumWorkers:           2,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   5 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBucket:        10000,
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Uploader:           countingUploader,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
 					}
 
 					testProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -626,23 +626,23 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with restricted uploader
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       5,
-						TimeThresholdSec:     60,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
-						NumWorkers:           2,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   5 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBucket:        10000,
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Uploader:           countingUploader,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
 					}
 
 					testProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -777,7 +777,7 @@ var _ = Describe("Processor", func() {
 						MaxDiscoveryInterval:   1 * time.Second,
 						NumWorkers:             2,
 						MaxBucketsPerDiscovery: 2,  // Process 2 buckets per cycle
-						MaxLogsPerBucket:        10, // Fetch 10 logs per batch
+						MaxLogsPerBucket:       10, // Fetch 10 logs per batch
 						MaxRetries:             3,
 						InitialBackoff:         100 * time.Millisecond,
 						MaxBackoff:             5 * time.Second,
@@ -829,7 +829,7 @@ var _ = Describe("Processor", func() {
 							}
 						}
 						return totalObjects
-					}).WithTimeout(12 * time.Second).WithPolling(200 * time.Millisecond).Should(
+					}).WithTimeout(12*time.Second).WithPolling(200*time.Millisecond).Should(
 						BeNumerically(">=", 6),
 						"Expected at least 6 S3 objects for 60 logs with MaxLogsPerBucket=10",
 					)
@@ -871,25 +871,25 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with short discovery interval to ensure multiple cycles
 					cfg := logcourier.Config{
-						Logger:                     logger,
-						ClickHouseHosts:            logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:         logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:         helper.DatabaseName,
-						ClickHousePassword:         logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:          30 * time.Second,
-						CountThreshold:             5,
-						TimeThresholdSec:           60,
-						MinDiscoveryInterval:       500 * time.Millisecond, // Short interval for fast cycle 2
-						MaxDiscoveryInterval:       500 * time.Millisecond,
-						NumWorkers:                 2,
-						MaxBucketsPerDiscovery:     100,
-						MaxLogsPerBucket:           10000,
-						MaxRetries:                 3,
-						InitialBackoff:             100 * time.Millisecond,
-						MaxBackoff:                 5 * time.Second,
-						S3Uploader:                 countingUploader,
-						OffsetFlushTimeThreshold:   1 * time.Second,
-						OffsetFlushCountThreshold:  50,
+						Logger:                    logger,
+						ClickHouseHosts:           logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:        logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:        helper.DatabaseName,
+						ClickHousePassword:        logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:         30 * time.Second,
+						CountThreshold:            5,
+						TimeThresholdSec:          60,
+						MinDiscoveryInterval:      500 * time.Millisecond, // Short interval for fast cycle 2
+						MaxDiscoveryInterval:      500 * time.Millisecond,
+						NumWorkers:                2,
+						MaxBucketsPerDiscovery:    100,
+						MaxLogsPerBucket:          10000,
+						MaxRetries:                3,
+						InitialBackoff:            100 * time.Millisecond,
+						MaxBackoff:                5 * time.Second,
+						S3Uploader:                countingUploader,
+						OffsetFlushTimeThreshold:  1 * time.Second,
+						OffsetFlushCountThreshold: 50,
 					}
 
 					processor, err := logcourier.NewProcessor(ctx, cfg)
@@ -923,7 +923,7 @@ var _ = Describe("Processor", func() {
 					// Wait for initial upload (Cycle 1)
 					Eventually(func() int64 {
 						return countingUploader.GetUploadCount()
-					}).WithTimeout(3 * time.Second).WithPolling(100 * time.Millisecond).Should(
+					}).WithTimeout(3*time.Second).WithPolling(100*time.Millisecond).Should(
 						Equal(int64(1)),
 						"Expected exactly 1 upload in Cycle 1",
 					)
@@ -937,7 +937,7 @@ var _ = Describe("Processor", func() {
 					// If rediscovery happens, upload count will increase and Consistently will fail
 					Consistently(func() int64 {
 						return countingUploader.GetUploadCount()
-					}).WithTimeout(2 * time.Second).WithPolling(100 * time.Millisecond).Should(
+					}).WithTimeout(2*time.Second).WithPolling(100*time.Millisecond).Should(
 						Equal(int64(1)),
 						"Upload count should remain 1 across multiple cycles - batch should not be rediscovered",
 					)
@@ -980,23 +980,23 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with counting uploader
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       5, // Match BeforeEach processor threshold
-						TimeThresholdSec:     60,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5, // Match BeforeEach processor threshold
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   5 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
 						MaxBucketsPerDiscovery: 100,
-						MaxLogsPerBucket:        10000,
-						NumWorkers:           3, // Allow parallel processing
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Uploader:           countingUploader,
+						MaxLogsPerBucket:       10000,
+						NumWorkers:             3, // Allow parallel processing
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
 					}
 
 					testProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -1127,24 +1127,24 @@ var _ = Describe("Processor", func() {
 
 					// Create processor with both wrappers
 					cfg := logcourier.Config{
-						Logger:               logger,
-						ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-						ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-						ClickHouseDatabase:   helper.DatabaseName,
-						ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-						ClickHouseTimeout:    30 * time.Second,
-						CountThreshold:       5,
-						TimeThresholdSec:     60,
-						MinDiscoveryInterval: 5 * time.Second,
-						MaxDiscoveryInterval: 60 * time.Second,
-						NumWorkers:           2,
-					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:        10000,
-						MaxRetries:           3,
-						InitialBackoff:       100 * time.Millisecond,
-						MaxBackoff:           5 * time.Second,
-						S3Uploader:           countingUploader,
-						OffsetManager:        failingOffsetMgr,
+						Logger:                 logger,
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   5 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
+						OffsetManager:          failingOffsetMgr,
 					}
 
 					testProcessor, err := logcourier.NewProcessor(ctx, cfg)
@@ -1248,23 +1248,23 @@ var _ = Describe("Processor", func() {
 				countingUploader = testutil.NewCountingUploader(uploader)
 
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseTimeout:    30 * time.Second,
-					CountThreshold:       5,
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 1 * time.Second,
-					MaxDiscoveryInterval: 10 * time.Second,
-					NumWorkers:           2,
+					Logger:                 logger,
+					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHouseDatabase:     helper.DatabaseName,
+					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseTimeout:      30 * time.Second,
+					CountThreshold:         5,
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   1 * time.Second,
+					MaxDiscoveryInterval:   10 * time.Second,
+					NumWorkers:             2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:        10000,
-					MaxRetries:           1,
-					InitialBackoff:       100 * time.Millisecond,
-					MaxBackoff:           500 * time.Millisecond,
-					S3Uploader:           countingUploader,
+					MaxLogsPerBucket:       10000,
+					MaxRetries:             1,
+					InitialBackoff:         100 * time.Millisecond,
+					MaxBackoff:             500 * time.Millisecond,
+					S3Uploader:             countingUploader,
 				}
 
 				processor, err = logcourier.NewProcessor(ctx, cfg)
@@ -1347,29 +1347,29 @@ var _ = Describe("Processor", func() {
 
 				// Create processor with MaxRetries=1 (2 total attempts per cycle)
 				cfg := logcourier.Config{
-					Logger:               logger,
-					ClickHouseHosts:      logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:   logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHouseDatabase:   helper.DatabaseName,
-					ClickHousePassword:   logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseTimeout:    30 * time.Second,
+					Logger:             logger,
+					ClickHouseHosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+					ClickHouseUsername: logcourier.ConfigSpec.GetString("clickhouse.username"),
+					ClickHouseDatabase: helper.DatabaseName,
+					ClickHousePassword: logcourier.ConfigSpec.GetString("clickhouse.password"),
+					ClickHouseTimeout:  30 * time.Second,
 					ClickHouseSettings: map[string]interface{}{
 						"insert_distributed_sync": 1,
 					},
-					CountThreshold:       5,
-					TimeThresholdSec:     60,
-					MinDiscoveryInterval: 1 * time.Second,
-					MaxDiscoveryInterval: 10 * time.Second,
-					NumWorkers:           2,
+					CountThreshold:         5,
+					TimeThresholdSec:       60,
+					MinDiscoveryInterval:   1 * time.Second,
+					MaxDiscoveryInterval:   10 * time.Second,
+					NumWorkers:             2,
 					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:        10000,
-					MaxRetries:           1, // 2 total attempts (0 and 1)
-					InitialBackoff:       100 * time.Millisecond,
-					MaxBackoff:           500 * time.Millisecond,
-					S3Endpoint:           testS3Endpoint,
-					S3AccessKeyID:        workbenchAccessKey,
-					S3SecretAccessKey:    workbenchSecretKey,
-					OffsetManager:        failingOffsetMgr,
+					MaxLogsPerBucket:       10000,
+					MaxRetries:             1, // 2 total attempts (0 and 1)
+					InitialBackoff:         100 * time.Millisecond,
+					MaxBackoff:             500 * time.Millisecond,
+					S3Endpoint:             testS3Endpoint,
+					S3AccessKeyID:          workbenchAccessKey,
+					S3SecretAccessKey:      workbenchSecretKey,
+					OffsetManager:          failingOffsetMgr,
 				}
 
 				var err error

@@ -119,14 +119,14 @@ type Config struct {
 	// OffsetFlushCountThreshold is the count threshold for offset flushing
 	OffsetFlushCountThreshold int
 
-	ClickHouseHosts     []string
-	ClickHouseUsername  string
-	ClickHousePassword  string
-	ClickHouseDatabase  string
-	ClickHouseSettings  map[string]interface{} // Optional ClickHouse settings (e.g., for tests)
-	S3Endpoint          string
-	S3AccessKeyID       string
-	S3SecretAccessKey   string
+	ClickHouseHosts    []string
+	ClickHouseUsername string
+	ClickHousePassword string
+	ClickHouseDatabase string
+	ClickHouseSettings map[string]interface{} // Optional ClickHouse settings (e.g., for tests)
+	S3Endpoint         string
+	S3AccessKeyID      string
+	S3SecretAccessKey  string
 
 	// S3Uploader is an optional S3 uploader for testing (if nil, one will be created)
 	S3Uploader s3.UploaderInterface
@@ -208,8 +208,8 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	})
 
 	return &Processor{
-		clickhouseClient:              chClient,
-		s3Uploader:                    s3Uploader,
+		clickhouseClient: chClient,
+		s3Uploader:       s3Uploader,
 		workDiscovery: NewBatchFinder(
 			chClient,
 			database,
@@ -217,7 +217,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 			cfg.TimeThresholdSec,
 			cfg.MaxBucketsPerDiscovery,
 		),
-		logFetcher: NewLogFetcher(chClient, database, cfg.MaxLogsPerBucket),
+		logFetcher:                    NewLogFetcher(chClient, database, cfg.MaxLogsPerBucket),
 		logBuilder:                    NewLogObjectBuilder(),
 		offsetManager:                 offsetManager,
 		offsetBuffer:                  offsetBuffer,
@@ -624,8 +624,8 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 		"sizeBytes", len(logObj.Content))
 
 	return &ProcessResult{
-		Records: records,
-		Offset:  offset,
+		Records:       records,
+		Offset:        offset,
 		RaftSessionID: raftSessionID,
 	}, nil
 }

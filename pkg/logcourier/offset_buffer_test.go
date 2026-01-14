@@ -57,7 +57,6 @@ func (m *mockOffsetManager) GetCommitCount() int64 {
 	return m.commitCount.Load()
 }
 
-
 var _ = Describe("OffsetBuffer", func() {
 	var (
 		ctx           context.Context
@@ -354,8 +353,8 @@ var _ = Describe("OffsetBuffer", func() {
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
 				BackoffJitterFactor: 0.1,
-				FlushTimeThreshold:  1 * time.Second,  // Long enough to not trigger during test
-				FlushCountThreshold: 3,                // Trigger after 3 offsets
+				FlushTimeThreshold:  1 * time.Second, // Long enough to not trigger during test
+				FlushCountThreshold: 3,               // Trigger after 3 offsets
 			})
 			stop = buffer.Start(ctx)
 		})
@@ -603,7 +602,7 @@ var _ = Describe("OffsetBuffer", func() {
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
 				BackoffJitterFactor: 0.0,
-				FlushCountThreshold: 2,              // Trigger after 2 offsets
+				FlushCountThreshold: 2,                // Trigger after 2 offsets
 				FlushTimeThreshold:  10 * time.Second, // Don't trigger time-based
 			})
 			stop := buffer.Start(ctx)
@@ -670,7 +669,7 @@ var _ = Describe("OffsetBuffer", func() {
 				default:
 					return false
 				}
-			}).WithTimeout(2 * time.Second).WithPolling(50 * time.Millisecond).Should(BeTrue(),
+			}).WithTimeout(2*time.Second).WithPolling(50*time.Millisecond).Should(BeTrue(),
 				"Second flush should complete after first flush finishes")
 
 			Expect(secondFlushErr).NotTo(HaveOccurred())
@@ -707,7 +706,7 @@ var _ = Describe("OffsetBuffer", func() {
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
 				BackoffJitterFactor: 0.0,
-				FlushCountThreshold: 0,              // Disable count-based
+				FlushCountThreshold: 0,                // Disable count-based
 				FlushTimeThreshold:  10 * time.Second, // Disable time-based
 			})
 			stop := buffer.Start(ctx)
