@@ -1,0 +1,144 @@
+---
+name: e2e-tests
+
+on:
+  push:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-image:
+    name: Build log-courier debug image
+    uses: ./.github/workflows/build-debug-image.yaml
+    with:
+      tag: ${{ github.sha }}
+
+  e2e-tests:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    needs: build-image
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Start Workbench
+        uses: scality/workbench@v0.10.0
+
+      - name: Wait for all services
+        run: |
+          set -e
+
+          echo "Waiting for ClickHouse setup container to complete..."
+          if ! timeout 90 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-setup-clickhouse 2>/dev/null)" = "exited" ]; do sleep 1; done'; then
+            echo "ERROR: ClickHouse setup container did not complete in time"
+            docker logs workbench-setup-clickhouse || true
+            exit 1
+          fi
+          echo "✓ ClickHouse setup completed"
+
+          echo "Waiting for ClickHouse shard 1 to be ready..."
+          shard1_ready=false
+          for i in {1..45}; do
+            if docker exec workbench-clickhouse-shard-1 clickhouse-client --host localhost --port 9002 --query "SELECT 1" >/dev/null 2>&1; then
+              shard1_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$shard1_ready" = false ]; then
+            echo "ERROR: ClickHouse shard 1 did not become ready in time"
+            docker logs workbench-clickhouse-shard-1 || true
+            exit 1
+          fi
+          echo "✓ ClickHouse shard 1 ready"
+
+          echo "Waiting for ClickHouse shard 2 to be ready..."
+          shard2_ready=false
+          for i in {1..45}; do
+            if docker exec workbench-clickhouse-shard-2 clickhouse-client --host localhost --port 9002 --query "SELECT 1" >/dev/null 2>&1; then
+              shard2_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$shard2_ready" = false ]; then
+            echo "ERROR: ClickHouse shard 2 did not become ready in time"
+            docker logs workbench-clickhouse-shard-2 || true
+            exit 1
+          fi
+          echo "✓ ClickHouse shard 2 ready"
+
+          echo "Waiting for workbench-s3 container to be running..."
+          if ! timeout 90 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-s3 2>/dev/null)" = "running" ]; do sleep 1; done'; then
+            echo "ERROR: workbench-s3 container did not start in time"
+            docker logs workbench-s3 || true
+            exit 1
+          fi
+          echo "✓ workbench-s3 container running"
+
+          echo "Waiting for S3 endpoint to be available..."
+          s3_ready=false
+          for i in {1..60}; do
+            if curl -s http://localhost:8000 >/dev/null 2>&1; then
+              s3_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$s3_ready" = false ]; then
+            echo "ERROR: S3 endpoint (localhost:8000) did not become available in time"
+            echo "Container status:"
+            docker inspect workbench-s3 | jq '.[0].State' || true
+            echo "Container logs:"
+            docker logs workbench-s3 || true
+            exit 1
+          fi
+          echo "✓ S3 endpoint available"
+
+      - name: Start log-courier
+        env:
+          LOG_COURIER_IMAGE: ghcr.io/${{ github.repository_owner }}/log-courier:${{ github.sha }}-debug
+        run: docker compose up -d log-courier
+
+      - name: Wait for log-courier to be healthy
+        run: |
+          echo "Waiting for log-courier to be healthy..."
+          if ! timeout 60 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} log-courier 2>/dev/null)" = "healthy" ]; do echo -n "."; sleep 1; done'; then
+            echo ""
+            echo "ERROR: log-courier did not become healthy in time"
+            echo "Container status:"
+            docker inspect log-courier | jq '.[0].State' || true
+            echo "Container logs:"
+            docker logs log-courier || true
+            exit 1
+          fi
+          echo ""
+          echo "✓ log-courier healthy"
+
+      - name: Run e2e tests
+        run: make test-e2e
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose logs log-courier
+          docker compose down
+          workbench logs
+          workbench down
