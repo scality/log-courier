@@ -1,0 +1,52 @@
+# ClickHouse connection
+clickhouse:
+  url: "127.0.0.1:9002,127.0.0.1:9003"
+  username: "default"
+  password: ""
+  timeout-seconds: 30
+
+# S3 connection
+s3:
+  endpoint: "http://127.0.0.1:8000"
+  access-key-id: "LSOVSCTL01CME9OETI5A"
+  secret-access-key: "6xHQtgUX46WwfsxyhhdatdWqlZj0omlgVSLx4qNV"
+  max-retry-attempts: 3
+  max-backoff-delay-seconds: 20
+
+# Consumer behavior (aggressive for fast e2e feedback)
+consumer:
+  count-threshold: 2
+  time-threshold-seconds: 2
+  min-discovery-interval-seconds: 1
+  max-discovery-interval-seconds: 1
+  discovery-interval-jitter-factor: 0
+  num-workers: 5
+  max-buckets-per-discovery: 100
+  max-logs-per-bucket: 100000
+
+# Retry logic
+retry:
+  max-retries: 5
+  initial-backoff-seconds: 1
+  max-backoff-seconds: 60
+  backoff-jitter-factor: 0.3
+
+# Operation timeouts
+timeout:
+  upload-operation-seconds: 300
+  commit-operation-seconds: 30
+
+# Offset flushing
+offset:
+  flush-time-threshold-ms: 1000
+  flush-count-threshold: 50
+
+# Metrics server
+metrics-server:
+  enabled: true
+  listen-address: "127.0.0.1"
+  listen-port: 9090
+
+# General settings
+log-level: "debug"
+shutdown-timeout-seconds: 30

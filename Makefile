@@ -35,6 +35,9 @@ test-coverage: COVER_TESTFLAGS=$(COVER_COMMONFLAGS) -coverprofile cover.out
 test-coverage: test
 	go tool covdata textfmt -i $(COVDATA_DIR) -o integration-coverage.out
 
+test-e2e:
+	go test -v ./test/e2e/...
+
 lint:
 	golangci-lint run
 

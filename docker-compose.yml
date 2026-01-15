@@ -3,14 +3,17 @@ services:
     build:
       context: .
       dockerfile: images/svc-base/Dockerfile
+      target: runtime-debug
     image: ${LOG_COURIER_IMAGE:-log-courier:local}
     container_name: log-courier
     network_mode: host
-    profiles:
-      - full
-    environment:
-      SUPERVISORD_CONF: supervisord.conf
+    command: ["/usr/local/bin/log-courier", "--config-file", "/conf/log-courier.yml"]
     volumes:
-      - ./deployment/conf/supervisord.conf:/conf/supervisord.conf:ro
-      - ./deployment/conf/env:/conf/env:ro
+      - ./deployment/conf/log-courier.yml:/conf/log-courier.yml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9090/metrics"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
