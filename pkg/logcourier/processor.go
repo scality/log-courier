@@ -640,12 +640,18 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	raftSessionID := lastLog.RaftSessionID
 
 	// 2. Build log object
+	buildStart := time.Now()
 	logObj, err := p.logBuilder.Build(records)
+	buildDuration := time.Since(buildStart)
+	p.metrics.Build.Duration.Observe(buildDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to build log object: %w", err)
 	}
 
 	p.logger.Debug("built log object", "bucketName", batch.Bucket, "s3Key", logObj.Key, "sizeBytes", len(logObj.Content))
+	p.metrics.Build.ObjectsTotal.Inc()
+	p.metrics.Build.ObjectSizeBytes.Observe(float64(len(logObj.Content)))
 
 	// 3. Upload to S3
 	// Configuration Handling: Use logging target bucket from the first record.
