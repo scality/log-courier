@@ -113,72 +113,94 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 // Note: ClickHouse stores "-" for fields not applicable to an operation
 func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
-		b.formatField(rec.BucketOwner),        // 1. Bucket Owner
-		b.formatField(rec.BucketName),         // 2. Bucket
+		b.formatStringPtr(rec.BucketOwner),        // 1. Bucket Owner
+		b.formatString(rec.BucketName),        // 2. Bucket
 		b.formatTimestamp(rec.StartTime),      // 3. Time
-		b.formatField(rec.ClientIP),           // 4. Remote IP
-		b.formatField(rec.Requester),          // 5. Requester
-		b.formatField(rec.ReqID),              // 6. Request ID
-		b.formatField(rec.Operation),          // 7. Operation
-		b.formatField(rec.ObjectKey),          // 8. Key
-		b.formatQuotedField(rec.RequestURI),   // 9. Request-URI (quoted)
-		b.formatUint16(rec.HttpCode),          // 10. HTTP Status
-		b.formatField(rec.ErrorCode),          // 11. Error Code
-		b.formatUint64(rec.BytesSent),         // 12. Bytes Sent
-		b.formatUint64(rec.ObjectSize),        // 13. Object Size
-		b.formatFloat32(rec.TotalTime),        // 14. Total Time
-		b.formatFloat32(rec.TurnAroundTime),   // 15. Turn-Around Time
-		b.formatQuotedField(rec.Referer),      // 16. Referer (quoted)
-		b.formatQuotedField(rec.UserAgent),    // 17. User-Agent (quoted)
-		b.formatField(rec.VersionID),          // 18. Version Id
+		b.formatStringPtr(rec.ClientIP),           // 4. Remote IP
+		b.formatStringPtr(rec.Requester),          // 5. Requester
+		b.formatString(rec.ReqID),             // 6. Request ID
+		b.formatStringPtr(rec.Operation),          // 7. Operation
+		b.formatStringPtr(rec.ObjectKey),          // 8. Key
+		b.formatQuotedStringPtr(rec.RequestURI),   // 9. Request-URI (quoted)
+		b.formatUint16Ptr(rec.HttpCode),       // 10. HTTP Status
+		b.formatStringPtr(rec.ErrorCode),          // 11. Error Code
+		b.formatUint64Ptr(rec.BytesSent),      // 12. Bytes Sent
+		b.formatUint64Ptr(rec.ObjectSize),     // 13. Object Size
+		b.formatFloat32Ptr(rec.TotalTime),     // 14. Total Time
+		b.formatFloat32Ptr(rec.TurnAroundTime), // 15. Turn-Around Time
+		b.formatQuotedStringPtr(rec.Referer),      // 16. Referer (quoted)
+		b.formatQuotedStringPtr(rec.UserAgent),    // 17. User-Agent (quoted)
+		b.formatStringPtr(rec.VersionID),          // 18. Version Id
 		"-",                                   // 19. Host Id (not implemented)
-		b.formatField(rec.SignatureVersion),   // 20. Signature Version
-		b.formatField(rec.CipherSuite),        // 21. Cipher Suite
-		b.formatField(rec.AuthenticationType), // 22. Authentication Type
-		b.formatField(rec.HostHeader),         // 23. Host Header
-		b.formatField(rec.TlsVersion),         // 24. TLS Version
+		b.formatStringPtr(rec.SignatureVersion),   // 20. Signature Version
+		b.formatStringPtr(rec.CipherSuite),        // 21. Cipher Suite
+		b.formatStringPtr(rec.AuthenticationType), // 22. Authentication Type
+		b.formatStringPtr(rec.HostHeader),         // 23. Host Header
+		b.formatStringPtr(rec.TlsVersion),         // 24. TLS Version
 		"-",                                   // 25. Access Point ARN (not implemented)
-		b.formatField(rec.AclRequired),        // 26. ACL Required
+		b.formatStringPtr(rec.AclRequired),        // 26. ACL Required
 	)
 }
 
-// formatField formats a string field, using "-" for empty values
-func (b *LogObjectBuilder) formatField(s string) string {
+// formatStringPtr formats a nullable unquoted string field
+// Both NULL and empty string → "-" (cannot distinguish in space-delimited format)
+func (b *LogObjectBuilder) formatStringPtr(s *string) string {
+	if s == nil || *s == "" {
+		return "-"
+	}
+	return *s
+}
+
+// formatString formats a non-nullable string field, using "-" for empty values
+func (b *LogObjectBuilder) formatString(s string) string {
 	if s == "" {
 		return "-"
 	}
 	return s
 }
 
-// formatQuotedField formats a quoted string field, using "-" for empty values
+// formatQuotedStringPtr formats a nullable quoted string field
+// Both NULL and empty string -> "-"
+// Non-empty -> quoted value
 // Fields that need quoting: Request-URI, Referer, User-Agent
-func (b *LogObjectBuilder) formatQuotedField(s string) string {
-	if s == "" {
+func (b *LogObjectBuilder) formatQuotedStringPtr(s *string) string {
+	if s == nil || *s == "" {
 		return "-"
 	}
-	// Quote the field
-	return fmt.Sprintf("%q", s)
+	return fmt.Sprintf("%q", *s)
 }
 
 // formatTimestamp formats a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
-// Always outputs in UTC timezone
-func (b *LogObjectBuilder) formatTimestamp(t time.Time) string {
+// Always outputs in UTC timezone, or "-" for NULL
+func (b *LogObjectBuilder) formatTimestamp(t *time.Time) string {
+	if t == nil {
+		return "-"
+	}
 	utc := t.UTC()
 
 	return utc.Format("[02/Jan/2006:15:04:05 +0000]")
 }
 
-// formatUint16 formats a uint16 as a decimal string
-func (b *LogObjectBuilder) formatUint16(n uint16) string {
-	return fmt.Sprintf("%d", n)
+// formatUint16Ptr formats a pointer to uint16, using "-" for NULL
+func (b *LogObjectBuilder) formatUint16Ptr(n *uint16) string {
+	if n == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", *n)
 }
 
-// formatUint64 formats a uint64 as a decimal string
-func (b *LogObjectBuilder) formatUint64(n uint64) string {
-	return fmt.Sprintf("%d", n)
+// formatUint64Ptr formats a pointer to uint64, using "-" for NULL
+func (b *LogObjectBuilder) formatUint64Ptr(n *uint64) string {
+	if n == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", *n)
 }
 
-// formatFloat32 formats a float32 as a string
-func (b *LogObjectBuilder) formatFloat32(f float32) string {
-	return fmt.Sprintf("%g", f)
+// formatFloat32Ptr formats a pointer to float32, using "-" for NULL
+func (b *LogObjectBuilder) formatFloat32Ptr(f *float32) string {
+	if f == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%g", *f)
 }

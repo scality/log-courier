@@ -13,6 +13,25 @@ import (
 )
 
 // ==========================================
+// Helper Functions for Pointer Values
+// ==========================================
+
+// StrPtr returns a pointer to a string value
+func StrPtr(s string) *string { return &s }
+
+// Uint16Ptr returns a pointer to a uint16 value
+func Uint16Ptr(n uint16) *uint16 { return &n }
+
+// Uint64Ptr returns a pointer to a uint64 value
+func Uint64Ptr(n uint64) *uint64 { return &n }
+
+// Float32Ptr returns a pointer to a float32 value
+func Float32Ptr(f float32) *float32 { return &f }
+
+// TimePtr returns a pointer to a time.Time value
+func TimePtr(t time.Time) *time.Time { return &t }
+
+// ==========================================
 // Test Schema Definitions
 // ==========================================
 // These schemas mirror the Federation ClickHouse setup but without replication.
@@ -24,42 +43,42 @@ import (
 const schemaAccessLogsLocal = `
 CREATE TABLE IF NOT EXISTS %s.access_logs
 (
-	timestamp              DateTime,
+	timestamp              DateTime DEFAULT now(),
 	insertedAt             DateTime DEFAULT now(),
-	hostname               LowCardinality(String),
+	hostname               LowCardinality(Nullable(String)),
 
-	startTime              DateTime64(3),
-	requester              String,
-	operation              String,
-	requestURI             String,
-	errorCode              String,
-	objectSize             UInt64,
-	totalTime              Float32,
-	turnAroundTime         Float32,
-	referer                String,
-	userAgent              String,
-	versionId              String,
-	signatureVersion       LowCardinality(String),
-	cipherSuite            LowCardinality(String),
-	authenticationType     LowCardinality(String),
-	hostHeader             String,
-	tlsVersion             LowCardinality(String),
-	aclRequired            LowCardinality(String),
+	startTime              Nullable(DateTime64(3)),
+	requester              Nullable(String),
+	operation              Nullable(String),
+	requestURI             Nullable(String),
+	errorCode              Nullable(String),
+	objectSize             Nullable(UInt64),
+	totalTime              Nullable(Float32),
+	turnAroundTime         Nullable(Float32),
+	referer                Nullable(String),
+	userAgent              Nullable(String),
+	versionId              Nullable(String),
+	signatureVersion       LowCardinality(Nullable(String)),
+	cipherSuite            LowCardinality(Nullable(String)),
+	authenticationType     LowCardinality(Nullable(String)),
+	hostHeader             Nullable(String),
+	tlsVersion             LowCardinality(Nullable(String)),
+	aclRequired            LowCardinality(Nullable(String)),
 
-	bucketOwner            String,
-	bucketName             String,
-	req_id                 String,
-	bytesSent              UInt64,
-	clientIP               String,
-	httpCode               UInt16,
-	objectKey              String,
+	bucketOwner            Nullable(String),
+	bucketName             String DEFAULT '',
+	req_id                 String DEFAULT '',
+	bytesSent              Nullable(UInt64),
+	clientIP               Nullable(String),
+	httpCode               Nullable(UInt16),
+	objectKey              Nullable(String),
 
-	logFormatVersion       LowCardinality(String),
-	loggingEnabled         Bool,
-	loggingTargetBucket    String,
-	loggingTargetPrefix    String,
-	awsAccessKeyID         String,
-	raftSessionID          UInt16
+	logFormatVersion       LowCardinality(Nullable(String)),
+	loggingEnabled         Bool DEFAULT false,
+	loggingTargetBucket    String DEFAULT '',
+	loggingTargetPrefix    String DEFAULT '',
+	awsAccessKeyID         Nullable(String),
+	raftSessionID          UInt16 DEFAULT 0,
 )
 ENGINE = MergeTree()
 PARTITION BY toStartOfInterval(insertedAt, INTERVAL 1 HOUR)
