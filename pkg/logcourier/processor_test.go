@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/viper"
 
 	"github.com/scality/log-courier/pkg/logcourier"
@@ -60,6 +61,7 @@ var _ = Describe("Processor", func() {
 			It("should create processor successfully", func() {
 				cfg := logcourier.Config{
 					Logger:                 logger,
+					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
@@ -90,6 +92,7 @@ var _ = Describe("Processor", func() {
 			It("should fail with invalid ClickHouse URL", func() {
 				cfg := logcourier.Config{
 					Logger:                 logger,
+					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:        []string{"invalid://url:9000"},
 					ClickHouseUsername:     "default",
 					ClickHousePassword:     "",
@@ -117,6 +120,7 @@ var _ = Describe("Processor", func() {
 			It("should fail with empty S3 credentials", func() {
 				cfg := logcourier.Config{
 					Logger:                 logger,
+					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
@@ -175,6 +179,7 @@ var _ = Describe("Processor", func() {
 				// Create processor
 				cfg := logcourier.Config{
 					Logger:                 logger,
+					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
@@ -277,6 +282,7 @@ var _ = Describe("Processor", func() {
 					// Create a processor with a short time threshold (2 seconds)
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
@@ -378,6 +384,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with counting uploader
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:     helper.DatabaseName,
@@ -460,6 +467,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with invalid credentials uploader
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:     helper.DatabaseName,
@@ -627,6 +635,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with restricted uploader
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:     helper.DatabaseName,
@@ -766,6 +775,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with low pagination limits to force multiple cycles
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
@@ -872,6 +882,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with short discovery interval to ensure multiple cycles
 					cfg := logcourier.Config{
 						Logger:                    logger,
+						Metrics:                   logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:           logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:        logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:        helper.DatabaseName,
@@ -981,6 +992,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with counting uploader
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:     helper.DatabaseName,
@@ -1128,6 +1140,7 @@ var _ = Describe("Processor", func() {
 					// Create processor with both wrappers
 					cfg := logcourier.Config{
 						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 						ClickHouseDatabase:     helper.DatabaseName,
@@ -1249,6 +1262,7 @@ var _ = Describe("Processor", func() {
 
 				cfg := logcourier.Config{
 					Logger:                 logger,
+					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
 					ClickHouseDatabase:     helper.DatabaseName,
@@ -1348,6 +1362,7 @@ var _ = Describe("Processor", func() {
 				// Create processor with MaxRetries=1 (2 total attempts per cycle)
 				cfg := logcourier.Config{
 					Logger:             logger,
+					Metrics:            logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					ClickHouseHosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
 					ClickHouseUsername: logcourier.ConfigSpec.GetString("clickhouse.username"),
 					ClickHouseDatabase: helper.DatabaseName,
