@@ -11,6 +11,7 @@ type Metrics struct {
 	Discovery DiscoveryMetrics
 	Fetch     FetchMetrics
 	Build     BuildMetrics
+	Upload    UploadMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -43,6 +44,12 @@ type BuildMetrics struct {
 	Duration prometheus.Histogram
 }
 
+// UploadMetrics tracks S3 upload operations
+type UploadMetrics struct {
+	ObjectsTotal *prometheus.CounterVec // labels: status (success/failed)
+	Duration prometheus.Histogram
+}
+
 // NewMetrics creates and registers all Prometheus metrics
 func NewMetrics() *Metrics {
 	return NewMetricsWithRegistry(prometheus.DefaultRegisterer)
@@ -58,6 +65,7 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 		Discovery: newDiscoveryMetrics(factory),
 		Fetch:     newFetchMetrics(factory),
 		Build:     newBuildMetrics(factory),
+		Upload:    newUploadMetrics(factory),
 	}
 }
 
@@ -181,6 +189,25 @@ func newBuildMetrics(factory promauto.Factory) BuildMetrics {
 				Name:    "log_courier_build_duration_seconds",
 				Help:    "Time spent building log objects",
 				Buckets: []float64{0.001, 0.01, 0.1, 0.5, 1, 2}, // 1ms to 2s
+			},
+		),
+	}
+}
+
+func newUploadMetrics(factory promauto.Factory) UploadMetrics {
+	return UploadMetrics{
+		ObjectsTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_upload_objects_total",
+				Help: "Total number of log object upload attempts",
+			},
+			[]string{"status"}, // status: success, failed
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_upload_duration_seconds",
+				Help:    "Time spent uploading log objects to S3",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
 			},
 		),
 	}
