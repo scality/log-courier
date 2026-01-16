@@ -50,6 +50,7 @@ type Processor struct {
 	offsetManager    OffsetManagerInterface
 	offsetBuffer     *OffsetBuffer
 	logger           *slog.Logger
+	metrics          *Metrics
 
 	// Lifecycle
 	stopOffsetBuffer func()
@@ -78,7 +79,8 @@ type ProcessResult struct {
 //
 //nolint:govet // Field alignment is less important than readability for config structs
 type Config struct {
-	Logger *slog.Logger
+	Logger  *slog.Logger
+	Metrics *Metrics
 
 	ClickHouseTimeout time.Duration
 
@@ -195,6 +197,12 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		commitTimeout = 30 * time.Second // Default: 30 seconds
 	}
 
+	// Use provided metrics or create default metrics
+	metrics := cfg.Metrics
+	if metrics == nil {
+		metrics = NewMetrics()
+	}
+
 	offsetBuffer := NewOffsetBuffer(OffsetBufferOptions{
 		MaxRetries:          cfg.MaxRetries,
 		InitialBackoff:      cfg.InitialBackoff,
@@ -205,6 +213,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		FlushTimeThreshold:  cfg.OffsetFlushTimeThreshold,
 		FlushCountThreshold: cfg.OffsetFlushCountThreshold,
 		NumWorkers:          cfg.NumWorkers,
+		Metrics:             metrics,
 	})
 
 	return &Processor{
@@ -232,6 +241,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 		uploadOperationTimeout:        uploadTimeout,
 		commitOperationTimeout:        commitTimeout,
 		logger:                        cfg.Logger,
+		metrics:                       metrics,
 	}, nil
 }
 
@@ -330,6 +340,12 @@ func (p *Processor) Run(ctx context.Context) error {
 // runCycle executes a single discovery and processing cycle
 // Returns the number of batches found
 func (p *Processor) runCycle(ctx context.Context) (int, error) {
+	start := time.Now()
+	defer func() {
+		p.metrics.General.CycleDuration.Observe(time.Since(start).Seconds())
+		p.metrics.General.CyclesTotal.Inc()
+	}()
+
 	batchCount, err := p.runBatchFinder(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("batch finder failed: %w", err)
@@ -344,16 +360,24 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	// Phase 1: Work Discovery
 	p.logger.Debug("starting batch finder")
 
+	discoveryStart := time.Now()
 	batches, err := p.workDiscovery.FindBatches(ctx)
+	discoveryDuration := time.Since(discoveryStart)
+	p.metrics.Discovery.Duration.Observe(discoveryDuration.Seconds())
+
 	if err != nil {
 		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
 	p.logger.Info("batch finder completed", "nBatches", len(batches))
+	p.metrics.Discovery.BucketsPerDiscovery.Set(float64(len(batches)))
 
 	if len(batches) == 0 {
 		return 0, nil
 	}
+
+	// Record discovered batches
+	p.metrics.Discovery.BatchesFound.Add(float64(len(batches)))
 
 	// Phase 2: Process log batches in parallel
 	var wg sync.WaitGroup
@@ -382,6 +406,19 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 				failedBatches = append(failedBatches, batch.Bucket)
 				mu.Unlock()
 
+				// Determine if error is permanent
+				isPermanent := IsPermanentError(err)
+				status := "failed_transient"
+				if isPermanent {
+					status = "failed_permanent"
+				}
+				p.metrics.General.BatchesProcessed.WithLabelValues(status).Inc()
+
+				// Records that may be lost after TTL if permanent error is not fixed
+				if isPermanent {
+					p.metrics.General.RecordsPermanentErrors.Add(float64(batch.LogCount))
+				}
+
 				p.logger.Error("batch processing failed",
 					"bucketName", batch.Bucket,
 					"logCount", batch.LogCount,
@@ -390,6 +427,8 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 				mu.Lock()
 				successCount++
 				mu.Unlock()
+
+				p.metrics.General.BatchesProcessed.WithLabelValues("success").Inc()
 			}
 		}()
 	}
@@ -562,13 +601,19 @@ func IsPermanentError(err error) bool {
 // uploadLogBatch handles the upload phase: fetch, build, and upload to S3
 // Returns the records and offset info needed for committing
 func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*ProcessResult, error) {
+	batchStartTime := time.Now()
+
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
 		"afterOffset", batch.LastProcessedOffset.InsertedAt)
 
 	// 1. Fetch logs
+	fetchStart := time.Now()
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
+	fetchDuration := time.Since(fetchStart)
+	p.metrics.Fetch.Duration.Observe(fetchDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}
@@ -583,6 +628,8 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	}
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
+	p.metrics.Fetch.RecordsTotal.Add(float64(len(records)))
+	p.metrics.Fetch.RecordsPerBucket.Observe(float64(len(records)))
 
 	lastLog := records[len(records)-1]
 	offset := Offset{
@@ -593,12 +640,18 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	raftSessionID := lastLog.RaftSessionID
 
 	// 2. Build log object
+	buildStart := time.Now()
 	logObj, err := p.logBuilder.Build(records)
+	buildDuration := time.Since(buildStart)
+	p.metrics.Build.Duration.Observe(buildDuration.Seconds())
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to build log object: %w", err)
 	}
 
 	p.logger.Debug("built log object", "bucketName", batch.Bucket, "s3Key", logObj.Key, "sizeBytes", len(logObj.Content))
+	p.metrics.Build.ObjectsTotal.Inc()
+	p.metrics.Build.ObjectSizeBytes.Observe(float64(len(logObj.Content)))
 
 	// 3. Upload to S3
 	// Configuration Handling: Use logging target bucket from the first record.
@@ -612,16 +665,27 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	// 2. The propagation delay (one batch cycle) is acceptable for config changes
 	destinationBucket := records[0].LoggingTargetBucket
 
+	uploadStart := time.Now()
 	err = p.s3Uploader.Upload(ctx, destinationBucket, logObj.Key, logObj.Content)
+	uploadDuration := time.Since(uploadStart)
+
 	if err != nil {
+		p.metrics.Upload.ObjectsTotal.WithLabelValues("failed").Inc()
 		return nil, fmt.Errorf("failed to upload log object: %w", err)
 	}
+
+	p.metrics.Upload.ObjectsTotal.WithLabelValues("success").Inc()
+	p.metrics.Upload.Duration.Observe(uploadDuration.Seconds())
 
 	p.logger.Info("uploaded log object",
 		"bucketName", batch.Bucket,
 		"destinationBucket", destinationBucket,
 		"s3Key", logObj.Key,
 		"sizeBytes", len(logObj.Content))
+
+	// Record total batch processing time
+	totalDuration := time.Since(batchStartTime)
+	p.metrics.General.BatchProcessingDuration.Observe(totalDuration.Seconds())
 
 	return &ProcessResult{
 		Records: records,

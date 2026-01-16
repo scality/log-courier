@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/scality/log-courier/pkg/logcourier"
 	"github.com/scality/log-courier/pkg/testutil"
@@ -92,6 +93,7 @@ var _ = Describe("OffsetBuffer", func() {
 	Describe("NewOffsetBuffer", func() {
 		It("creates buffer with configuration", func() {
 			buffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				MaxRetries:          3,
 				InitialBackoff:      1 * time.Second,
 				MaxBackoff:          10 * time.Second,
@@ -112,6 +114,7 @@ var _ = Describe("OffsetBuffer", func() {
 
 		BeforeEach(func() {
 			buffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				MaxRetries:          3,
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
@@ -201,6 +204,7 @@ var _ = Describe("OffsetBuffer", func() {
 		It("retries flush on transient errors", func() {
 			failingOffsetMgr := testutil.NewFailingOffsetManager(offsetManager, 2) // Fail first 2 attempts
 			failingBuffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				MaxRetries:          3,
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
@@ -235,6 +239,7 @@ var _ = Describe("OffsetBuffer", func() {
 		It("keeps offsets in buffer when retries are exhausted", func() {
 			failingOffsetMgr := testutil.NewFailingOffsetManager(offsetManager, 100) // Fail all attempts
 			failingBuffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				MaxRetries:          1,
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
@@ -264,6 +269,7 @@ var _ = Describe("OffsetBuffer", func() {
 
 			// Create new buffer with working offset manager and retry
 			workingBuffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				MaxRetries:          3,
 				InitialBackoff:      10 * time.Millisecond,
 				MaxBackoff:          100 * time.Millisecond,
@@ -298,6 +304,7 @@ var _ = Describe("OffsetBuffer", func() {
 			}))
 
 			buffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				OffsetManager:       offsetManager,
 				Logger:              testLogger,
 				MaxRetries:          3,
@@ -348,6 +355,7 @@ var _ = Describe("OffsetBuffer", func() {
 			}))
 
 			buffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				OffsetManager:       offsetManager,
 				Logger:              testLogger,
 				MaxRetries:          3,
@@ -442,6 +450,7 @@ var _ = Describe("OffsetBuffer", func() {
 				// Use short time threshold for test
 				stop()
 				buffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+					Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					OffsetManager:       offsetManager,
 					Logger:              testLogger,
 					MaxRetries:          3,
@@ -483,6 +492,7 @@ var _ = Describe("OffsetBuffer", func() {
 				stop()
 				failingOffsetMgr := testutil.NewFailingOffsetManager(offsetManager, 0) // Don't fail, just count
 				buffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+					Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 					OffsetManager:       failingOffsetMgr,
 					Logger:              testLogger,
 					MaxRetries:          3,
@@ -538,6 +548,7 @@ var _ = Describe("OffsetBuffer", func() {
 				},
 			}
 			mockBuffer = logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				OffsetManager:       mockMgr,
 				Logger:              testLogger,
 				MaxRetries:          3,
@@ -597,6 +608,7 @@ var _ = Describe("OffsetBuffer", func() {
 			}
 
 			buffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				OffsetManager:       mockMgr,
 				Logger:              testLogger,
 				MaxRetries:          3,
@@ -701,6 +713,7 @@ var _ = Describe("OffsetBuffer", func() {
 			}
 
 			buffer := logcourier.NewOffsetBuffer(logcourier.OffsetBufferOptions{
+				Metrics:             logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
 				OffsetManager:       mockMgr,
 				Logger:              testLogger,
 				MaxRetries:          3,
