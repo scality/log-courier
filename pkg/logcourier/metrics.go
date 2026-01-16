@@ -10,6 +10,7 @@ type Metrics struct {
 	General   GeneralMetrics
 	Discovery DiscoveryMetrics
 	Fetch     FetchMetrics
+	Build     BuildMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -35,6 +36,13 @@ type FetchMetrics struct {
 	Duration prometheus.Histogram
 }
 
+// BuildMetrics tracks log object building
+type BuildMetrics struct {
+	ObjectsTotal prometheus.Counter
+	ObjectSizeBytes prometheus.Histogram
+	Duration prometheus.Histogram
+}
+
 // NewMetrics creates and registers all Prometheus metrics
 func NewMetrics() *Metrics {
 	return NewMetricsWithRegistry(prometheus.DefaultRegisterer)
@@ -49,6 +57,7 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 		General:   newGeneralMetrics(factory),
 		Discovery: newDiscoveryMetrics(factory),
 		Fetch:     newFetchMetrics(factory),
+		Build:     newBuildMetrics(factory),
 	}
 }
 
@@ -146,6 +155,32 @@ func newFetchMetrics(factory promauto.Factory) FetchMetrics {
 				Name:    "log_courier_fetch_duration_seconds",
 				Help:    "Time spent fetching log records from ClickHouse",
 				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 20}, // 100ms to 20s
+			},
+		),
+	}
+}
+
+func newBuildMetrics(factory promauto.Factory) BuildMetrics {
+	return BuildMetrics{
+		ObjectsTotal: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_build_objects_total",
+				Help: "Total number of log objects built",
+			},
+		),
+		ObjectSizeBytes: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_build_object_size_bytes",
+				Help:    "Size in bytes of log objects built",
+				// Buckets: 1KB, 10KB, 100KB, 1MB, 10MB, 100MB, 500MB, 1GB
+				Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 104857600, 524288000, 1073741824},
+			},
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_build_duration_seconds",
+				Help:    "Time spent building log objects",
+				Buckets: []float64{0.001, 0.01, 0.1, 0.5, 1, 2}, // 1ms to 2s
 			},
 		),
 	}
