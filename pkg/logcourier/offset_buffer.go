@@ -28,7 +28,7 @@ type offsetCommitRequest struct {
 
 // flushRequest represents a request to flush buffered offsets
 type flushRequest struct {
-	response chan error      // Channel to signal completion and return flush result to caller
+	response chan error // Channel to signal completion and return flush result to caller
 	ctx      context.Context
 	reason   FlushReason
 }

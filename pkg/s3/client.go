@@ -18,11 +18,11 @@ const (
 	defaultRegion = "us-east-1"
 
 	// Default HTTP client timeouts
-	defaultDialTimeout            = 10 * time.Second  // Time to establish connection
-	defaultResponseHeaderTimeout  = 30 * time.Second  // Time to receive response headers
-	defaultIdleConnTimeout        = 90 * time.Second  // Time to keep idle connections
-	defaultTLSHandshakeTimeout    = 10 * time.Second  // Time for TLS handshake
-	defaultExpectContinueTimeout  = 1 * time.Second   // Time waiting for 100-Continue
+	defaultDialTimeout           = 10 * time.Second // Time to establish connection
+	defaultResponseHeaderTimeout = 30 * time.Second // Time to receive response headers
+	defaultIdleConnTimeout       = 90 * time.Second // Time to keep idle connections
+	defaultTLSHandshakeTimeout   = 10 * time.Second // Time for TLS handshake
+	defaultExpectContinueTimeout = 1 * time.Second  // Time waiting for 100-Continue
 )
 
 // Client wraps S3 client

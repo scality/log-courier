@@ -24,8 +24,8 @@ func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch i
 }
 
 // FetchLogs fetches logs for a batch
-// Returns logs sorted by insertedAt, timestamp, req_id
-// LogBuilder will re-sort by timestamp for S3 file ordering.
+// Returns logs sorted by insertedAt, startTime, req_id
+// LogBuilder will re-sort by startTime, req_id.
 // Uses composite filter to fetch only logs after LastProcessedOffset.
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
 	query := fmt.Sprintf(`
@@ -54,7 +54,6 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 			hostHeader,
 			tlsVersion,
 			aclRequired,
-			timestamp,
 			insertedAt,
 			loggingTargetBucket,
 			loggingTargetPrefix,
@@ -64,10 +63,10 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		  AND raftSessionID = ?
 		  AND (
 		      insertedAt > ?
-		      OR (insertedAt = ? AND timestamp > ?)
-		      OR (insertedAt = ? AND timestamp = ? AND req_id > ?)
+		      OR (insertedAt = ? AND startTime > ?)
+		      OR (insertedAt = ? AND startTime = ? AND req_id > ?)
 		  )
-		ORDER BY insertedAt ASC, timestamp ASC, req_id ASC
+		ORDER BY insertedAt ASC, startTime ASC, req_id ASC
 		LIMIT ?
 	`, lf.database, clickhouse.TableAccessLogsFederated)
 
@@ -75,8 +74,8 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		batch.Bucket,
 		batch.RaftSessionID,
 		batch.LastProcessedOffset.InsertedAt,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.Timestamp, batch.LastProcessedOffset.ReqID,
+		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime,
+		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime, batch.LastProcessedOffset.ReqID,
 		lf.maxLogsPerBatch,
 	)
 	if err != nil {

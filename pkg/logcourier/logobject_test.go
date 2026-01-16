@@ -25,7 +25,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr("owner1"),
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(now),
+					StartTime:           now,
 					ClientIP:            testutil.StrPtr("192.168.1.1"),
 					Requester:           testutil.StrPtr("arn:aws:iam::123456789012:user/alice"),
 					ReqID:               "ABC123XYZ",
@@ -47,7 +47,6 @@ var _ = Describe("LogObjectBuilder", func() {
 					HostHeader:          testutil.StrPtr("s3.amazonaws.com"),
 					TlsVersion:          testutil.StrPtr("TLSv1.2"),
 					AclRequired:         testutil.StrPtr("Yes"),
-					Timestamp:           now,
 					InsertedAt:          time.Now(),
 					LoggingTargetPrefix: "logs/",
 					RaftSessionID:       0,
@@ -72,8 +71,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "mylogs/",
-					StartTime:           testutil.TimePtr(now),
-					Timestamp:           now,
+					StartTime:           now,
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
@@ -98,8 +96,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "",
-					StartTime:           testutil.TimePtr(now),
-					Timestamp:           now,
+					StartTime:           now,
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
@@ -118,8 +115,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
-					Timestamp:           startTime,
+					StartTime:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -140,7 +136,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr(""),
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					ClientIP:            testutil.StrPtr(""),
 					Requester:           testutil.StrPtr(""),
 					ReqID:               "ABC123",
@@ -155,7 +151,6 @@ var _ = Describe("LogObjectBuilder", func() {
 					TurnAroundTime:      testutil.Float32Ptr(0),
 					VersionID:           testutil.StrPtr(""),
 					SignatureVersion:    testutil.StrPtr(""),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -178,7 +173,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					RequestURI:          testutil.StrPtr("GET /bucket/key?versionId=123 HTTP/1.1"),
 					Referer:             testutil.StrPtr("http://example.com/page"),
 					UserAgent:           testutil.StrPtr("Mozilla/5.0"),
@@ -187,7 +182,6 @@ var _ = Describe("LogObjectBuilder", func() {
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -210,13 +204,12 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					HttpCode:            testutil.Uint16Ptr(200),
 					BytesSent:           testutil.Uint64Ptr(1024),
 					ObjectSize:          testutil.Uint64Ptr(2048),
 					TotalTime:           testutil.Float32Ptr(45.5),
 					TurnAroundTime:      testutil.Float32Ptr(15.2),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -239,14 +232,13 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					ReqID:               "test-123",
 					HttpCode:            testutil.Uint16Ptr(200),
 					BytesSent:           testutil.Uint64Ptr(0),
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -269,7 +261,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					ReqID:               "req-1",
 					Operation:           testutil.StrPtr("GET"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -277,14 +269,13 @@ var _ = Describe("LogObjectBuilder", func() {
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime.Add(1 * time.Second)),
+					StartTime:           startTime.Add(1 * time.Second),
 					ReqID:               "req-2",
 					Operation:           testutil.StrPtr("PUT"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -292,14 +283,13 @@ var _ = Describe("LogObjectBuilder", func() {
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime.Add(1 * time.Second),
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime.Add(2 * time.Second)),
+					StartTime:           startTime.Add(2 * time.Second),
 					ReqID:               "req-3",
 					Operation:           testutil.StrPtr("DELETE"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -307,7 +297,6 @@ var _ = Describe("LogObjectBuilder", func() {
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime.Add(2 * time.Second),
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -339,8 +328,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					BucketName:          "my-bucket",
-					StartTime:           testutil.TimePtr(startTime),
-					Timestamp:           startTime,
+					StartTime:           startTime,
 					ClientIP:            testutil.StrPtr("192.0.2.3"),
 					Requester:           testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					ReqID:               "3E57427F3EXAMPLE",
@@ -384,7 +372,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           testutil.TimePtr(startTime),
+					StartTime:           startTime,
 					ReqID:               "ABC123",
 					Operation:           nil,
 					ErrorCode:           nil,
@@ -393,7 +381,6 @@ var _ = Describe("LogObjectBuilder", func() {
 					ObjectSize:          testutil.Uint64Ptr(0),
 					TotalTime:           testutil.Float32Ptr(0),
 					TurnAroundTime:      testutil.Float32Ptr(0),
-					Timestamp:           startTime,
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -412,14 +399,13 @@ var _ = Describe("LogObjectBuilder", func() {
 
 			recordNULL := logcourier.LogRecord{
 				BucketName:          "test-bucket",
-				StartTime:           testutil.TimePtr(startTime),
+				StartTime:           startTime,
 				ReqID:               "req-null",
 				HttpCode:            nil,
 				BytesSent:           nil,
 				ObjectSize:          nil,
 				TotalTime:           nil,
 				TurnAroundTime:      nil,
-				Timestamp:           startTime,
 				LoggingTargetPrefix: "",
 				InsertedAt:          time.Now(),
 				RaftSessionID:       0,
@@ -427,14 +413,13 @@ var _ = Describe("LogObjectBuilder", func() {
 
 			recordZero := logcourier.LogRecord{
 				BucketName:          "test-bucket",
-				StartTime:           testutil.TimePtr(startTime.Add(1 * time.Second)),
+				StartTime:           startTime.Add(1 * time.Second),
 				ReqID:               "req-zero",
 				HttpCode:            testutil.Uint16Ptr(0),
 				BytesSent:           testutil.Uint64Ptr(0),
 				ObjectSize:          testutil.Uint64Ptr(0),
 				TotalTime:           testutil.Float32Ptr(0.0),
 				TurnAroundTime:      testutil.Float32Ptr(0.0),
-				Timestamp:           startTime.Add(1 * time.Second),
 				LoggingTargetPrefix: "",
 				InsertedAt:          time.Now(),
 				RaftSessionID:       0,
@@ -451,14 +436,51 @@ var _ = Describe("LogObjectBuilder", func() {
 			Expect(lines[1]).To(ContainSubstring("0 - 0 0 0 0")) // HttpCode=0, ErrorCode(NULL), BytesSent=0, ObjectSize=0, TotalTime=0, TurnAroundTime=0
 		})
 
-		It("should handle NULL timestamp as dash", func() {
-			now := time.Now()
+		It("should sort by StartTime with millisecond precision", func() {
+			// Test that records with same second but different milliseconds are ordered correctly
+			baseTime := time.Date(2025, 10, 28, 15, 30, 45, 0, time.UTC)
+
+			// Create records with millisecond differences
+			// Note: Add them in reverse chronological order to verify sorting works
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           nil,
+					StartTime:           baseTime.Add(500 * time.Millisecond), // 15:30:45.500
+					ReqID:               "req-3",
+					Operation:           testutil.StrPtr("DELETE"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
+				},
+				{
+					BucketName:          "test-bucket",
+					StartTime:           baseTime.Add(200 * time.Millisecond), // 15:30:45.200
+					ReqID:               "req-2",
+					Operation:           testutil.StrPtr("PUT"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
+					LoggingTargetPrefix: "",
+					InsertedAt:          time.Now(),
+					RaftSessionID:       0,
+				},
+				{
+					BucketName:          "test-bucket",
+					StartTime:           baseTime, // 15:30:45.000
 					ReqID:               "req-1",
-					Timestamp:           now,
+					Operation:           testutil.StrPtr("GET"),
+					HttpCode:            testutil.Uint16Ptr(0),
+					BytesSent:           testutil.Uint64Ptr(0),
+					ObjectSize:          testutil.Uint64Ptr(0),
+					TotalTime:           testutil.Float32Ptr(0),
+					TurnAroundTime:      testutil.Float32Ptr(0),
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -469,7 +491,18 @@ var _ = Describe("LogObjectBuilder", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			content := string(obj.Content)
-			Expect(content).To(ContainSubstring("test-bucket - -")) // BucketName StartTime(NULL) ClientIP(NULL)
+			lines := strings.Split(strings.TrimSpace(content), "\n")
+			Expect(lines).To(HaveLen(3))
+
+			// Verify records are sorted chronologically by StartTime
+			// All should show same second in output (AWS format has second precision)
+			// but should be ordered by the millisecond-precision StartTime field
+			Expect(lines[0]).To(ContainSubstring("req-1")) // First: 15:30:45.000
+			Expect(lines[0]).To(ContainSubstring("GET"))
+			Expect(lines[1]).To(ContainSubstring("req-2")) // Second: 15:30:45.200
+			Expect(lines[1]).To(ContainSubstring("PUT"))
+			Expect(lines[2]).To(ContainSubstring("req-3")) // Third: 15:30:45.500
+			Expect(lines[2]).To(ContainSubstring("DELETE"))
 		})
 	})
 })

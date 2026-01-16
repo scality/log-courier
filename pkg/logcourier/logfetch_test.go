@@ -48,7 +48,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					Timestamp:      now.Add(time.Duration(i) * time.Second),
+					StartTime:      now.Add(time.Duration(i) * time.Second),
 					ReqID:          fmt.Sprintf("req-%d", i),
 					Action:         "GetObject",
 					ObjectKey:      fmt.Sprintf("key-%d", i),
@@ -66,7 +66,7 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records).To(HaveLen(3))
 		})
 
-		It("should return logs sorted by (insertedAt, timestamp, reqID)", func() {
+		It("should return logs sorted by (insertedAt, startTime, reqID)", func() {
 			baseTime := time.Now().Add(-1 * time.Hour)
 
 			// Insert logs with different insertedAt and timestamp values to test full ordering
@@ -77,7 +77,7 @@ var _ = Describe("LogFetcher", func() {
 
 			query := fmt.Sprintf(`
 				INSERT INTO %s.%s
-				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
@@ -114,7 +114,7 @@ var _ = Describe("LogFetcher", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(records).To(HaveLen(4))
 
-			// Verify sorted by (insertedAt, timestamp, reqID)
+			// Verify sorted by (insertedAt, startTime, reqID)
 			for i := 1; i < len(records); i++ {
 				prev := records[i-1]
 				curr := records[i]
@@ -122,20 +122,20 @@ var _ = Describe("LogFetcher", func() {
 				if curr.InsertedAt.After(prev.InsertedAt) {
 					continue
 				} else if curr.InsertedAt.Equal(prev.InsertedAt) {
-					if curr.Timestamp.After(prev.Timestamp) || curr.Timestamp.Equal(prev.Timestamp) {
-						if curr.Timestamp.Equal(prev.Timestamp) {
+					if curr.StartTime.After(prev.StartTime) || curr.StartTime.Equal(prev.StartTime) {
+						if curr.StartTime.Equal(prev.StartTime) {
 							Expect(curr.ReqID > prev.ReqID).To(BeTrue(),
-								"When insertedAt and timestamp are equal, reqID should increase")
+								"When insertedAt and startTime are equal, reqID should increase")
 						}
 						continue
 					}
 				}
 				// If we get here, ordering is violated
 				Expect(true).To(BeFalse(),
-					"Records should be sorted by (insertedAt, timestamp, reqID). "+
+					"Records should be sorted by (insertedAt, startTime, reqID). "+
 						"Record %d: (%s, %s, %s), Record %d: (%s, %s, %s)",
-					i-1, prev.InsertedAt, prev.Timestamp, prev.ReqID,
-					i, curr.InsertedAt, curr.Timestamp, curr.ReqID)
+					i-1, prev.InsertedAt, prev.StartTime, prev.ReqID,
+					i, curr.InsertedAt, curr.StartTime, curr.ReqID)
 			}
 		})
 
@@ -146,7 +146,7 @@ var _ = Describe("LogFetcher", func() {
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 				LoggingEnabled: true,
 				BucketName:     "bucket-1",
-				Timestamp:      now,
+				StartTime:      now,
 				ReqID:          "req-1",
 				Action:         "GetObject",
 				ObjectKey:      "key1",
@@ -157,7 +157,7 @@ var _ = Describe("LogFetcher", func() {
 			err = helper.InsertTestLog(ctx, testutil.TestLogRecord{
 				LoggingEnabled: true,
 				BucketName:     "bucket-2",
-				Timestamp:      now,
+				StartTime:      now,
 				ReqID:          "req-2",
 				Action:         "GetObject",
 				ObjectKey:      "key2",
@@ -192,7 +192,7 @@ var _ = Describe("LogFetcher", func() {
 
 			query := fmt.Sprintf(`
 				INSERT INTO %s.%s
-				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
@@ -217,7 +217,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: baseTime.Add(2 * time.Second),
-					Timestamp:  baseTime.Add(2 * time.Second),
+					StartTime:  baseTime.Add(2 * time.Second),
 					ReqID:      "req-002",
 				},
 			}
@@ -235,23 +235,26 @@ var _ = Describe("LogFetcher", func() {
 
 			query := fmt.Sprintf(`
 				INSERT INTO %s.%s
-				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
-			// Insert 3 logs: same insertedAt, different timestamps
+			// Insert 3 logs: same insertedAt, different startTime
+			startTimeA := baseTime.Add(1 * time.Second)
 			err := helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", baseTime.Add(1*time.Second), "req-A",
+				insertedAt, "test-bucket", startTimeA, "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
+			startTimeB := baseTime.Add(2 * time.Second)
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", baseTime.Add(2*time.Second), "req-B",
+				insertedAt, "test-bucket", startTimeB, "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
+			startTimeC := baseTime.Add(3 * time.Second)
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", baseTime.Add(3*time.Second), "req-C",
+				insertedAt, "test-bucket", startTimeC, "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -260,7 +263,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					Timestamp:  baseTime.Add(2 * time.Second),
+					StartTime:  baseTime.Add(2 * time.Second),
 					ReqID:      "req-B",
 				},
 			}
@@ -268,11 +271,11 @@ var _ = Describe("LogFetcher", func() {
 			records, err := fetcher.FetchLogs(ctx, batch)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(records).To(HaveLen(1), "Should only fetch log C (after offset B)")
-			Expect(records[0].ReqID).To(Equal("req-C"), "Should fetch only the log with timestamp > offset timestamp")
+			Expect(records[0].ReqID).To(Equal("req-C"), "Should fetch only the log with startTime > offset startTime")
 
 			// Verify logs A and B were excluded
 			for _, rec := range records {
-				Expect(rec.ReqID).NotTo(Equal("req-A"), "Log A should be excluded (timestamp < offset)")
+				Expect(rec.ReqID).NotTo(Equal("req-A"), "Log A should be excluded (startTime < offset)")
 				Expect(rec.ReqID).NotTo(Equal("req-B"), "Log B should be excluded (matches offset exactly)")
 			}
 		})
@@ -282,7 +285,7 @@ var _ = Describe("LogFetcher", func() {
 
 			query := fmt.Sprintf(`
 				INSERT INTO %s.%s
-				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
@@ -301,7 +304,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					Timestamp:  timestamp,
+					StartTime:  timestamp,
 					ReqID:      reqID,
 				},
 			}
@@ -311,30 +314,30 @@ var _ = Describe("LogFetcher", func() {
 			Expect(records).To(BeEmpty(), "Should not fetch log that exactly matches offset (not > itself)")
 		})
 
-		It("should filter by reqID when insertedAt and timestamp are equal", func() {
+		It("should filter by reqID when insertedAt and startTime are equal", func() {
 			baseTime := time.Now().Add(-1 * time.Hour)
 			insertedAt := baseTime.Truncate(time.Second)
-			timestamp := baseTime.Truncate(time.Second)
+			startTime := baseTime.Truncate(time.Second)
 
 			query := fmt.Sprintf(`
 				INSERT INTO %s.%s
-				(insertedAt, bucketName, timestamp, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 
-			// Insert 3 logs: same insertedAt, same timestamp, different reqIDs
+			// Insert 3 logs: same insertedAt, same startTime, different reqIDs
 			err := helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", timestamp, "req-A",
+				insertedAt, "test-bucket", startTime, "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", timestamp, "req-B",
+				insertedAt, "test-bucket", startTime, "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", timestamp, "req-C",
+				insertedAt, "test-bucket", startTime, "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -343,7 +346,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					Timestamp:  timestamp,
+					StartTime:  startTime,
 					ReqID:      "req-B",
 				},
 			}
@@ -364,7 +367,7 @@ var _ = Describe("LogFetcher", func() {
 			reqTime := insertTime.Add(-5 * time.Minute)
 
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				Timestamp:      reqTime,
+				StartTime:      reqTime,
 				BucketName:     "test-bucket",
 				ReqID:          "test-req-id",
 				Action:         "PutObject",
@@ -398,7 +401,7 @@ var _ = Describe("LogFetcher", func() {
 			Expect(*rec.HttpCode).To(Equal(uint16(200)))
 			Expect(rec.RaftSessionID).To(Equal(uint16(0)))
 			Expect(rec.InsertedAt).NotTo(BeZero())
-			Expect(rec.Timestamp).NotTo(BeZero())
+			Expect(rec.StartTime).NotTo(BeZero())
 		})
 
 		It("should respect maxLogsPerBatch limit", func() {
@@ -407,7 +410,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
+					StartTime:      baseTime.Add(time.Duration(i) * time.Second),
 					ReqID:          fmt.Sprintf("req-%03d", i),
 					Action:         "GetObject",
 				})
@@ -436,7 +439,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					Timestamp:      baseTime.Add(time.Duration(i) * time.Second),
+					StartTime:      baseTime.Add(time.Duration(i) * time.Second),
 					ReqID:          fmt.Sprintf("req-%03d", i),
 					Action:         "GetObject",
 				})
