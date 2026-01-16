@@ -12,6 +12,7 @@ type Metrics struct {
 	Fetch     FetchMetrics
 	Build     BuildMetrics
 	Upload    UploadMetrics
+	Commit    CommitMetrics
 }
 
 // GeneralMetrics tracks general system state and errors
@@ -50,6 +51,13 @@ type UploadMetrics struct {
 	Duration prometheus.Histogram
 }
 
+// CommitMetrics tracks offset commit operations
+type CommitMetrics struct {
+	OffsetsFlushed *prometheus.CounterVec // labels: status (success/failed)
+	FlushesTotal   *prometheus.CounterVec // labels: reason (time_threshold, count_threshold, cycle_boundary, shutdown, explicit)
+	Duration       prometheus.Histogram
+}
+
 // NewMetrics creates and registers all Prometheus metrics
 func NewMetrics() *Metrics {
 	return NewMetricsWithRegistry(prometheus.DefaultRegisterer)
@@ -66,6 +74,7 @@ func NewMetricsWithRegistry(reg prometheus.Registerer) *Metrics {
 		Fetch:     newFetchMetrics(factory),
 		Build:     newBuildMetrics(factory),
 		Upload:    newUploadMetrics(factory),
+		Commit:    newCommitMetrics(factory),
 	}
 }
 
@@ -207,6 +216,32 @@ func newUploadMetrics(factory promauto.Factory) UploadMetrics {
 			prometheus.HistogramOpts{
 				Name:    "log_courier_upload_duration_seconds",
 				Help:    "Time spent uploading log objects to S3",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
+			},
+		),
+	}
+}
+
+func newCommitMetrics(factory promauto.Factory) CommitMetrics {
+	return CommitMetrics{
+		OffsetsFlushed: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_commit_offsets_flushed_total",
+				Help: "Total number of individual offsets flushed to ClickHouse",
+			},
+			[]string{"status"}, // status: success, failed
+		),
+		FlushesTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "log_courier_commit_flushes_total",
+				Help: "Total number of flush operations by reason",
+			},
+			[]string{"reason"}, // reason: time_threshold, count_threshold, cycle_boundary, shutdown, explicit
+		),
+		Duration: factory.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "log_courier_commit_duration_seconds",
+				Help:    "Time spent committing offsets to ClickHouse",
 				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
 			},
 		),
