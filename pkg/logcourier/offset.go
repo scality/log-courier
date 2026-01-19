@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
@@ -92,23 +91,31 @@ func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, commits []Offse
 		}
 	}
 
-	// Build query with multiple VALUES clauses for batch insert
-	valuesClauses := make([]string, len(commits))
-	args := make([]interface{}, 0, len(commits)*5)
+	query := fmt.Sprintf(
+		"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId)",
+		om.database, clickhouse.TableOffsetsFederated)
 
-	for i, commit := range commits {
-		valuesClauses[i] = "(?, ?, ?, ?, ?)"
-		args = append(args, commit.Bucket, commit.RaftSessionID, commit.Offset.InsertedAt, commit.Offset.StartTime, commit.Offset.ReqID)
+	batch, err := om.client.PrepareBatch(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare batch for %d offsets: %w", len(commits), err)
 	}
 
-	query := fmt.Sprintf(`
-        INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId)
-        VALUES %s
-    `, om.database, clickhouse.TableOffsetsFederated, strings.Join(valuesClauses, ", "))
+	for _, commit := range commits {
+		err = batch.Append(
+			commit.Bucket,
+			commit.RaftSessionID,
+			commit.Offset.InsertedAt,
+			commit.Offset.StartTime,
+			commit.Offset.ReqID,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to append offset to batch: %w", err)
+		}
+	}
 
-	err := om.client.Exec(ctx, query, args...)
+	err = batch.Send()
 	if err != nil {
-		return fmt.Errorf("failed to commit %d offsets: %w", len(commits), err)
+		return fmt.Errorf("failed to send batch with %d offsets: %w", len(commits), err)
 	}
 
 	return nil
