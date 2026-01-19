@@ -138,3 +138,8 @@ func (c *Client) Query(ctx context.Context, query string, args ...any) (driver.R
 func (c *Client) QueryRow(ctx context.Context, query string, args ...any) driver.Row {
 	return c.conn.QueryRow(ctx, query, args...)
 }
+
+// PrepareBatch prepares a batch for bulk insert operations
+func (c *Client) PrepareBatch(ctx context.Context, query string) (driver.Batch, error) {
+	return c.conn.PrepareBatch(ctx, query)
+}
