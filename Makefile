@@ -9,7 +9,7 @@ COVER_COMMONFLAGS = -coverpkg "./..."
 COVDATA_DIR = $(PWD)/covdatafiles
 DEBUG_GCFLAGS = -gcflags="all=-N -l"
 
-.PHONY: all all-debug clean test test-coverage lint fmt coverage-report
+.PHONY: all all-debug clean test test-coverage test-e2e test-e2e-focus lint fmt coverage-report
 
 all:
 	mkdir -p $(BINDIR)
@@ -37,6 +37,13 @@ test-coverage: test
 
 test-e2e:
 	ginkgo -procs=4 --fail-fast -v ./test/e2e
+
+test-e2e-focus:
+	@if [ -z "$(TEST)" ]; then \
+		echo "Error: TEST variable is required. Usage: make test-e2e-focus TEST='test name pattern'"; \
+		exit 1; \
+	fi
+	ginkgo --focus="$(TEST)" -v ./test/e2e
 
 lint:
 	golangci-lint run
