@@ -677,6 +677,11 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	p.metrics.Upload.ObjectsTotal.WithLabelValues("success").Inc()
 	p.metrics.Upload.Duration.Observe(uploadDuration.Seconds())
 
+	// Observe lag metric: time from log generation to S3 upload
+	// Note: Build() sorts records by timestamp, so records[0] has the oldest timestamp
+	lag := time.Since(records[0].Timestamp)
+	p.metrics.General.Lag.Observe(lag.Seconds())
+
 	p.logger.Info("uploaded log object",
 		"bucketName", batch.Bucket,
 		"destinationBucket", destinationBucket,

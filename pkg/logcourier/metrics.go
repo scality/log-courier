@@ -22,6 +22,7 @@ type GeneralMetrics struct {
 	BatchProcessingDuration prometheus.Histogram
 	CyclesTotal prometheus.Counter
 	CycleDuration prometheus.Histogram
+	Lag prometheus.Summary // Time from log generation to S3 upload
 }
 
 // DiscoveryMetrics tracks batch discovery operations
@@ -111,6 +112,13 @@ func newGeneralMetrics(factory promauto.Factory) GeneralMetrics {
 				Name:    "log_courier_cycle_duration_seconds",
 				Help:    "Time spent in each processing cycle (discovery + processing including retries)",
 				Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60, 120, 300}, // 500ms to 5min
+			},
+		),
+		Lag: factory.NewSummary(
+			prometheus.SummaryOpts{
+				Name:       "log_courier_lag_seconds",
+				Help:       "Time from log generation to S3 upload completion (measured on oldest log per batch)",
+				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.01, 0.99: 0.001}, // p50, p90, p95, p99
 			},
 		),
 	}
