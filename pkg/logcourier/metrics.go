@@ -42,7 +42,7 @@ type FetchMetrics struct {
 // BuildMetrics tracks log object building
 type BuildMetrics struct {
 	ObjectsTotal prometheus.Counter
-	ObjectSizeBytes prometheus.Histogram
+	ObjectSizeBytes prometheus.Summary
 	Duration prometheus.Histogram
 }
 
@@ -181,12 +181,11 @@ func newBuildMetrics(factory promauto.Factory) BuildMetrics {
 				Help: "Total number of log objects built",
 			},
 		),
-		ObjectSizeBytes: factory.NewHistogram(
-			prometheus.HistogramOpts{
-				Name:    "log_courier_build_object_size_bytes",
-				Help:    "Size in bytes of log objects built",
-				// Buckets: 1KB, 10KB, 100KB, 1MB, 10MB, 100MB, 500MB, 1GB
-				Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 104857600, 524288000, 1073741824},
+		ObjectSizeBytes: factory.NewSummary(
+			prometheus.SummaryOpts{
+				Name:       "log_courier_build_object_size_bytes",
+				Help:       "Size in bytes of log objects built",
+				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.01, 0.99: 0.001}, // p50, p90, p95, p99
 			},
 		),
 		Duration: factory.NewHistogram(
