@@ -36,7 +36,7 @@ test-coverage: test
 	go tool covdata textfmt -i $(COVDATA_DIR) -o integration-coverage.out
 
 test-e2e:
-	go test -v ./test/e2e/...
+	ginkgo -procs=4 --fail-fast -v ./test/e2e
 
 lint:
 	golangci-lint run
