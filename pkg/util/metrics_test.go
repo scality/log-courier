@@ -154,6 +154,27 @@ var _ = Describe("StartMetricsServerIfEnabled", func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusMethodNotAllowed))
 		})
 
+		It("should return 405 for non-GET methods on /metrics", func() {
+			configSpec.Set("test-metrics.enabled", true)
+			configSpec.Set("test-metrics.listen-address", "127.0.0.1")
+			configSpec.Set("test-metrics.listen-port", 0)
+
+			var err error
+			server, err = util.StartMetricsServerIfEnabled(configSpec, "test-metrics", logger)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(server).ToNot(BeNil())
+
+			time.Sleep(100 * time.Millisecond)
+
+			resp, err := http.Post(fmt.Sprintf("http://%s/metrics", server.Addr), "text/plain", nil)
+			Expect(err).ToNot(HaveOccurred())
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			Expect(resp.StatusCode).To(Equal(http.StatusMethodNotAllowed))
+		})
+
 		It("should return 404 for non-metrics paths", func() {
 			configSpec.Set("test-metrics.enabled", true)
 			configSpec.Set("test-metrics.listen-address", "127.0.0.1")
