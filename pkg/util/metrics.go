@@ -45,6 +45,9 @@ func StartMetricsServerIfEnabled(configSpec ConfigSpec, confPrefix string,
 	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
 		ErrorLog: &promhttpErrorLogger{baseLogger: logger},
 	}))
+	mux.HandleFunc("GET /healthcheck", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	metricsServer := &http.Server{
 		Handler:           mux,
