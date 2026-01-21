@@ -47,6 +47,9 @@ func buildProcessorConfig(logger *slog.Logger) logcourier.Config {
 		S3AccessKeyID:                 logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		S3SecretAccessKey:             logcourier.ConfigSpec.GetString("s3.secret-access-key"),
 		Logger:                        logger,
+		ClickHouseSettings: map[string]interface{}{
+			"insert_distributed_sync": 1,
+		},
 	}
 }
 

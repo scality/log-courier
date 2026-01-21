@@ -3,6 +3,8 @@ package logcourier
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
 )
@@ -14,6 +16,7 @@ type BatchFinder struct {
 	countThreshold   int
 	timeThresholdSec int
 	maxBuckets       int
+	logger           *slog.Logger
 }
 
 // NewBatchFinder creates a new batch finder instance
@@ -30,6 +33,7 @@ func NewBatchFinder(
 		countThreshold:   countThreshold,
 		timeThresholdSec: timeThresholdSec,
 		maxBuckets:       maxBuckets,
+		logger:           slog.New(slog.NewJSONHandler(os.Stderr, nil)),
 	}
 }
 
@@ -90,7 +94,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                     o.lastProcessedStartTime,
                     o.lastProcessedReqId
                 FROM %s.%s AS l
-                LEFT JOIN bucket_offsets AS o
+                GLOBAL LEFT JOIN bucket_offsets AS o
                     ON l.bucketName = o.bucketName
                     AND l.raftSessionID = o.raftSessionID
                 WHERE
@@ -123,7 +127,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
         LIMIT ?
-    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
+    `, bf.database, clickhouse.TableOffsetsFederated, bf.database, clickhouse.TableAccessLogsFederated)
 
 	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
 	if err != nil {
@@ -132,6 +136,7 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	defer func() { _ = rows.Close() }()
 
 	var batches []LogBatch
+	batchKeys := make(map[string]int) // Track duplicate detection
 	for rows.Next() {
 		var batch LogBatch
 
@@ -147,12 +152,46 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 			return nil, fmt.Errorf("failed to scan log batch: %w", err)
 		}
 
+		// Log each discovered batch for debugging
+		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+		logger.Info("BATCH_DISCOVERED",
+			"bucket", batch.Bucket,
+			"raftSessionID", batch.RaftSessionID,
+			"logCount", batch.LogCount,
+			"offsetInsertedAt", batch.LastProcessedOffset.InsertedAt,
+			"offsetStartTime", batch.LastProcessedOffset.StartTime,
+			"offsetReqID", batch.LastProcessedOffset.ReqID,
+			"hasOffset", !batch.LastProcessedOffset.InsertedAt.IsZero())
+
+		// Detect duplicate batches in same discovery cycle
+		batchKey := fmt.Sprintf("%s-%d-%s-%s-%s",
+			batch.Bucket,
+			batch.RaftSessionID,
+			batch.LastProcessedOffset.InsertedAt,
+			batch.LastProcessedOffset.StartTime,
+			batch.LastProcessedOffset.ReqID)
+		batchKeys[batchKey]++
+		if batchKeys[batchKey] > 1 {
+			logger.Warn("DUPLICATE BATCH DETECTED IN FINDBATCHES",
+				"bucket", batch.Bucket,
+				"raftSessionID", batch.RaftSessionID,
+				"offset", batch.LastProcessedOffset.InsertedAt,
+				"duplicateNumber", batchKeys[batchKey])
+		}
+
 		batches = append(batches, batch)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating log batches: %w", err)
 	}
+
+	// Log discovery summary
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	logger.Info("BATCH_DISCOVERY_COMPLETE",
+		"totalBatches", len(batches),
+		"countThreshold", bf.countThreshold,
+		"timeThresholdSec", bf.timeThresholdSec)
 
 	return batches, nil
 }

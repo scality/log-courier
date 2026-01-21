@@ -565,7 +565,9 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
-		"afterOffset", batch.LastProcessedOffset.InsertedAt)
+		"offsetInsertedAt", batch.LastProcessedOffset.InsertedAt,
+		"offsetStartTime", batch.LastProcessedOffset.StartTime,
+		"offsetReqID", batch.LastProcessedOffset.ReqID)
 
 	// 1. Fetch logs
 	records, err := p.logFetcher.FetchLogs(ctx, batch)
@@ -583,6 +585,20 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	}
 
 	p.logger.Debug("fetched logs", "bucketName", batch.Bucket, "nRecords", len(records))
+
+	if uint64(len(records)) != batch.LogCount {
+		p.logger.Warn("MISMATCH: fetched count differs from BatchFinder count",
+			"bucketName", batch.Bucket,
+			"expectedCount", batch.LogCount,
+			"fetchedCount", len(records),
+			"difference", int64(len(records))-int64(batch.LogCount),
+			"firstRecordInsertedAt", records[0].InsertedAt,
+			"firstRecordStartTime", records[0].StartTime,
+			"firstRecordReqID", records[0].ReqID,
+			"lastRecordInsertedAt", records[len(records)-1].InsertedAt,
+			"lastRecordStartTime", records[len(records)-1].StartTime,
+			"lastRecordReqID", records[len(records)-1].ReqID)
+	}
 
 	lastLog := records[len(records)-1]
 	offset := Offset{

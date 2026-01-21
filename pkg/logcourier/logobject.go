@@ -36,10 +36,10 @@ func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	// Sort records by StartTime for chronological ordering in S3 files.
 	sort.Slice(records, func(i, j int) bool {
 		// Sort by StartTime, then req_id for stable ordering
-		if records[i].StartTime.Equal(records[j].StartTime) {
+		if records[i].StartTime == records[j].StartTime {
 			return records[i].ReqID < records[j].ReqID
 		}
-		return records[i].StartTime.Before(records[j].StartTime)
+		return records[i].StartTime < records[j].StartTime
 	})
 
 	// Configuration Handling: Use logging configuration from the first record.
@@ -74,7 +74,8 @@ func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 
 // generateKey generates a log object key using AWS format:
 // <TargetPrefix>YYYY-mm-DD-HH-MM-SS-UniqueString
-func (b *LogObjectBuilder) generateKey(prefix string, timestamp time.Time) (string, error) {
+// Takes startTime as milliseconds since epoch
+func (b *LogObjectBuilder) generateKey(prefix string, startTimeMillis int64) (string, error) {
 	// Generate random 16-character hex string for uniqueness
 	randomBytes := make([]byte, 8)
 	if _, err := rand.Read(randomBytes); err != nil {
@@ -83,6 +84,7 @@ func (b *LogObjectBuilder) generateKey(prefix string, timestamp time.Time) (stri
 	uniqueString := strings.ToUpper(hex.EncodeToString(randomBytes))
 
 	// Format timestamp as YYYY-mm-DD-HH-MM-SS
+	timestamp := time.UnixMilli(startTimeMillis)
 	timeStr := timestamp.UTC().Format("2006-01-02-15-04-05")
 
 	// Combine prefix, timestamp, and unique string
@@ -170,10 +172,11 @@ func (b *LogObjectBuilder) formatQuotedStringPtr(s *string) string {
 }
 
 // formatTimestamp formats a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
+// Takes milliseconds since epoch and converts to time.Time for formatting
 // Always outputs in UTC timezone
-func (b *LogObjectBuilder) formatTimestamp(t time.Time) string {
-	utc := t.UTC()
-	return utc.Format("[02/Jan/2006:15:04:05 +0000]")
+func (b *LogObjectBuilder) formatTimestamp(millis int64) string {
+	t := time.UnixMilli(millis).UTC()
+	return t.Format("[02/Jan/2006:15:04:05 +0000]")
 }
 
 // formatUint16Ptr formats a pointer to uint16, using "-" for NULL

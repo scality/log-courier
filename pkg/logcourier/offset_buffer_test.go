@@ -128,7 +128,7 @@ var _ = Describe("OffsetBuffer", func() {
 		It("stores offset in buffer", func() {
 			offset := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 
@@ -146,12 +146,12 @@ var _ = Describe("OffsetBuffer", func() {
 		It("updates existing offset for same bucket/raftSessionID", func() {
 			offset1 := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 			offset2 := logcourier.Offset{
 				InsertedAt: time.Now().Add(time.Second).UTC().Truncate(time.Second),
-				StartTime:  time.Now().Add(time.Second).UTC().Truncate(time.Second),
+				StartTime:  time.Now().Add(time.Second).UnixMilli(),
 				ReqID:      "req2",
 			}
 
@@ -170,12 +170,12 @@ var _ = Describe("OffsetBuffer", func() {
 		It("stores multiple offsets in buffer", func() {
 			offset1 := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 			offset2 := logcourier.Offset{
 				InsertedAt: time.Now().Add(time.Second).UTC().Truncate(time.Second),
-				StartTime:  time.Now().Add(time.Second).UTC().Truncate(time.Second),
+				StartTime:  time.Now().Add(time.Second).UnixMilli(),
 				ReqID:      "req2",
 			}
 
@@ -212,7 +212,7 @@ var _ = Describe("OffsetBuffer", func() {
 
 			offset := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 
@@ -246,7 +246,7 @@ var _ = Describe("OffsetBuffer", func() {
 
 			offset := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 
@@ -318,7 +318,7 @@ var _ = Describe("OffsetBuffer", func() {
 				// Add an offset to buffer
 				offset := logcourier.Offset{
 					InsertedAt: time.Now().UTC().Truncate(time.Second),
-					StartTime:  time.Now().UTC().Truncate(time.Second),
+					StartTime:  time.Now().UnixMilli(),
 					ReqID:      "req1",
 				}
 				buffer.Put("bucket1", 1, offset)
@@ -367,17 +367,17 @@ var _ = Describe("OffsetBuffer", func() {
 			It("should flush when count threshold is reached", func() {
 				offset1 := logcourier.Offset{
 					InsertedAt: time.Now().UTC().Truncate(time.Second),
-					StartTime:  time.Now().UTC().Truncate(time.Second),
+					StartTime:  time.Now().UnixMilli(),
 					ReqID:      "req1",
 				}
 				offset2 := logcourier.Offset{
 					InsertedAt: time.Now().Add(time.Second).UTC().Truncate(time.Second),
-					StartTime:  time.Now().Add(time.Second).UTC().Truncate(time.Second),
+					StartTime:  time.Now().Add(time.Second).UnixMilli(),
 					ReqID:      "req2",
 				}
 				offset3 := logcourier.Offset{
 					InsertedAt: time.Now().Add(2 * time.Second).UTC().Truncate(time.Second),
-					StartTime:  time.Now().Add(2 * time.Second).UTC().Truncate(time.Second),
+					StartTime:  time.Now().Add(2 * time.Second).UnixMilli(),
 					ReqID:      "req3",
 				}
 
@@ -419,7 +419,7 @@ var _ = Describe("OffsetBuffer", func() {
 			It("should not flush when count threshold is not reached", func() {
 				offset := logcourier.Offset{
 					InsertedAt: time.Now().UTC().Truncate(time.Second),
-					StartTime:  time.Now().UTC().Truncate(time.Second),
+					StartTime:  time.Now().UnixMilli(),
 					ReqID:      "req1",
 				}
 
@@ -454,7 +454,7 @@ var _ = Describe("OffsetBuffer", func() {
 
 				offset := logcourier.Offset{
 					InsertedAt: time.Now().UTC().Truncate(time.Second),
-					StartTime:  time.Now().UTC().Truncate(time.Second),
+					StartTime:  time.Now().UnixMilli(),
 					ReqID:      "req1",
 				}
 
@@ -514,12 +514,12 @@ var _ = Describe("OffsetBuffer", func() {
 		It("should preserve newer offset when Put during flush", func() {
 			offset1 := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 			offset2 := logcourier.Offset{
 				InsertedAt: time.Now().Add(time.Second).UTC().Truncate(time.Second),
-				StartTime:  time.Now().Add(time.Second).UTC().Truncate(time.Second),
+				StartTime:  time.Now().Add(time.Second).UnixMilli(),
 				ReqID:      "req2",
 			}
 
@@ -610,12 +610,12 @@ var _ = Describe("OffsetBuffer", func() {
 
 			offset1 := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 			offset2 := logcourier.Offset{
 				InsertedAt: time.Now().Add(time.Second).UTC().Truncate(time.Second),
-				StartTime:  time.Now().Add(time.Second).UTC().Truncate(time.Second),
+				StartTime:  time.Now().Add(time.Second).UnixMilli(),
 				ReqID:      "req2",
 			}
 
@@ -629,7 +629,7 @@ var _ = Describe("OffsetBuffer", func() {
 			// While first flush is in progress, add a new offset
 			offset3 := logcourier.Offset{
 				InsertedAt: time.Now().Add(2 * time.Second).UTC().Truncate(time.Second),
-				StartTime:  time.Now().Add(2 * time.Second).UTC().Truncate(time.Second),
+				StartTime:  time.Now().Add(2 * time.Second).UnixMilli(),
 				ReqID:      "req3",
 			}
 			buffer.Put("bucket3", 1, offset3)
@@ -715,7 +715,7 @@ var _ = Describe("OffsetBuffer", func() {
 			// Add some offsets
 			offset := logcourier.Offset{
 				InsertedAt: time.Now().UTC().Truncate(time.Second),
-				StartTime:  time.Now().UTC().Truncate(time.Second),
+				StartTime:  time.Now().UnixMilli(),
 				ReqID:      "req1",
 			}
 			buffer.Put("bucket1", 1, offset)

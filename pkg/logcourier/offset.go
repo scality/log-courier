@@ -36,7 +36,7 @@ type OffsetManagerInterface interface {
 // Offset holds the composite offset
 type Offset struct {
 	InsertedAt time.Time
-	StartTime  time.Time
+	StartTime  int64 // Milliseconds since epoch
 	ReqID      string
 }
 
@@ -83,7 +83,7 @@ func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, commits []Offse
 		if commit.Offset.InsertedAt.IsZero() {
 			return fmt.Errorf("offset commit: insertedAt timestamp cannot be zero")
 		}
-		if commit.Offset.StartTime.IsZero() {
+		if commit.Offset.StartTime == 0 {
 			return fmt.Errorf("offset commit: startTime cannot be zero")
 		}
 		if commit.Offset.ReqID == "" {

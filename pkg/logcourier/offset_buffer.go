@@ -311,6 +311,14 @@ func (ob *OffsetBuffer) commitBatch(ctx context.Context, offsets map[offsetKey]O
 			Bucket:        key.bucket,
 			RaftSessionID: key.raftSessionID,
 		})
+
+		// Log each offset being committed for debugging
+		ob.logger.Info("OFFSET_COMMIT",
+			"bucket", key.bucket,
+			"raftSessionID", key.raftSessionID,
+			"insertedAt", offset.InsertedAt,
+			"startTime", offset.StartTime,
+			"reqID", offset.ReqID)
 	}
 
 	return ob.offsetManager.CommitOffsetsBatch(ctx, commits)
