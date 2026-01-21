@@ -48,7 +48,7 @@ type BuildMetrics struct {
 // UploadMetrics tracks S3 upload operations
 type UploadMetrics struct {
 	ObjectsTotal *prometheus.CounterVec // labels: status (success/failed)
-	Duration prometheus.Histogram
+	Duration     *prometheus.HistogramVec // labels: status (success/failed)
 }
 
 // CommitMetrics tracks offset commit operations
@@ -200,12 +200,13 @@ func newUploadMetrics(factory promauto.Factory) UploadMetrics {
 			},
 			[]string{"status"}, // status: success, failed
 		),
-		Duration: factory.NewHistogram(
+		Duration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "log_courier_upload_duration_seconds",
 				Help:    "Time spent uploading log objects to S3",
 				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, // 10ms to 5s
 			},
+			[]string{"status"}, // status: success, failed
 		),
 	}
 }
