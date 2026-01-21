@@ -670,11 +670,12 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 
 	if err != nil {
 		p.metrics.Upload.ObjectsTotal.WithLabelValues("failed").Inc()
+		p.metrics.Upload.Duration.WithLabelValues("failed").Observe(uploadDuration.Seconds())
 		return nil, fmt.Errorf("failed to upload log object: %w", err)
 	}
 
 	p.metrics.Upload.ObjectsTotal.WithLabelValues("success").Inc()
-	p.metrics.Upload.Duration.Observe(uploadDuration.Seconds())
+	p.metrics.Upload.Duration.WithLabelValues("success").Observe(uploadDuration.Seconds())
 
 	// Observe lag metric: time from log generation to S3 upload
 	// Note: Build() sorts records by timestamp, so records[0] has the oldest timestamp
