@@ -25,21 +25,21 @@ func NewLogObjectBuilder() *LogObjectBuilder {
 }
 
 // Build builds a log object from log records
-// Records are sorted by event timestamp.
-// The key is generated using the first record's event timestamp in the format:
+// Records are sorted by StartTime
+// The key is generated using the first record's StartTime in the format:
 // <LoggingTargetPrefix>YYYY-mm-DD-HH-MM-SS-UniqueString
 func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	if len(records) == 0 {
 		return LogObject{}, fmt.Errorf("no records to build log object")
 	}
 
-	// Sort records by timestamp for chronological ordering in S3 files.
+	// Sort records by StartTime for chronological ordering in S3 files.
 	sort.Slice(records, func(i, j int) bool {
-		// Sort by timestamp, then req_id for stable ordering
-		if records[i].Timestamp.Equal(records[j].Timestamp) {
+		// Sort by StartTime, then req_id for stable ordering
+		if records[i].StartTime.Equal(records[j].StartTime) {
 			return records[i].ReqID < records[j].ReqID
 		}
-		return records[i].Timestamp.Before(records[j].Timestamp)
+		return records[i].StartTime.Before(records[j].StartTime)
 	})
 
 	// Configuration Handling: Use logging configuration from the first record.
@@ -56,10 +56,9 @@ func (b *LogObjectBuilder) Build(records []LogRecord) (LogObject, error) {
 	// but this adds query complexity for minimal benefit.
 	firstRecord := records[0]
 
-	// Generate object key using first record's event timestamp.
-	// Records are ordered by event timestamp (requirement: "Log records within a log object
-	// must be ordered by log record date"), so first record has the earliest event time.
-	key, err := b.generateKey(firstRecord.LoggingTargetPrefix, firstRecord.Timestamp)
+	// Generate object key using first record's StartTime.
+	// Records are ordered by StartTime, so first record has the earliest time.
+	key, err := b.generateKey(firstRecord.LoggingTargetPrefix, firstRecord.StartTime)
 	if err != nil {
 		return LogObject{}, fmt.Errorf("failed to generate key: %w", err)
 	}
@@ -114,30 +113,30 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
 	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
 		b.formatStringPtr(rec.BucketOwner),        // 1. Bucket Owner
-		b.formatString(rec.BucketName),        // 2. Bucket
-		b.formatTimestamp(rec.StartTime),      // 3. Time
+		b.formatString(rec.BucketName),            // 2. Bucket
+		b.formatTimestamp(rec.StartTime),          // 3. Time
 		b.formatStringPtr(rec.ClientIP),           // 4. Remote IP
 		b.formatStringPtr(rec.Requester),          // 5. Requester
-		b.formatString(rec.ReqID),             // 6. Request ID
+		b.formatString(rec.ReqID),                 // 6. Request ID
 		b.formatStringPtr(rec.Operation),          // 7. Operation
 		b.formatStringPtr(rec.ObjectKey),          // 8. Key
 		b.formatQuotedStringPtr(rec.RequestURI),   // 9. Request-URI (quoted)
-		b.formatUint16Ptr(rec.HttpCode),       // 10. HTTP Status
+		b.formatUint16Ptr(rec.HttpCode),           // 10. HTTP Status
 		b.formatStringPtr(rec.ErrorCode),          // 11. Error Code
-		b.formatUint64Ptr(rec.BytesSent),      // 12. Bytes Sent
-		b.formatUint64Ptr(rec.ObjectSize),     // 13. Object Size
-		b.formatFloat32Ptr(rec.TotalTime),     // 14. Total Time
-		b.formatFloat32Ptr(rec.TurnAroundTime), // 15. Turn-Around Time
+		b.formatUint64Ptr(rec.BytesSent),          // 12. Bytes Sent
+		b.formatUint64Ptr(rec.ObjectSize),         // 13. Object Size
+		b.formatFloat32Ptr(rec.TotalTime),         // 14. Total Time
+		b.formatFloat32Ptr(rec.TurnAroundTime),    // 15. Turn-Around Time
 		b.formatQuotedStringPtr(rec.Referer),      // 16. Referer (quoted)
 		b.formatQuotedStringPtr(rec.UserAgent),    // 17. User-Agent (quoted)
 		b.formatStringPtr(rec.VersionID),          // 18. Version Id
-		"-",                                   // 19. Host Id (not implemented)
+		"-",                                       // 19. Host Id (not implemented)
 		b.formatStringPtr(rec.SignatureVersion),   // 20. Signature Version
 		b.formatStringPtr(rec.CipherSuite),        // 21. Cipher Suite
 		b.formatStringPtr(rec.AuthenticationType), // 22. Authentication Type
 		b.formatStringPtr(rec.HostHeader),         // 23. Host Header
 		b.formatStringPtr(rec.TlsVersion),         // 24. TLS Version
-		"-",                                   // 25. Access Point ARN (not implemented)
+		"-",                                       // 25. Access Point ARN (not implemented)
 		b.formatStringPtr(rec.AclRequired),        // 26. ACL Required
 	)
 }
@@ -171,13 +170,9 @@ func (b *LogObjectBuilder) formatQuotedStringPtr(s *string) string {
 }
 
 // formatTimestamp formats a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
-// Always outputs in UTC timezone, or "-" for NULL
-func (b *LogObjectBuilder) formatTimestamp(t *time.Time) string {
-	if t == nil {
-		return "-"
-	}
+// Always outputs in UTC timezone
+func (b *LogObjectBuilder) formatTimestamp(t time.Time) string {
 	utc := t.UTC()
-
 	return utc.Format("[02/Jan/2006:15:04:05 +0000]")
 }
 

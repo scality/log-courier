@@ -37,7 +37,7 @@ type OffsetManagerInterface interface {
 // Offset holds the composite offset
 type Offset struct {
 	InsertedAt time.Time
-	Timestamp  time.Time
+	StartTime  time.Time
 	ReqID      string
 }
 
@@ -84,8 +84,8 @@ func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, commits []Offse
 		if commit.Offset.InsertedAt.IsZero() {
 			return fmt.Errorf("offset commit: insertedAt timestamp cannot be zero")
 		}
-		if commit.Offset.Timestamp.IsZero() {
-			return fmt.Errorf("offset commit: timestamp cannot be zero")
+		if commit.Offset.StartTime.IsZero() {
+			return fmt.Errorf("offset commit: startTime cannot be zero")
 		}
 		if commit.Offset.ReqID == "" {
 			return fmt.Errorf("offset commit: reqID cannot be empty")
@@ -98,11 +98,11 @@ func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, commits []Offse
 
 	for i, commit := range commits {
 		valuesClauses[i] = "(?, ?, ?, ?, ?)"
-		args = append(args, commit.Bucket, commit.RaftSessionID, commit.Offset.InsertedAt, commit.Offset.Timestamp, commit.Offset.ReqID)
+		args = append(args, commit.Bucket, commit.RaftSessionID, commit.Offset.InsertedAt, commit.Offset.StartTime, commit.Offset.ReqID)
 	}
 
 	query := fmt.Sprintf(`
-        INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedTimestamp, lastProcessedReqId)
+        INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId)
         VALUES %s
     `, om.database, clickhouse.TableOffsetsFederated, strings.Join(valuesClauses, ", "))
 
@@ -123,22 +123,22 @@ func (om *OffsetManager) GetOffset(ctx context.Context, bucket string, raftSessi
 	}
 
 	// Get the row with maximum composite offset for the given bucket and raft session.
-	// Order by all three components to handle cases where multiple rows have the same lastProcessedInsertedAt or lastProcessedTimestamp.
+	// Order by all three components (insertedAt, startTime, reqID) for lexicographic comparison.
 	query := fmt.Sprintf(`
         SELECT
             lastProcessedInsertedAt,
-            lastProcessedTimestamp,
+            lastProcessedStartTime,
             lastProcessedReqId
         FROM %s.%s
         WHERE bucketName = ? AND raftSessionID = ?
-        ORDER BY lastProcessedInsertedAt DESC, lastProcessedTimestamp DESC, lastProcessedReqId DESC
+        ORDER BY lastProcessedInsertedAt DESC, lastProcessedStartTime DESC, lastProcessedReqId DESC
         LIMIT 1
     `, om.database, clickhouse.TableOffsetsFederated)
 
 	row := om.client.QueryRow(ctx, query, bucket, raftSessionID)
 
 	var offset Offset
-	err := row.Scan(&offset.InsertedAt, &offset.Timestamp, &offset.ReqID)
+	err := row.Scan(&offset.InsertedAt, &offset.StartTime, &offset.ReqID)
 
 	// Check if no rows returned (no offset exists)
 	if err != nil {
