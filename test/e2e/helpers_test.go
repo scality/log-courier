@@ -17,6 +17,19 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	// logWaitTimeout is the maximum time to wait for logs to appear
+	logWaitTimeout = 20 * time.Second
+	// logPollInterval is how often to check for new logs
+	logPollInterval = 2 * time.Second
+	// bucketOperationMaxRetries is the number of retries after the initial attempt for bucket operations
+	bucketOperationMaxRetries = 4
+	// bucketOperationInitialDelay is the initial delay for exponential backoff
+	bucketOperationInitialDelay = 100 * time.Millisecond
+	// bucketOperationMaxDelay is the maximum delay between retries
+	bucketOperationMaxDelay = 2 * time.Second
+)
+
 // E2ETestContext holds the test context for an E2E test
 type E2ETestContext struct {
 	TestName          string
@@ -278,7 +291,7 @@ func fetchAllLogsSince(ctx *E2ETestContext, since time.Time) ([]*ParsedLogRecord
 }
 
 // waitForLogCount waits for at least expectedCount logs to appear
-func waitForLogCount(ctx *E2ETestContext, expectedCount int, timeout time.Duration) []*ParsedLogRecord {
+func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord {
 	var allLogs []*ParsedLogRecord
 
 	Eventually(func() int {
@@ -288,8 +301,8 @@ func waitForLogCount(ctx *E2ETestContext, expectedCount int, timeout time.Durati
 		}
 		allLogs = logs
 		return len(logs)
-	}, timeout, 2*time.Second).Should(BeNumerically(">=", expectedCount),
-		"Expected at least %d logs within %v", expectedCount, timeout)
+	}, logWaitTimeout, logPollInterval).Should(BeNumerically(">=", expectedCount),
+		"Expected at least %d logs within %v", expectedCount, logWaitTimeout)
 
 	return allLogs
 }
@@ -330,6 +343,53 @@ func verifyChronologicalOrder(records []*ParsedLogRecord) {
 	}
 }
 
+// retryWithBackoff executes a function with exponential backoff retry logic.
+// The shouldRetry function determines if an error should trigger a retry (if nil, all errors are retried).
+func retryWithBackoff(operation func() error, shouldRetry func(error) bool) error {
+	delay := bucketOperationInitialDelay
+	var lastErr error
+
+	for attempt := 0; attempt <= bucketOperationMaxRetries; attempt++ {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		// Check if we should retry this error
+		if shouldRetry != nil && !shouldRetry(err) {
+			return err
+		}
+
+		lastErr = err
+
+		// Sleep before next retry (except on last attempt)
+		if attempt < bucketOperationMaxRetries {
+			time.Sleep(delay)
+			delay *= 2
+			if delay > bucketOperationMaxDelay {
+				delay = bucketOperationMaxDelay
+			}
+		}
+	}
+
+	return lastErr
+}
+
+// createBucketWithRetry attempts to create a bucket with exponential backoff retry logic
+func createBucketWithRetry(client *s3.Client, bucket string) error {
+	err := retryWithBackoff(func() error {
+		_, err := client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+			Bucket: aws.String(bucket),
+		})
+		return err
+	}, nil) // nil means retry all errors
+
+	if err != nil {
+		return fmt.Errorf("failed to create bucket %s after %d attempts: %w", bucket, bucketOperationMaxRetries+1, err)
+	}
+	return nil
+}
+
 // setupE2ETest creates and initializes an E2E test context
 func setupE2ETest() *E2ETestContext {
 	GinkgoHelper()
@@ -341,15 +401,11 @@ func setupE2ETest() *E2ETestContext {
 	logPrefix := "logs/"
 
 	// Create source bucket
-	_, err := sharedS3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
-		Bucket: aws.String(sourceBucket),
-	})
+	err := createBucketWithRetry(sharedS3Client, sourceBucket)
 	Expect(err).NotTo(HaveOccurred(), "Failed to create source bucket")
 
 	// Create destination bucket
-	_, err = sharedS3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
-		Bucket: aws.String(destBucket),
-	})
+	err = createBucketWithRetry(sharedS3Client, destBucket)
 	Expect(err).NotTo(HaveOccurred(), "Failed to create destination bucket")
 
 	// Configure bucket logging
@@ -364,6 +420,40 @@ func setupE2ETest() *E2ETestContext {
 		LogPrefix:         logPrefix,
 		TestStartTime:     time.Now(),
 	}
+}
+
+// deleteBucketWithRetry attempts to empty and delete a bucket with exponential backoff retry logic
+func deleteBucketWithRetry(client *s3.Client, bucket string) error {
+	var attemptNum int
+	err := retryWithBackoff(func() error {
+		attemptNum++
+		// Empty bucket first - fail fast if this fails
+		if err := emptyBucket(client, bucket); err != nil {
+			return fmt.Errorf("failed to empty bucket on attempt %d: %w", attemptNum, err)
+		}
+
+		// Then delete bucket
+		_, err := client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
+			Bucket: aws.String(bucket),
+		})
+		return err
+	}, func(err error) bool {
+		// Don't retry emptyBucket errors
+		if strings.Contains(err.Error(), "failed to empty bucket") {
+			return false
+		}
+		// Only retry BucketNotEmpty errors
+		return strings.Contains(err.Error(), "BucketNotEmpty")
+	})
+
+	if err != nil {
+		// If it's already wrapped with attempt info or is an emptyBucket error, return as-is
+		if strings.Contains(err.Error(), "failed to empty bucket") {
+			return err
+		}
+		return fmt.Errorf("failed to delete bucket %s after %d attempts: %w", bucket, bucketOperationMaxRetries+1, err)
+	}
+	return nil
 }
 
 // cleanupE2ETest cleans up resources created by setupE2ETest
@@ -381,32 +471,24 @@ func cleanupE2ETest(ctx *E2ETestContext) {
 		fmt.Printf("[E2E Cleanup] FAILED - Destination bucket: %s\n", ctx.DestinationBucket)
 	}
 
-	// Delete all objects in destination bucket
-	err := emptyBucket(ctx.S3Client, ctx.DestinationBucket)
-	if err != nil {
-		// Log but don't fail - bucket might not exist
-		fmt.Printf("Warning: failed to delete objects in destination bucket: %v\n", err)
-	}
-
-	// Delete all objects in source bucket
-	err = emptyBucket(ctx.S3Client, ctx.SourceBucket)
-	if err != nil {
-		fmt.Printf("Warning: failed to delete objects in source bucket: %v\n", err)
-	}
-
-	// Delete destination bucket
-	_, err = ctx.S3Client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
-		Bucket: aws.String(ctx.DestinationBucket),
+	// Disable logging on source bucket before cleanup
+	_, err := ctx.S3Client.PutBucketLogging(context.Background(), &s3.PutBucketLoggingInput{
+		Bucket:              aws.String(ctx.SourceBucket),
+		BucketLoggingStatus: &types.BucketLoggingStatus{},
 	})
 	if err != nil {
-		fmt.Printf("Warning: failed to delete destination bucket: %v\n", err)
+		fmt.Printf("Warning: failed to disable logging on source bucket: %v\n", err)
 	}
 
 	// Delete source bucket
-	_, err = ctx.S3Client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
-		Bucket: aws.String(ctx.SourceBucket),
-	})
+	err = deleteBucketWithRetry(ctx.S3Client, ctx.SourceBucket)
 	if err != nil {
 		fmt.Printf("Warning: failed to delete source bucket: %v\n", err)
+	}
+
+	// Delete destination bucket
+	err = deleteBucketWithRetry(ctx.S3Client, ctx.DestinationBucket)
+	if err != nil {
+		fmt.Printf("Warning: failed to delete destination bucket: %v\n", err)
 	}
 }
