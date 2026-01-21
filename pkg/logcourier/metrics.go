@@ -28,7 +28,6 @@ type GeneralMetrics struct {
 // DiscoveryMetrics tracks batch discovery operations
 type DiscoveryMetrics struct {
 	BatchesFound prometheus.Counter
-	BucketsPerDiscovery prometheus.Gauge
 	Duration prometheus.Histogram
 }
 
@@ -130,12 +129,6 @@ func newDiscoveryMetrics(factory promauto.Factory) DiscoveryMetrics {
 			prometheus.CounterOpts{
 				Name: "log_courier_discovery_batches_found_total",
 				Help: "Total number of log batches discovered during work discovery",
-			},
-		),
-		BucketsPerDiscovery: factory.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "log_courier_discovery_buckets_per_discovery",
-				Help: "Number of buckets discovered",
 			},
 		),
 		Duration: factory.NewHistogram(

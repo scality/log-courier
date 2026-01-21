@@ -370,7 +370,6 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	}
 
 	p.logger.Info("batch finder completed", "nBatches", len(batches))
-	p.metrics.Discovery.BucketsPerDiscovery.Set(float64(len(batches)))
 
 	if len(batches) == 0 {
 		return 0, nil
