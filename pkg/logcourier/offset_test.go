@@ -42,11 +42,12 @@ var _ = Describe("OffsetManager", func() {
 		It("should commit and retrieve offset", func() {
 			insertedAt := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
 			timestamp := time.Now().Add(-1 * time.Hour)
+			timestampMillis := timestamp.UnixMilli()
 			reqID := "test-req-123"
 
 			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{
 				InsertedAt: insertedAt,
-				StartTime:  timestamp,
+				StartTime:  timestampMillis,
 				ReqID:      reqID,
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -54,7 +55,7 @@ var _ = Describe("OffsetManager", func() {
 			offset, err := om.GetOffset(ctx, "test-bucket", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(offset.InsertedAt.Unix()).To(Equal(insertedAt.Unix()))
-			Expect(offset.StartTime.Unix()).To(Equal(timestamp.Unix()))
+			Expect(offset.StartTime).To(Equal(timestampMillis))
 			Expect(offset.ReqID).To(Equal(reqID))
 		})
 
@@ -62,34 +63,34 @@ var _ = Describe("OffsetManager", func() {
 			t1 := time.Now().Truncate(time.Second)
 			t2 := t1.Add(1 * time.Hour)
 
-			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t1, StartTime: t1, ReqID: "req-1"})
+			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t1, StartTime: t1.UnixMilli(), ReqID: "req-1"})
 			Expect(err).NotTo(HaveOccurred())
 
-			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t2, StartTime: t2, ReqID: "req-2"})
+			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t2, StartTime: t2.UnixMilli(), ReqID: "req-2"})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should reject empty bucket name", func() {
 			now := time.Now()
-			err := om.CommitOffset(ctx, "", 0, logcourier.Offset{InsertedAt: now, StartTime: now, ReqID: "req-123"})
+			err := om.CommitOffset(ctx, "", 0, logcourier.Offset{InsertedAt: now, StartTime: now.UnixMilli(), ReqID: "req-123"})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("bucket name cannot be empty"))
 		})
 
 		It("should reject zero insertedAt", func() {
-			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Time{}, StartTime: time.Now(), ReqID: "req-123"})
+			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Time{}, StartTime: time.Now().UnixMilli(), ReqID: "req-123"})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("insertedAt timestamp cannot be zero"))
 		})
 
 		It("should reject zero startTime", func() {
-			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Now(), StartTime: time.Time{}, ReqID: "req-123"})
+			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Now(), StartTime: 0, ReqID: "req-123"})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("startTime cannot be zero"))
 		})
 
 		It("should reject empty reqID", func() {
-			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Now(), StartTime: time.Now(), ReqID: ""})
+			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: time.Now(), StartTime: time.Now().UnixMilli(), ReqID: ""})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("reqID cannot be empty"))
 		})
@@ -100,7 +101,7 @@ var _ = Describe("OffsetManager", func() {
 			offset, err := om.GetOffset(ctx, "nonexistent-bucket", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(offset.InsertedAt.IsZero()).To(BeTrue())
-			Expect(offset.StartTime.IsZero()).To(BeTrue())
+			Expect(offset.StartTime).To(Equal(int64(0)))
 			Expect(offset.ReqID).To(Equal(""))
 		})
 
@@ -113,11 +114,12 @@ var _ = Describe("OffsetManager", func() {
 		It("should return committed offset", func() {
 			insertedAt := time.Now().Truncate(time.Second)
 			timestamp := time.Now()
+			timestampMillis := timestamp.UnixMilli()
 			reqID := "test-req-1"
 
 			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{
 				InsertedAt: insertedAt,
-				StartTime:  timestamp,
+				StartTime:  timestampMillis,
 				ReqID:      reqID,
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -133,13 +135,13 @@ var _ = Describe("OffsetManager", func() {
 			t2 := t1.Add(1 * time.Hour)
 			t3 := t2.Add(1 * time.Hour)
 
-			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t1, StartTime: t1, ReqID: "req-1"})
+			err := om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t1, StartTime: t1.UnixMilli(), ReqID: "req-1"})
 			Expect(err).NotTo(HaveOccurred())
 
-			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t2, StartTime: t2, ReqID: "req-2"})
+			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t2, StartTime: t2.UnixMilli(), ReqID: "req-2"})
 			Expect(err).NotTo(HaveOccurred())
 
-			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t3, StartTime: t3, ReqID: "req-3"})
+			err = om.CommitOffset(ctx, "test-bucket", 0, logcourier.Offset{InsertedAt: t3, StartTime: t3.UnixMilli(), ReqID: "req-3"})
 			Expect(err).NotTo(HaveOccurred())
 
 			offset, err := om.GetOffset(ctx, "test-bucket", 0)
@@ -157,24 +159,24 @@ var _ = Describe("OffsetManager", func() {
 
 			// Offset 1: earliest insertedAt
 			ts1 := baseTime.Add(-2 * time.Hour)
-			err := om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts1, StartTime: ts1, ReqID: "req-aaa"})
+			err := om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts1, StartTime: ts1.UnixMilli(), ReqID: "req-aaa"})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Offset 2: same insertedAt as offset 3, but earlier timestamp
 			ts2 := baseTime
-			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2.Add(-1 * time.Second), ReqID: "req-zzz"})
+			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2.Add(-1 * time.Second).UnixMilli(), ReqID: "req-zzz"})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Offset 3: same insertedAt as offset 2, later timestamp, but earlier reqID
-			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2, ReqID: "req-aaa"})
+			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2.UnixMilli(), ReqID: "req-aaa"})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Offset 4: same insertedAt and timestamp as offset 5, but earlier reqID
-			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2, ReqID: "req-bbb"})
+			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2.UnixMilli(), ReqID: "req-bbb"})
 			Expect(err).NotTo(HaveOccurred())
 
 			// Offset 5: MAXIMUM - same insertedAt and timestamp as offset 4, but later reqID
-			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2, ReqID: "req-zzz-max"})
+			err = om.CommitOffset(ctx, bucket, 0, logcourier.Offset{InsertedAt: ts2, StartTime: ts2.UnixMilli(), ReqID: "req-zzz-max"})
 			Expect(err).NotTo(HaveOccurred())
 
 			// GetOffset should return offset 5 (max of all three components)
@@ -183,7 +185,7 @@ var _ = Describe("OffsetManager", func() {
 
 			// Verify it's the maximum by all three components
 			Expect(offset.InsertedAt.Unix()).To(Equal(ts2.Unix()))
-			Expect(offset.StartTime.Unix()).To(Equal(ts2.Unix()))
+			Expect(offset.StartTime).To(Equal(ts2.UnixMilli()))
 			Expect(offset.ReqID).To(Equal("req-zzz-max"))
 		})
 	})

@@ -53,7 +53,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 						LoggingEnabled: true,
 						BucketName:     "test-bucket",
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-%d", i),
 						Action:         "GetObject",
 					})
@@ -83,12 +83,12 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						oldTime.Add(time.Duration(i)*time.Second), // insertedAt
 						"test-bucket", // bucketName
-						oldTime.Add(time.Duration(i)*time.Second), // startTime
-						fmt.Sprintf("req-%03d", i),                // req_id
-						"GetObject",                               // operation
-						true,                                      // loggingEnabled
-						uint16(0),                                 // raftSessionID
-						"/test-bucket/key",                        // requestURI
+						oldTime.Add(time.Duration(i)*time.Second).UnixMilli(), // startTime
+						fmt.Sprintf("req-%03d", i),                            // req_id
+						"GetObject",                                           // operation
+						true,                                                  // loggingEnabled
+						uint16(0),                                             // raftSessionID
+						"/test-bucket/key",                                    // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -99,7 +99,7 @@ var _ = Describe("BatchFinder", func() {
 					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), lastLogTime, lastLogTime, "req-007")
+					"test-bucket", uint16(0), lastLogTime, lastLogTime.UnixMilli(), "req-007")
 				Expect(err).NotTo(HaveOccurred())
 
 				batches, err := finder.FindBatches(ctx)
@@ -123,34 +123,34 @@ var _ = Describe("BatchFinder", func() {
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 				err := helper.Client().Exec(ctx, query,
-					"",                 // bucketOwner
-					"test-bucket",      // bucketName
-					time.Now(),         // startTime
-					"",                 // clientIP
-					"",                 // requester
-					"req-old",          // req_id
-					"GetObject",        // operation
-					"",                 // objectKey
-					"/test-bucket/key", // requestURI
-					uint16(0),          // httpCode
-					"",                 // errorCode
-					uint64(0),          // bytesSent
-					uint64(0),          // objectSize
-					float32(0),         // totalTime
-					float32(0),         // turnAroundTime
-					"",                 // referer
-					"",                 // userAgent
-					"",                 // versionId
-					"",                 // signatureVersion
-					"",                 // cipherSuite
-					"",                 // authenticationType
-					"",                 // hostHeader
-					"",                 // tlsVersion
-					"",                 // aclRequired
-					oldTime,            // insertedAt (old)
-					"",                 // loggingTargetBucket
-					"",                 // loggingTargetPrefix
-					uint16(0),          // raftSessionID
+					"",                     // bucketOwner
+					"test-bucket",          // bucketName
+					time.Now().UnixMilli(), // startTime
+					"",                     // clientIP
+					"",                     // requester
+					"req-old",              // req_id
+					"GetObject",            // operation
+					"",                     // objectKey
+					"/test-bucket/key",     // requestURI
+					uint16(0),              // httpCode
+					"",                     // errorCode
+					uint64(0),              // bytesSent
+					uint64(0),              // objectSize
+					float32(0),             // totalTime
+					float32(0),             // turnAroundTime
+					"",                     // referer
+					"",                     // userAgent
+					"",                     // versionId
+					"",                     // signatureVersion
+					"",                     // cipherSuite
+					"",                     // authenticationType
+					"",                     // hostHeader
+					"",                     // tlsVersion
+					"",                     // aclRequired
+					oldTime,                // insertedAt (old)
+					"",                     // loggingTargetBucket
+					"",                     // loggingTargetPrefix
+					uint16(0),              // raftSessionID
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -172,7 +172,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						oldTime,                    // insertedAt (old)
 						"test-bucket",              // bucketName
-						oldTime,                    // startTime
+						oldTime.UnixMilli(),        // startTime
 						fmt.Sprintf("req-%03d", i), // req_id
 						"GetObject",                // operation
 						true,                       // loggingEnabled
@@ -194,7 +194,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 						LoggingEnabled: true,
 						BucketName:     "test-bucket",
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-%d", i),
 						Action:         "GetObject",
 					})
@@ -210,7 +210,7 @@ var _ = Describe("BatchFinder", func() {
 		Describe("Composite Offset Filtering", func() {
 			It("should filter when offset differs in insertedAt", func() {
 				baseTime := time.Now().Add(-2 * time.Hour)
-				startTime := baseTime
+				startTimeVal := baseTime
 				reqID := "req-1"
 
 				// Insert 6 logs with insertedAt from T to T+5s, same startTime and reqID
@@ -222,13 +222,13 @@ var _ = Describe("BatchFinder", func() {
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
 						baseTime.Add(time.Duration(i)*time.Second), // insertedAt varies
-						"test-bucket",      // bucketName
-						startTime,          // startTime (same for all)
-						reqID,              // req_id (same for all)
-						"GetObject",        // operation
-						true,               // loggingEnabled
-						uint16(0),          // raftSessionID
-						"/test-bucket/key", // requestURI
+						"test-bucket",            // bucketName
+						startTimeVal.UnixMilli(), // startTime (same for all)
+						reqID,                    // req_id (same for all)
+						"GetObject",              // operation
+						true,                     // loggingEnabled
+						uint16(0),                // raftSessionID
+						"/test-bucket/key",       // requestURI
 					)
 					Expect(err).NotTo(HaveOccurred())
 				}
@@ -239,7 +239,7 @@ var _ = Describe("BatchFinder", func() {
 					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), offsetTime, startTime, reqID)
+					"test-bucket", uint16(0), offsetTime, startTimeVal.UnixMilli(), reqID)
 				Expect(err).NotTo(HaveOccurred())
 
 				batches, err := finder.FindBatches(ctx)
@@ -256,7 +256,7 @@ var _ = Describe("BatchFinder", func() {
 
 				// Insert 6 logs with same insertedAt, varying startTime
 				for i := 0; i < 6; i++ {
-					startTime := baseTime.Add(time.Duration(i) * time.Second)
+					startTimeVal := baseTime.Add(time.Duration(i) * time.Second)
 					query := fmt.Sprintf(`
 						INSERT INTO %s.%s
 						(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
@@ -265,7 +265,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						insertedAt,                 // insertedAt (same for all)
 						"test-bucket",              // bucketName
-						startTime,                  // startTime varies
+						startTimeVal.UnixMilli(),   // startTime varies
 						fmt.Sprintf("req-%03d", i), // req_id
 						"GetObject",                // operation
 						true,                       // loggingEnabled
@@ -281,7 +281,7 @@ var _ = Describe("BatchFinder", func() {
 					"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId) VALUES (?, ?, ?, ?, ?)",
 					helper.DatabaseName, clickhouse.TableOffsetsFederated)
 				err := helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), insertedAt, offsetTimestamp, "req-003")
+					"test-bucket", uint16(0), insertedAt, offsetTimestamp.UnixMilli(), "req-003")
 				Expect(err).NotTo(HaveOccurred())
 
 				batches, err := finder.FindBatches(ctx)
@@ -306,7 +306,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						insertedAt,                 // insertedAt
 						"test-bucket",              // bucketName
-						insertedAt,                 // startTime
+						insertedAt.UnixMilli(),     // startTime
 						fmt.Sprintf("req-%03d", i), // req_id
 						"GetObject",                // operation
 						true,                       // loggingEnabled
@@ -323,17 +323,17 @@ var _ = Describe("BatchFinder", func() {
 
 				t0 := baseTime
 				err := helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), t0, t0, "req-000")
+					"test-bucket", uint16(0), t0, t0.UnixMilli(), "req-000")
 				Expect(err).NotTo(HaveOccurred())
 
 				t2 := baseTime.Add(2 * time.Second)
 				err = helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), t2, t2, "req-002")
+					"test-bucket", uint16(0), t2, t2.UnixMilli(), "req-002")
 				Expect(err).NotTo(HaveOccurred())
 
 				t1 := baseTime.Add(1 * time.Second)
 				err = helper.Client().Exec(ctx, offsetQuery,
-					"test-bucket", uint16(0), t1, t1, "req-001")
+					"test-bucket", uint16(0), t1, t1.UnixMilli(), "req-001")
 				Expect(err).NotTo(HaveOccurred())
 
 				batches, err := finder.FindBatches(ctx)
@@ -353,7 +353,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 						LoggingEnabled: true,
 						BucketName:     "bucket-1",
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-1-%d", i),
 						Action:         "GetObject",
 					})
@@ -364,7 +364,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 						LoggingEnabled: true,
 						BucketName:     "bucket-2",
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-2-%d", i),
 						Action:         "PutObject",
 					})
@@ -393,7 +393,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						oldTime,                      // insertedAt (older)
 						"bucket-A",                   // bucketName
-						oldTime,                      // startTime
+						oldTime.UnixMilli(),          // startTime
 						fmt.Sprintf("req-a-%03d", i), // req_id
 						"GetObject",                  // operation
 						true,                         // loggingEnabled
@@ -413,7 +413,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						newerTime,                    // insertedAt (newer)
 						"bucket-B",                   // bucketName
-						newerTime,                    // startTime
+						newerTime.UnixMilli(),        // startTime
 						fmt.Sprintf("req-b-%03d", i), // req_id
 						"GetObject",                  // operation
 						true,                         // loggingEnabled
@@ -441,7 +441,7 @@ var _ = Describe("BatchFinder", func() {
 						LoggingEnabled: true,
 						BucketName:     "test-bucket",
 						RaftSessionID:  1,
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-1-%d", i),
 						Action:         "GetObject",
 					})
@@ -454,7 +454,7 @@ var _ = Describe("BatchFinder", func() {
 						LoggingEnabled: true,
 						BucketName:     "test-bucket",
 						RaftSessionID:  2,
-						StartTime:      time.Now(),
+						StartTime:      time.Now().UnixMilli(),
 						ReqID:          fmt.Sprintf("req-2-%d", i),
 						Action:         "GetObject",
 					})
@@ -490,7 +490,7 @@ var _ = Describe("BatchFinder", func() {
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 			err := helper.Client().Exec(ctx, query,
-				logAInsertedAt, "test-bucket", logAStartTime, "req-A",
+				logAInsertedAt, "test-bucket", logAStartTime.UnixMilli(), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -498,7 +498,7 @@ var _ = Describe("BatchFinder", func() {
 			logBStartTime := baseTime.Add(1 * time.Second)
 			logBInsertedAt := baseTime.Add(5 * time.Second)
 			err = helper.Client().Exec(ctx, query,
-				logBInsertedAt, "test-bucket", logBStartTime, "req-B",
+				logBInsertedAt, "test-bucket", logBStartTime.UnixMilli(), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -538,7 +538,7 @@ var _ = Describe("BatchFinder", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "bucket-recent",
-					StartTime:      recentTime,
+					StartTime:      recentTime.UnixMilli(),
 					ReqID:          fmt.Sprintf("req-recent-%d", i),
 					Action:         "GetObject",
 				})
@@ -557,7 +557,7 @@ var _ = Describe("BatchFinder", func() {
 				err := helper.Client().Exec(ctx, query,
 					oldTime,
 					"bucket-old",
-					oldTime,
+					oldTime.UnixMilli(),
 					fmt.Sprintf("req-old-%d", i),
 					"GetObject",
 					true,
@@ -591,7 +591,7 @@ var _ = Describe("BatchFinder", func() {
 					err := helper.Client().Exec(ctx, query,
 						insertTime,
 						bucketName,
-						insertTime,
+						insertTime.UnixMilli(),
 						fmt.Sprintf("req-%d-%d", bucketNum, i),
 						"GetObject",
 						true,

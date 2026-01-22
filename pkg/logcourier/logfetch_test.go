@@ -48,7 +48,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					StartTime:      now.Add(time.Duration(i) * time.Second),
+					StartTime:      now.Add(time.Duration(i) * time.Second).UnixMilli(),
 					ReqID:          fmt.Sprintf("req-%d", i),
 					Action:         "GetObject",
 					ObjectKey:      fmt.Sprintf("key-%d", i),
@@ -83,25 +83,25 @@ var _ = Describe("LogFetcher", func() {
 
 			// Log D: insertedAt=1s, timestamp=4s (earliest insertedAt)
 			err := helper.Client().Exec(ctx, query,
-				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(4*time.Second), "req-D",
+				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(4*time.Second).UnixMilli(), "req-D",
 				"GetObject", true, uint16(0), "/test-bucket/key-d")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log A: insertedAt=3s, timestamp=1s
 			err = helper.Client().Exec(ctx, query,
-				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-A",
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(1*time.Second).UnixMilli(), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log B: insertedAt=3s, timestamp=2s (same insertedAt as A, later timestamp)
 			err = helper.Client().Exec(ctx, query,
-				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-B",
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(2*time.Second).UnixMilli(), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log C: insertedAt=5s, timestamp=3s (latest insertedAt)
 			err = helper.Client().Exec(ctx, query,
-				baseTime.Add(5*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-C",
+				baseTime.Add(5*time.Second), "test-bucket", baseTime.Add(3*time.Second).UnixMilli(), "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -122,8 +122,8 @@ var _ = Describe("LogFetcher", func() {
 				if curr.InsertedAt.After(prev.InsertedAt) {
 					continue
 				} else if curr.InsertedAt.Equal(prev.InsertedAt) {
-					if curr.StartTime.After(prev.StartTime) || curr.StartTime.Equal(prev.StartTime) {
-						if curr.StartTime.Equal(prev.StartTime) {
+					if curr.StartTime > prev.StartTime || curr.StartTime == prev.StartTime {
+						if curr.StartTime == prev.StartTime {
 							Expect(curr.ReqID > prev.ReqID).To(BeTrue(),
 								"When insertedAt and startTime are equal, reqID should increase")
 						}
@@ -133,7 +133,7 @@ var _ = Describe("LogFetcher", func() {
 				// If we get here, ordering is violated
 				Expect(true).To(BeFalse(),
 					"Records should be sorted by (insertedAt, startTime, reqID). "+
-						"Record %d: (%s, %s, %s), Record %d: (%s, %s, %s)",
+						"Record %d: (%s, %d, %s), Record %d: (%s, %d, %s)",
 					i-1, prev.InsertedAt, prev.StartTime, prev.ReqID,
 					i, curr.InsertedAt, curr.StartTime, curr.ReqID)
 			}
@@ -146,7 +146,7 @@ var _ = Describe("LogFetcher", func() {
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 				LoggingEnabled: true,
 				BucketName:     "bucket-1",
-				StartTime:      now,
+				StartTime:      now.UnixMilli(),
 				ReqID:          "req-1",
 				Action:         "GetObject",
 				ObjectKey:      "key1",
@@ -157,7 +157,7 @@ var _ = Describe("LogFetcher", func() {
 			err = helper.InsertTestLog(ctx, testutil.TestLogRecord{
 				LoggingEnabled: true,
 				BucketName:     "bucket-2",
-				StartTime:      now,
+				StartTime:      now.UnixMilli(),
 				ReqID:          "req-2",
 				Action:         "GetObject",
 				ObjectKey:      "key2",
@@ -198,17 +198,17 @@ var _ = Describe("LogFetcher", func() {
 
 			// Insert 3 logs with sequential insertedAt and timestamps
 			err := helper.Client().Exec(ctx, query,
-				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(1*time.Second), "req-001",
+				baseTime.Add(1*time.Second), "test-bucket", baseTime.Add(1*time.Second).UnixMilli(), "req-001",
 				"GetObject", true, uint16(0), "/test-bucket/key-1")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				baseTime.Add(2*time.Second), "test-bucket", baseTime.Add(2*time.Second), "req-002",
+				baseTime.Add(2*time.Second), "test-bucket", baseTime.Add(2*time.Second).UnixMilli(), "req-002",
 				"GetObject", true, uint16(0), "/test-bucket/key-2")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(3*time.Second), "req-003",
+				baseTime.Add(3*time.Second), "test-bucket", baseTime.Add(3*time.Second).UnixMilli(), "req-003",
 				"GetObject", true, uint16(0), "/test-bucket/key-3")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -217,7 +217,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: baseTime.Add(2 * time.Second),
-					StartTime:  baseTime.Add(2 * time.Second),
+					StartTime:  baseTime.Add(2 * time.Second).UnixMilli(),
 					ReqID:      "req-002",
 				},
 			}
@@ -242,19 +242,19 @@ var _ = Describe("LogFetcher", func() {
 			// Insert 3 logs: same insertedAt, different startTime
 			startTimeA := baseTime.Add(1 * time.Second)
 			err := helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTimeA, "req-A",
+				insertedAt, "test-bucket", startTimeA.UnixMilli(), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
 			startTimeB := baseTime.Add(2 * time.Second)
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTimeB, "req-B",
+				insertedAt, "test-bucket", startTimeB.UnixMilli(), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
 			startTimeC := baseTime.Add(3 * time.Second)
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTimeC, "req-C",
+				insertedAt, "test-bucket", startTimeC.UnixMilli(), "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -263,7 +263,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					StartTime:  baseTime.Add(2 * time.Second),
+					StartTime:  baseTime.Add(2 * time.Second).UnixMilli(),
 					ReqID:      "req-B",
 				},
 			}
@@ -295,7 +295,7 @@ var _ = Describe("LogFetcher", func() {
 			reqID := "req-exact"
 
 			err := helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", timestamp, reqID,
+				insertedAt, "test-bucket", timestamp.UnixMilli(), reqID,
 				"GetObject", true, uint16(0), "/test-bucket/key")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -304,7 +304,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					StartTime:  timestamp,
+					StartTime:  timestamp.UnixMilli(),
 					ReqID:      reqID,
 				},
 			}
@@ -327,17 +327,17 @@ var _ = Describe("LogFetcher", func() {
 
 			// Insert 3 logs: same insertedAt, same startTime, different reqIDs
 			err := helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTime, "req-A",
+				insertedAt, "test-bucket", startTime.UnixMilli(), "req-A",
 				"GetObject", true, uint16(0), "/test-bucket/key-a")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTime, "req-B",
+				insertedAt, "test-bucket", startTime.UnixMilli(), "req-B",
 				"GetObject", true, uint16(0), "/test-bucket/key-b")
 			Expect(err).NotTo(HaveOccurred())
 
 			err = helper.Client().Exec(ctx, query,
-				insertedAt, "test-bucket", startTime, "req-C",
+				insertedAt, "test-bucket", startTime.UnixMilli(), "req-C",
 				"GetObject", true, uint16(0), "/test-bucket/key-c")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -346,7 +346,7 @@ var _ = Describe("LogFetcher", func() {
 				Bucket: "test-bucket",
 				LastProcessedOffset: logcourier.Offset{
 					InsertedAt: insertedAt,
-					StartTime:  startTime,
+					StartTime:  startTime.UnixMilli(),
 					ReqID:      "req-B",
 				},
 			}
@@ -367,7 +367,7 @@ var _ = Describe("LogFetcher", func() {
 			reqTime := insertTime.Add(-5 * time.Minute)
 
 			err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-				StartTime:      reqTime,
+				StartTime:      reqTime.UnixMilli(),
 				BucketName:     "test-bucket",
 				ReqID:          "test-req-id",
 				Action:         "PutObject",
@@ -410,7 +410,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					StartTime:      baseTime.Add(time.Duration(i) * time.Second),
+					StartTime:      baseTime.Add(time.Duration(i) * time.Second).UnixMilli(),
 					ReqID:          fmt.Sprintf("req-%03d", i),
 					Action:         "GetObject",
 				})
@@ -439,7 +439,7 @@ var _ = Describe("LogFetcher", func() {
 				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
 					LoggingEnabled: true,
 					BucketName:     "test-bucket",
-					StartTime:      baseTime.Add(time.Duration(i) * time.Second),
+					StartTime:      baseTime.Add(time.Duration(i) * time.Second).UnixMilli(),
 					ReqID:          fmt.Sprintf("req-%03d", i),
 					Action:         "GetObject",
 				})

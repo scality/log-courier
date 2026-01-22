@@ -25,7 +25,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr("owner1"),
 					BucketName:          "test-bucket",
-					StartTime:           now,
+					StartTime:           now.UnixMilli(),
 					ClientIP:            testutil.StrPtr("192.168.1.1"),
 					Requester:           testutil.StrPtr("arn:aws:iam::123456789012:user/alice"),
 					ReqID:               "ABC123XYZ",
@@ -71,7 +71,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "mylogs/",
-					StartTime:           now,
+					StartTime:           now.UnixMilli(),
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
@@ -96,7 +96,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketName:          "test-bucket",
 					LoggingTargetPrefix: "",
-					StartTime:           now,
+					StartTime:           now.UnixMilli(),
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
 				},
@@ -115,7 +115,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					LoggingTargetPrefix: "",
 					InsertedAt:          time.Now(),
 					RaftSessionID:       0,
@@ -136,7 +136,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr(""),
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					ClientIP:            testutil.StrPtr(""),
 					Requester:           testutil.StrPtr(""),
 					ReqID:               "ABC123",
@@ -173,7 +173,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					RequestURI:          testutil.StrPtr("GET /bucket/key?versionId=123 HTTP/1.1"),
 					Referer:             testutil.StrPtr("http://example.com/page"),
 					UserAgent:           testutil.StrPtr("Mozilla/5.0"),
@@ -204,7 +204,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					HttpCode:            testutil.Uint16Ptr(200),
 					BytesSent:           testutil.Uint64Ptr(1024),
 					ObjectSize:          testutil.Uint64Ptr(2048),
@@ -232,7 +232,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					ReqID:               "test-123",
 					HttpCode:            testutil.Uint16Ptr(200),
 					BytesSent:           testutil.Uint64Ptr(0),
@@ -261,7 +261,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					ReqID:               "req-1",
 					Operation:           testutil.StrPtr("GET"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -275,7 +275,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime.Add(1 * time.Second),
+					StartTime:           startTime.Add(1 * time.Second).UnixMilli(),
 					ReqID:               "req-2",
 					Operation:           testutil.StrPtr("PUT"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -289,7 +289,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime.Add(2 * time.Second),
+					StartTime:           startTime.Add(2 * time.Second).UnixMilli(),
 					ReqID:               "req-3",
 					Operation:           testutil.StrPtr("DELETE"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -328,7 +328,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				{
 					BucketOwner:         testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					BucketName:          "my-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					ClientIP:            testutil.StrPtr("192.0.2.3"),
 					Requester:           testutil.StrPtr("79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"),
 					ReqID:               "3E57427F3EXAMPLE",
@@ -372,7 +372,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           startTime,
+					StartTime:           startTime.UnixMilli(),
 					ReqID:               "ABC123",
 					Operation:           nil,
 					ErrorCode:           nil,
@@ -399,7 +399,7 @@ var _ = Describe("LogObjectBuilder", func() {
 
 			recordNULL := logcourier.LogRecord{
 				BucketName:          "test-bucket",
-				StartTime:           startTime,
+				StartTime:           startTime.UnixMilli(),
 				ReqID:               "req-null",
 				HttpCode:            nil,
 				BytesSent:           nil,
@@ -413,7 +413,7 @@ var _ = Describe("LogObjectBuilder", func() {
 
 			recordZero := logcourier.LogRecord{
 				BucketName:          "test-bucket",
-				StartTime:           startTime.Add(1 * time.Second),
+				StartTime:           startTime.Add(1 * time.Second).UnixMilli(),
 				ReqID:               "req-zero",
 				HttpCode:            testutil.Uint16Ptr(0),
 				BytesSent:           testutil.Uint64Ptr(0),
@@ -445,7 +445,7 @@ var _ = Describe("LogObjectBuilder", func() {
 			records := []logcourier.LogRecord{
 				{
 					BucketName:          "test-bucket",
-					StartTime:           baseTime.Add(500 * time.Millisecond), // 15:30:45.500
+					StartTime:           baseTime.Add(500 * time.Millisecond).UnixMilli(), // 15:30:45.500
 					ReqID:               "req-3",
 					Operation:           testutil.StrPtr("DELETE"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -459,7 +459,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           baseTime.Add(200 * time.Millisecond), // 15:30:45.200
+					StartTime:           baseTime.Add(200 * time.Millisecond).UnixMilli(), // 15:30:45.200
 					ReqID:               "req-2",
 					Operation:           testutil.StrPtr("PUT"),
 					HttpCode:            testutil.Uint16Ptr(0),
@@ -473,7 +473,7 @@ var _ = Describe("LogObjectBuilder", func() {
 				},
 				{
 					BucketName:          "test-bucket",
-					StartTime:           baseTime, // 15:30:45.000
+					StartTime:           baseTime.UnixMilli(), // 15:30:45.000
 					ReqID:               "req-1",
 					Operation:           testutil.StrPtr("GET"),
 					HttpCode:            testutil.Uint16Ptr(0),
