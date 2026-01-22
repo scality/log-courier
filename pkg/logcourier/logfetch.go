@@ -28,6 +28,9 @@ func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch i
 // LogBuilder will re-sort by startTime, req_id.
 // Uses composite filter to fetch only logs after LastProcessedOffset.
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
+	// StartTime is stored as milliseconds since epoch
+	startTimeMillis := batch.LastProcessedOffset.StartTime
+
 	query := fmt.Sprintf(`
 		SELECT
 			bucketOwner,
@@ -63,19 +66,19 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		  AND raftSessionID = ?
 		  AND (
 		      insertedAt > ?
-		      OR (insertedAt = ? AND startTime > ?)
-		      OR (insertedAt = ? AND startTime = ? AND req_id > ?)
+		      OR (insertedAt = ? AND startTime > %d)
+		      OR (insertedAt = ? AND startTime = %d AND req_id > ?)
 		  )
 		ORDER BY insertedAt ASC, startTime ASC, req_id ASC
 		LIMIT ?
-	`, lf.database, clickhouse.TableAccessLogsFederated)
+	`, lf.database, clickhouse.TableAccessLogsFederated, startTimeMillis, startTimeMillis)
 
 	rows, err := lf.client.Query(ctx, query,
 		batch.Bucket,
 		batch.RaftSessionID,
 		batch.LastProcessedOffset.InsertedAt,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime, batch.LastProcessedOffset.ReqID,
+		batch.LastProcessedOffset.InsertedAt,
+		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.ReqID,
 		lf.maxLogsPerBatch,
 	)
 	if err != nil {
