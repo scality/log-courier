@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS %s.access_logs
 	insertedAt             DateTime DEFAULT now(),
 	hostname               LowCardinality(Nullable(String)),
 
-	startTime              DateTime64(3),
+	startTime              Int64,
 	requester              Nullable(String),
 	operation              Nullable(String),
 	requestURI             Nullable(String),
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS %s.offsets
 	bucketName                String,
 	raftSessionID             UInt16,
 	lastProcessedInsertedAt   DateTime,
-	lastProcessedStartTime    DateTime64(3),
+	lastProcessedStartTime    Int64,
 	lastProcessedReqId        String
 )
 ENGINE = ReplacingMergeTree(lastProcessedInsertedAt)
@@ -338,11 +338,11 @@ func (h *ClickHouseTestHelper) TeardownSchema(ctx context.Context) error {
 
 // TestLogRecord represents a minimal test log record for insertion
 type TestLogRecord struct {
-	StartTime      time.Time
 	BucketName     string
 	ReqID          string
 	Action         string
 	ObjectKey      string
+	StartTime      int64 // Milliseconds since epoch
 	BytesSent      uint64
 	RaftSessionID  uint16
 	HttpCode       uint16

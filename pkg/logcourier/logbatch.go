@@ -6,10 +6,10 @@ import (
 
 // LogBatch represents a batch of logs ready for processing
 type LogBatch struct {
-	LastProcessedOffset Offset // Offset to filter from (empty if no previous processing)
 	Bucket              string
-	RaftSessionID       uint16
+	LastProcessedOffset Offset // Offset to filter from (empty if no previous processing)
 	LogCount            uint64
+	RaftSessionID       uint16
 }
 
 // String returns a string representation for logging
