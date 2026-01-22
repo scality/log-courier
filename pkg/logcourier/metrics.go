@@ -17,37 +17,37 @@ type Metrics struct {
 
 // GeneralMetrics tracks general system state and errors
 type GeneralMetrics struct {
-	BatchesProcessed *prometheus.CounterVec // labels: status (success/failed_permanent/failed_transient)
-	RecordsPermanentErrors prometheus.Counter
+	BatchesProcessed        *prometheus.CounterVec // labels: status (success/failed_permanent/failed_transient)
+	RecordsPermanentErrors  prometheus.Counter
 	BatchProcessingDuration prometheus.Histogram
-	CyclesTotal prometheus.Counter
-	CycleDuration prometheus.Histogram
-	Lag prometheus.Summary // Time from log generation to S3 upload
+	CyclesTotal             prometheus.Counter
+	CycleDuration           prometheus.Histogram
+	Lag                     prometheus.Summary // Time from log generation to S3 upload
 }
 
 // DiscoveryMetrics tracks batch discovery operations
 type DiscoveryMetrics struct {
 	BatchesFound prometheus.Counter
-	Duration prometheus.Histogram
+	Duration     prometheus.Histogram
 }
 
 // FetchMetrics tracks log fetching from ClickHouse
 type FetchMetrics struct {
-	RecordsTotal prometheus.Counter
+	RecordsTotal     prometheus.Counter
 	RecordsPerBucket prometheus.Summary
-	Duration prometheus.Histogram
+	Duration         prometheus.Histogram
 }
 
 // BuildMetrics tracks log object building
 type BuildMetrics struct {
-	ObjectsTotal prometheus.Counter
+	ObjectsTotal    prometheus.Counter
 	ObjectSizeBytes prometheus.Summary
-	Duration prometheus.Histogram
+	Duration        prometheus.Histogram
 }
 
 // UploadMetrics tracks S3 upload operations
 type UploadMetrics struct {
-	ObjectsTotal *prometheus.CounterVec // labels: status (success/failed)
+	ObjectsTotal *prometheus.CounterVec   // labels: status (success/failed)
 	Duration     *prometheus.HistogramVec // labels: status (success/failed)
 }
 
