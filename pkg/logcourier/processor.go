@@ -605,7 +605,9 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 	p.logger.Info("processing log batch",
 		"bucketName", batch.Bucket,
 		"nLogs", batch.LogCount,
-		"afterOffset", batch.LastProcessedOffset.InsertedAt)
+		"offsetInsertedAt", batch.LastProcessedOffset.InsertedAt,
+		"offsetStartTime", batch.LastProcessedOffset.StartTime,
+		"offsetReqID", batch.LastProcessedOffset.ReqID)
 
 	// 1. Fetch logs
 	fetchStart := time.Now()
