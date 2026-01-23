@@ -870,6 +870,137 @@ var _ = Describe("Processor", func() {
 					}
 				})
 
+				It("should process healthy buckets when failing buckets fill first page", func() {
+					// This test validates that pagination allows healthy buckets to be
+					// discovered even when maxBucketsPerDiscovery worth of failing buckets
+					// would otherwise block them.
+					//
+					// Setup:
+					// - MaxBucketsPerDiscovery = 3
+					// - 3 failing buckets (alphabetically first: "aaa-fail-*")
+					// - 1 healthy bucket (alphabetically last: "zzz-healthy")
+					//
+					// Without pagination: failing buckets would always be discovered first
+					// (due to ORDER BY bucketName), blocking the healthy bucket forever.
+					//
+					// With pagination across cycles:
+					// - Cycle 1: page 1 with failing buckets (cursor advances)
+					// - Cycle 2: page 2 with healthy bucket (succeeds)
+
+					s3Config := testutil.GetS3Config()
+					s3Client, err := s3.NewClient(ctx, s3Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					uploader := s3.NewUploader(s3Client)
+					countingUploader := testutil.NewCountingUploader(uploader)
+
+					cfg := logcourier.Config{
+						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   500 * time.Millisecond,
+						MaxDiscoveryInterval:   500 * time.Millisecond,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 3, // Only 3 buckets per page
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             0, // No retries for faster test
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             1 * time.Second,
+						S3Uploader:             countingUploader,
+					}
+
+					paginationProcessor, err := logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = paginationProcessor.Close() }()
+
+					timestamp := time.Now()
+
+					// Create 3 failing buckets (alphabetically first)
+					for bucketNum := 0; bucketNum < 3; bucketNum++ {
+						bucketName := fmt.Sprintf("aaa-fail-%d", bucketNum)
+						nonExistentTarget := fmt.Sprintf("nonexistent-target-pagination-%d", bucketNum)
+
+						for i := 0; i < 6; i++ {
+							insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+								LoggingEnabled: true,
+								BucketName:     bucketName,
+								RaftSessionID:  1,
+								StartTime:      timestamp.Add(time.Duration(bucketNum*10+i) * time.Second).UnixMilli(),
+								ReqID:          fmt.Sprintf("req-fail-%d-%d", bucketNum, i),
+								Action:         "GetObject",
+								HttpCode:       200,
+							}, nonExistentTarget, "logs/")
+							Expect(insertErr).NotTo(HaveOccurred())
+						}
+					}
+
+					// Create 1 healthy bucket (alphabetically last)
+					healthyBucketName := "zzz-healthy"
+					for i := 0; i < 6; i++ {
+						insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     healthyBucketName,
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Second).UnixMilli(),
+							ReqID:          fmt.Sprintf("req-healthy-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, testTargetBucket, "healthy/")
+						Expect(insertErr).NotTo(HaveOccurred())
+					}
+
+					// Run processor for multiple cycles
+					testCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					defer cancel()
+
+					go func() {
+						_ = paginationProcessor.Run(testCtx)
+					}()
+
+					// Wait for healthy bucket to be processed
+					// With pagination:
+					// - Cycle 1: discovers aaa-fail-0, aaa-fail-1, aaa-fail-2 (all fail)
+					// - Cycle 2: discovers zzz-healthy (succeeds)
+					Eventually(func() int {
+						objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, "healthy/")
+						if listErr != nil {
+							return 0
+						}
+						return len(objects)
+					}).WithTimeout(8*time.Second).WithPolling(200*time.Millisecond).Should(
+						BeNumerically(">=", 1),
+						"Healthy bucket should be processed despite failing buckets filling first page",
+					)
+
+					cancel()
+
+					// Verify healthy bucket was uploaded
+					healthyObjects, err := s3Helper.ListObjects(ctx, testTargetBucket, "healthy/")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(healthyObjects).To(HaveLen(1), "Expected exactly 1 log object for healthy bucket")
+
+					// Verify content
+					content, err := s3Helper.GetObject(ctx, testTargetBucket, healthyObjects[0])
+					Expect(err).NotTo(HaveOccurred())
+					Expect(strings.Count(string(content), "\n")).To(Equal(6), "Expected 6 log lines")
+
+					// Verify offset was committed for healthy bucket
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
+					offset, err := offsetMgr.GetOffset(ctx, healthyBucketName, 1)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Offset should be committed for healthy bucket")
+
+					// Verify failing buckets were attempted (confirms they didn't silently succeed)
+					Expect(countingUploader.GetFailureCount()).To(BeNumerically(">=", 3),
+						"Failing buckets should have been attempted")
+				})
+
 				It("should not rediscover processed batches across cycles", func() {
 					// Create real S3 client and wrap with counting uploader to detect duplicates
 					s3Config := testutil.GetS3Config()

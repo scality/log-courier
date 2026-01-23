@@ -43,7 +43,7 @@ var _ = Describe("BatchFinder", func() {
 	Describe("FindBatches", func() {
 		Describe("Edge Cases", func() {
 			It("should return empty list when no logs", func() {
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(BeEmpty())
 			})
@@ -60,7 +60,7 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(1))
 				Expect(batches[0].Bucket).To(Equal("test-bucket"))
@@ -102,7 +102,7 @@ var _ = Describe("BatchFinder", func() {
 					"test-bucket", uint16(0), lastLogTime, lastLogTime, "req-007")
 				Expect(err).NotTo(HaveOccurred())
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(BeEmpty())
 			})
@@ -154,7 +154,7 @@ var _ = Describe("BatchFinder", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(1))
 				Expect(batches[0].Bucket).To(Equal("test-bucket"))
@@ -182,7 +182,7 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(1))
 				Expect(batches[0].Bucket).To(Equal("test-bucket"))
@@ -201,7 +201,7 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(BeEmpty())
 			})
@@ -242,7 +242,7 @@ var _ = Describe("BatchFinder", func() {
 					"test-bucket", uint16(0), offsetTime, startTime, reqID)
 				Expect(err).NotTo(HaveOccurred())
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Should find logs with insertedAt > T+3s (i.e., T+4s, T+5s = 2 logs)
@@ -284,7 +284,7 @@ var _ = Describe("BatchFinder", func() {
 					"test-bucket", uint16(0), insertedAt, offsetTimestamp, "req-003")
 				Expect(err).NotTo(HaveOccurred())
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Should find logs with startTime > T+3s (i.e., T+4s, T+5s = 2 logs)
@@ -336,7 +336,7 @@ var _ = Describe("BatchFinder", func() {
 					"test-bucket", uint16(0), t1, t1, "req-001")
 				Expect(err).NotTo(HaveOccurred())
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				// ROW_NUMBER should pick T2 (highest), so only log at T3 should be found
@@ -371,7 +371,7 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(2))
 
@@ -379,11 +379,11 @@ var _ = Describe("BatchFinder", func() {
 				Expect(buckets).To(ConsistOf("bucket-1", "bucket-2"))
 			})
 
-			It("should order multiple batches by oldest first", func() {
+			It("should order multiple batches alphabetically", func() {
 				oldTime := time.Now().Add(-2 * time.Hour)
 				newerTime := time.Now().Add(-1 * time.Hour)
 
-				// Insert logs for bucket-A with older insertedAt
+				// Insert logs for bucket-B with older insertedAt
 				for i := 0; i < 6; i++ {
 					query := fmt.Sprintf(`
 						INSERT INTO %s.%s
@@ -392,28 +392,8 @@ var _ = Describe("BatchFinder", func() {
 					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
 					err := helper.Client().Exec(ctx, query,
 						oldTime,                      // insertedAt (older)
-						"bucket-A",                   // bucketName
+						"bucket-B",                   // bucketName (alphabetically second)
 						oldTime,                      // startTime
-						fmt.Sprintf("req-a-%03d", i), // req_id
-						"GetObject",                  // operation
-						true,                         // loggingEnabled
-						uint16(0),                    // raftSessionID
-						"/bucket-A/key",              // requestURI
-					)
-					Expect(err).NotTo(HaveOccurred())
-				}
-
-				// Insert logs for bucket-B with newer insertedAt
-				for i := 0; i < 6; i++ {
-					query := fmt.Sprintf(`
-						INSERT INTO %s.%s
-						(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-					err := helper.Client().Exec(ctx, query,
-						newerTime,                    // insertedAt (newer)
-						"bucket-B",                   // bucketName
-						newerTime,                    // startTime
 						fmt.Sprintf("req-b-%03d", i), // req_id
 						"GetObject",                  // operation
 						true,                         // loggingEnabled
@@ -423,11 +403,31 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				// Insert logs for bucket-A with newer insertedAt
+				for i := 0; i < 6; i++ {
+					query := fmt.Sprintf(`
+						INSERT INTO %s.%s
+						(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
+					err := helper.Client().Exec(ctx, query,
+						newerTime,                    // insertedAt (newer)
+						"bucket-A",                   // bucketName (alphabetically first)
+						newerTime,                    // startTime
+						fmt.Sprintf("req-a-%03d", i), // req_id
+						"GetObject",                  // operation
+						true,                         // loggingEnabled
+						uint16(0),                    // raftSessionID
+						"/bucket-A/key",              // requestURI
+					)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(2))
 
-				// bucket-A should come first
+				// bucket-A should come first (alphabetically), even though bucket-B has older logs
 				Expect(batches[0].Bucket).To(Equal("bucket-A"))
 				Expect(batches[1].Bucket).To(Equal("bucket-B"))
 			})
@@ -461,7 +461,7 @@ var _ = Describe("BatchFinder", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				batches, err := finder.FindBatches(ctx)
+				batches, _, err := finder.FindBatches(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(batches).To(HaveLen(2))
 
@@ -503,7 +503,7 @@ var _ = Describe("BatchFinder", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cycle 1: Find batches
-			batches, err := finder.FindBatches(ctx)
+			batches, _, err := finder.FindBatches(ctx, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(batches).To(HaveLen(1))
 			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
@@ -526,60 +526,17 @@ var _ = Describe("BatchFinder", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Cycle 2: Find batches again
-			batches, err = finder.FindBatches(ctx)
+			batches, _, err = finder.FindBatches(ctx, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(batches).To(BeEmpty(), "Expected no batches after processing all logs, but found %d batch(es)", len(batches))
 		})
 
-		It("should sort batches by oldest min_ts first", func() {
-			recentTime := time.Now()
-			for i := 0; i < 5; i++ {
-				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
-					LoggingEnabled: true,
-					BucketName:     "bucket-recent",
-					StartTime:      recentTime,
-					ReqID:          fmt.Sprintf("req-recent-%d", i),
-					Action:         "GetObject",
-				})
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			// Insert logs for bucket-old with old startTime
-			oldTime := time.Now().Add(-2 * time.Hour)
-			query := fmt.Sprintf(`
-				INSERT INTO %s.%s
-				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
-
-			for i := 0; i < 5; i++ {
-				err := helper.Client().Exec(ctx, query,
-					oldTime,
-					"bucket-old",
-					oldTime,
-					fmt.Sprintf("req-old-%d", i),
-					"GetObject",
-					true,
-					uint16(0),
-					"/bucket-old/key",
-				)
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			batches, err := finder.FindBatches(ctx)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(batches).To(HaveLen(2))
-
-			// First batch should be the older one
-			Expect(batches[0].Bucket).To(Equal("bucket-old"))
-			Expect(batches[1].Bucket).To(Equal("bucket-recent"))
-		})
-
 		It("should limit number of buckets returned", func() {
+			// Create 5 buckets with names that sort predictably
 			for bucketNum := 0; bucketNum < 5; bucketNum++ {
 				bucketName := fmt.Sprintf("bucket-%d", bucketNum)
-				insertTime := time.Now().Add(-time.Duration(4-bucketNum) * time.Hour)
+				insertTime := time.Now().Add(-2 * time.Hour)
 
 				query := fmt.Sprintf(`
 					INSERT INTO %s.%s
@@ -602,12 +559,134 @@ var _ = Describe("BatchFinder", func() {
 				}
 			}
 
-			batches, err := finder.FindBatches(ctx)
+			batches, _, err := finder.FindBatches(ctx, nil)
 			Expect(err).NotTo(HaveOccurred())
 
+			// maxBuckets is 3, so should return first 3 alphabetically
 			Expect(batches).To(HaveLen(3))
 			bucketNames := []string{batches[0].Bucket, batches[1].Bucket, batches[2].Bucket}
 			Expect(bucketNames).To(Equal([]string{"bucket-0", "bucket-1", "bucket-2"}))
+		})
+
+		Describe("Cursor-based Pagination", func() {
+			It("should return buckets after the cursor", func() {
+				// Create 5 buckets with logs (names chosen to have predictable alphabetical order)
+				bucketNames := []string{"alpha", "bravo", "charlie", "delta", "echo"}
+				for _, bucketName := range bucketNames {
+					for j := 0; j < 5; j++ {
+						err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     bucketName,
+							RaftSessionID:  1,
+							StartTime:      time.Now(),
+							ReqID:          fmt.Sprintf("cursor-req-%s-%d", bucketName, j),
+							Action:         "GetObject",
+							HttpCode:       200,
+						})
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+
+				// First page: no cursor, should get first 3 buckets (maxBuckets=3)
+				batches1, nextCursor1, err := finder.FindBatches(ctx, nil)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches1).To(HaveLen(3))
+				Expect(batches1[0].Bucket).To(Equal("alpha"))
+				Expect(batches1[1].Bucket).To(Equal("bravo"))
+				Expect(batches1[2].Bucket).To(Equal("charlie"))
+				Expect(nextCursor1.Bucket).To(Equal("charlie"))
+
+				// Second page: use cursor from first page
+				batches2, nextCursor2, err := finder.FindBatches(ctx, nextCursor1)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches2).To(HaveLen(2)) // Only 2 remaining
+				Expect(batches2[0].Bucket).To(Equal("delta"))
+				Expect(batches2[1].Bucket).To(Equal("echo"))
+				Expect(nextCursor2.Bucket).To(Equal("echo"))
+
+				// Third page: should be empty (all buckets visited)
+				batches3, _, err := finder.FindBatches(ctx, nextCursor2)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches3).To(BeEmpty())
+			})
+
+			It("should paginate across raftSessionIDs for the same bucket", func() {
+				// Create 5 raftSessionIDs for the same bucket (more than maxBuckets=3)
+				// This tests that (bucketName, raftSessionID) > (cursor) works correctly
+				for raftID := uint16(1); raftID <= 5; raftID++ {
+					for j := 0; j < 5; j++ {
+						err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "multi-raft-bucket",
+							RaftSessionID:  raftID,
+							StartTime:      time.Now(),
+							ReqID:          fmt.Sprintf("multi-raft-req-%d-%d", raftID, j),
+							Action:         "GetObject",
+							HttpCode:       200,
+						})
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+
+				// First page: should get raftSessionIDs 1, 2, 3
+				batches1, cursor1, err := finder.FindBatches(ctx, nil)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches1).To(HaveLen(3))
+				for _, b := range batches1 {
+					Expect(b.Bucket).To(Equal("multi-raft-bucket"))
+				}
+				Expect(batches1[0].RaftSessionID).To(Equal(uint16(1)))
+				Expect(batches1[1].RaftSessionID).To(Equal(uint16(2)))
+				Expect(batches1[2].RaftSessionID).To(Equal(uint16(3)))
+				Expect(cursor1).To(Equal(&logcourier.BucketCursor{Bucket: "multi-raft-bucket", RaftSessionID: 3}))
+
+				// Second page: cursor at (multi-raft-bucket, 3) should return raftSessionIDs 4, 5
+				batches2, cursor2, err := finder.FindBatches(ctx, cursor1)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches2).To(HaveLen(2))
+				for _, b := range batches2 {
+					Expect(b.Bucket).To(Equal("multi-raft-bucket"))
+				}
+				Expect(batches2[0].RaftSessionID).To(Equal(uint16(4)))
+				Expect(batches2[1].RaftSessionID).To(Equal(uint16(5)))
+				Expect(cursor2).To(Equal(&logcourier.BucketCursor{Bucket: "multi-raft-bucket", RaftSessionID: 5}))
+
+				// Third page: should be empty
+				batches3, _, err := finder.FindBatches(ctx, cursor2)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches3).To(BeEmpty())
+			})
+
+			It("should return all buckets when fewer than maxBuckets exist", func() {
+				// Create 2 buckets (less than maxBuckets=3)
+				for _, bucketName := range []string{"few-first", "few-second"} {
+					for j := 0; j < 5; j++ {
+						err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     bucketName,
+							RaftSessionID:  1,
+							StartTime:      time.Now(),
+							ReqID:          fmt.Sprintf("few-req-%s-%d", bucketName, j),
+							Action:         "GetObject",
+							HttpCode:       200,
+						})
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+
+				batches, _, err := finder.FindBatches(ctx, nil)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(2))
+			})
+
+			It("should return nil cursor when no buckets have logs ready", func() {
+				// Don't insert any logs - database is empty from BeforeEach cleanup
+
+				batches, cursor, err := finder.FindBatches(ctx, nil)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(BeEmpty())
+				Expect(cursor).To(BeNil())
+			})
 		})
 	})
 })

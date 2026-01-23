@@ -55,6 +55,9 @@ type Processor struct {
 	// Lifecycle
 	stopOffsetBuffer func()
 
+	// State
+	bucketCursor *BucketCursor
+
 	// Configuration
 	minDiscoveryInterval          time.Duration
 	maxDiscoveryInterval          time.Duration
@@ -258,11 +261,41 @@ func (p *Processor) Close() error {
 	return nil
 }
 
+
+// calculateCycleSleep determines how long to sleep before the next cycle.
+// Returns 0 for the first cycle (when cycleStart is zero).
+func (p *Processor) calculateCycleSleep(cycleStart time.Time, cycleFoundWork bool) time.Duration {
+	if cycleStart.IsZero() {
+		return 0
+	}
+
+	baseInterval := p.maxDiscoveryInterval
+	if cycleFoundWork {
+		baseInterval = p.minDiscoveryInterval
+	}
+	jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
+	processingTime := time.Since(cycleStart)
+	sleepDuration := jitteredInterval - processingTime
+	if sleepDuration < 0 {
+		sleepDuration = 0
+	}
+
+	p.logger.Debug("scheduling next discovery cycle",
+		"cycleFoundWork", cycleFoundWork,
+		"processingTimeSeconds", processingTime.Seconds(),
+		"baseIntervalSeconds", baseInterval.Seconds(),
+		"jitteredIntervalSeconds", jitteredInterval.Seconds(),
+		"sleepDurationSeconds", sleepDuration.Seconds())
+
+	return sleepDuration
+}
+
 // Run runs the processor main loop
 //
-// The processor runs cycles indefinitely. If errors occur during a cycle,
-// they are logged and the processor waits for the next discovery interval
-// before retrying (eventual delivery).
+// The processor uses cursor-based pagination across cycles. Each cycle processes
+// one page of buckets, then sleeps. The cursor advances through all eligible
+// buckets and resets when no more buckets are found, starting a new full scan.
+// This gives failing buckets a "cooldown" period before retry.
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
@@ -272,67 +305,36 @@ func (p *Processor) Run(ctx context.Context) error {
 	}
 
 	var batchCount int
-	var err error
 	var cycleStart time.Time // Zero value forces first run immediately
 
 	for {
-		// Select base interval based on work found
-		baseInterval := p.maxDiscoveryInterval
-		intervalMode := "max"
-		if batchCount > 0 {
-			baseInterval = p.minDiscoveryInterval
-			intervalMode = "min"
-		}
+		// Calculate sleep duration based on whether last cycle found work
+		sleepDuration := p.calculateCycleSleep(cycleStart, batchCount > 0)
 
-		// Apply jitter to base interval
-		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
-
-		// Calculate sleep duration accounting for processing time
-		var processingTime time.Duration
-		var sleepDuration time.Duration
-		if !cycleStart.IsZero() {
-			processingTime = time.Since(cycleStart)
-			sleepDuration = jitteredInterval - processingTime
-			if sleepDuration < 0 {
-				sleepDuration = 0
-			}
-		} else {
-			// First run: no sleep needed
-			sleepDuration = 0
-		}
-
-		// Don't log scheduling for the first run
-		if !cycleStart.IsZero() {
-			p.logger.Debug("scheduling next discovery cycle",
-				"batchesFound", batchCount,
-				"processingTimeSeconds", processingTime.Seconds(),
-				"baseIntervalSeconds", baseInterval.Seconds(),
-				"jitteredIntervalSeconds", jitteredInterval.Seconds(),
-				"sleepDurationSeconds", sleepDuration.Seconds(),
-				"intervalMode", intervalMode)
-		}
-
+		// Wait for next cycle
 		select {
 		case <-ctx.Done():
 			p.logger.Info("processor stopping")
 			return ctx.Err()
-
 		case <-time.After(sleepDuration):
-			cycleStart = time.Now()
-			batchCount, err = p.runCycle(ctx)
-			if err != nil {
-				p.logger.Error("cycle failed", "error", err)
-				batchCount = 0 // Treat error as no work found
-			}
+		}
 
-			// Mandatory flush after cycle completes
-			// This ensures the next cycle's BatchFinder sees up-to-date offsets.
-			// Without this flush, BatchFinder would query stale offsets from ClickHouse
-			// and rediscover batches we've already processed.
-			if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
-				p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
-				// Continue anyway - offsets remain buffered for next cycle
-			}
+		// Run one page of discovery
+		cycleStart = time.Now()
+		var err error
+		batchCount, err = p.runCycle(ctx)
+		if err != nil {
+			p.logger.Error("cycle failed", "error", err)
+			batchCount = 0
+		}
+
+		// Mandatory flush after cycle completes
+		// This ensures the next cycle's BatchFinder sees up-to-date offsets.
+		// Without this flush, BatchFinder would query stale offsets from ClickHouse
+		// and rediscover batches we've already processed.
+		if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
+			p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
+			// Continue anyway - offsets remain buffered for next cycle
 		}
 	}
 }
@@ -358,10 +360,12 @@ func (p *Processor) runCycle(ctx context.Context) (int, error) {
 // Returns the number of batches found
 func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	// Phase 1: Work Discovery
-	p.logger.Debug("starting batch finder")
+	p.logger.Debug("starting batch finder",
+		"cursorBucket", p.bucketCursor.BucketName(),
+		"cursorRaftSessionID", p.bucketCursor.SessionID())
 
 	discoveryStart := time.Now()
-	batches, err := p.workDiscovery.FindBatches(ctx)
+	batches, nextCursor, err := p.workDiscovery.FindBatches(ctx, p.bucketCursor)
 	discoveryDuration := time.Since(discoveryStart)
 	p.metrics.Discovery.Duration.Observe(discoveryDuration.Seconds())
 
@@ -369,7 +373,11 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
-	p.logger.Info("batch finder completed", "nBatches", len(batches))
+	p.bucketCursor = nextCursor
+
+	p.logger.Info("batch finder completed",
+		"nBatches", len(batches),
+		"nextCursorBucket", p.bucketCursor.BucketName())
 
 	if len(batches) == 0 {
 		return 0, nil
