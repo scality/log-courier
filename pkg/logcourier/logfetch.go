@@ -3,9 +3,17 @@ package logcourier
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/scality/log-courier/pkg/clickhouse"
 )
+
+// toDateTime64String converts time.Time to a string format that ClickHouse
+// correctly interprets as DateTime64(3). The Go driver truncates milliseconds
+// when binding time.Time directly to DateTime64 parameters.
+func toDateTime64String(t time.Time) string {
+	return fmt.Sprintf("%.3f", float64(t.UnixMilli())/1000.0)
+}
 
 // LogFetcher fetches logs from ClickHouse
 type LogFetcher struct {
@@ -70,12 +78,13 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		LIMIT ?
 	`, lf.database, clickhouse.TableAccessLogsFederated)
 
+	startTimeStr := toDateTime64String(batch.LastProcessedOffset.StartTime)
 	rows, err := lf.client.Query(ctx, query,
 		batch.Bucket,
 		batch.RaftSessionID,
 		batch.LastProcessedOffset.InsertedAt,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime,
-		batch.LastProcessedOffset.InsertedAt, batch.LastProcessedOffset.StartTime, batch.LastProcessedOffset.ReqID,
+		batch.LastProcessedOffset.InsertedAt, startTimeStr,
+		batch.LastProcessedOffset.InsertedAt, startTimeStr, batch.LastProcessedOffset.ReqID,
 		lf.maxLogsPerBatch,
 	)
 	if err != nil {
