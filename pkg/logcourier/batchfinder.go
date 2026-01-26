@@ -16,6 +16,28 @@ type BatchFinder struct {
 	maxBuckets       int
 }
 
+// BucketCursor represents a position in paginated bucket discovery
+type BucketCursor struct {
+	Bucket        string
+	RaftSessionID uint16
+}
+
+// BucketName returns the bucket name, or empty string if cursor is nil
+func (c *BucketCursor) BucketName() string {
+	if c == nil {
+		return ""
+	}
+	return c.Bucket
+}
+
+// SessionID returns the raft session ID, or 0 if cursor is nil
+func (c *BucketCursor) SessionID() uint16 {
+	if c == nil {
+		return 0
+	}
+	return c.RaftSessionID
+}
+
 // NewBatchFinder creates a new batch finder instance
 func NewBatchFinder(
 	client *clickhouse.Client,
@@ -34,9 +56,21 @@ func NewBatchFinder(
 }
 
 // FindBatches finds log batches ready for processing
+// It uses cursor-based pagination for buckets.
+// Given a cursor, it considers buckets after the cursor position.
+// Pass nil cursor to start from the beginning.
+// Returns the batches ready for processing and a cursor for the next page.
+// Returns nil cursor when no more results are found (cycle complete).
 //
 //nolint:funlen // Function length is due to extensive SQL comments for readability
-func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
+func (bf *BatchFinder) FindBatches(ctx context.Context, cursor *BucketCursor) ([]LogBatch, *BucketCursor, error) {
+	// Use zero values when cursor is nil (start from beginning)
+	var cursorBucket string
+	var cursorRaftSessionID uint16
+	if cursor != nil {
+		cursorBucket = cursor.Bucket
+		cursorRaftSessionID = cursor.RaftSessionID
+	}
 	query := fmt.Sprintf(`
         WITH
             -- CTE 1: bucket_offsets
@@ -115,26 +149,26 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
         --   1. It has at least countThreshold unprocessed logs (volume condition), OR
         --   2. Its oldest unprocessed log is older than timeThresholdSec (age condition)
         --
-        -- Results are ordered by min_ts (oldest first) to prioritize buckets with oldest logs.
+        -- Results are ordered by (bucketName, raftSessionID) for cursor-based pagination.
+        -- The cursor filter ensures we only return buckets after the current position.
         -- LIMIT ensures we only process maxBuckets per discovery cycle.
         SELECT bucketName, raftSessionID, new_log_count, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId
         FROM new_logs_by_bucket
-        WHERE new_log_count >= ?
-           OR min_ts <= now() - INTERVAL ? SECOND
-        ORDER BY min_ts ASC
+        WHERE (new_log_count >= ? OR min_ts <= now() - INTERVAL ? SECOND)
+          AND (bucketName, raftSessionID) > (?, ?)
+        ORDER BY bucketName ASC, raftSessionID ASC
         LIMIT ?
     `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
 
-	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
+	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, cursorBucket, cursorRaftSessionID, bf.maxBuckets)
 	if err != nil {
-		return nil, fmt.Errorf("batch finder query failed: %w", err)
+		return nil, nil, fmt.Errorf("batch finder query failed: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	var batches []LogBatch
 	for rows.Next() {
 		var batch LogBatch
-
 		err := rows.Scan(
 			&batch.Bucket,
 			&batch.RaftSessionID,
@@ -144,15 +178,21 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 			&batch.LastProcessedOffset.ReqID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan log batch: %w", err)
+			return nil, nil, fmt.Errorf("failed to scan log batch: %w", err)
 		}
-
 		batches = append(batches, batch)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating log batches: %w", err)
+		return nil, nil, fmt.Errorf("error iterating log batches: %w", err)
 	}
 
-	return batches, nil
+	if len(batches) == 0 {
+		return batches, nil, nil
+	}
+
+	last := batches[len(batches)-1]
+	nextCursor := &BucketCursor{Bucket: last.Bucket, RaftSessionID: last.RaftSessionID}
+
+	return batches, nextCursor, nil
 }
