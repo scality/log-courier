@@ -18,4 +18,4 @@ clickhouse:
   image: clickhouse/clickhouse-server:24.3.2.23-alpine
 
 fluentbit:
-  image: fluent/fluent-bit:3.2.2
+  image: fluent/fluent-bit:3.0.2
