@@ -80,6 +80,12 @@ var _ = Describe("Error Cases", func() {
 			HTTPStatus: 404,
 		})
 
+		By("verifying timing fields are logged even for error responses")
+		Expect(logs[1].TotalTime).To(BeNumerically(">", 0),
+			"TotalTime should be positive even for 404")
+		Expect(logs[1].TurnAroundTime).To(BeNumerically(">=", 0),
+			"TurnAroundTime should be non-negative for 404")
+
 		By("verifying DELETE non-existent object log")
 		verifyLogRecord(logs[2], ExpectedLog{
 			Operation:  "REST.DELETE.OBJECT",

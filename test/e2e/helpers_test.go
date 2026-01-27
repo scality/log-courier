@@ -42,24 +42,32 @@ type E2ETestContext struct {
 
 // ParsedLogRecord represents a parsed S3 Server Access Log entry
 type ParsedLogRecord struct {
-	Time           time.Time
-	BucketOwner    string
-	Bucket         string
-	RemoteIP       string
-	Requester      string
-	RequestID      string
-	Operation      string
-	Key            string
-	RequestURI     string
-	ErrorCode      string
-	Referer        string
-	UserAgent      string
-	VersionID      string
-	BytesSent      int64
-	ObjectSize     int64
-	HTTPStatus     int
-	TotalTime      int
-	TurnAroundTime int
+	Time               time.Time
+	BucketOwner        string
+	Bucket             string
+	RemoteIP           string
+	Requester          string
+	RequestID          string
+	Operation          string
+	Key                string
+	RequestURI         string
+	ErrorCode          string
+	Referer            string
+	UserAgent          string
+	VersionID          string
+	BytesSent          int64
+	ObjectSize         int64
+	HTTPStatus         int
+	TotalTime          int
+	TurnAroundTime     int
+	HostID             string // Field 19 - always "-" (not supported)
+	SignatureVersion   string
+	CipherSuite        string
+	AuthenticationType string
+	HostHeader         string
+	TLSVersion         string
+	AccessPointARN     string // Field 25 - always "-" (not supported)
+	ACLRequired        string // Field 26 - always "-" (not supported)
 }
 
 // ExpectedLog defines expected log record fields for verification
@@ -224,24 +232,32 @@ func parseLogLine(line string) (*ParsedLogRecord, error) {
 	turnAroundTime, _ := strconv.Atoi(fields[14])
 
 	return &ParsedLogRecord{
-		BucketOwner:    fields[0],
-		Bucket:         fields[1],
-		Time:           timestamp,
-		RemoteIP:       fields[3],
-		Requester:      fields[4],
-		RequestID:      fields[5],
-		Operation:      fields[6],
-		Key:            fields[7],
-		RequestURI:     strings.Trim(fields[8], "\""),
-		HTTPStatus:     httpStatus,
-		ErrorCode:      fields[10],
-		BytesSent:      bytesSent,
-		ObjectSize:     objectSize,
-		TotalTime:      totalTime,
-		TurnAroundTime: turnAroundTime,
-		Referer:        strings.Trim(fields[15], "\""),
-		UserAgent:      strings.Trim(fields[16], "\""),
-		VersionID:      fields[17],
+		BucketOwner:        fields[0],
+		Bucket:             fields[1],
+		Time:               timestamp,
+		RemoteIP:           fields[3],
+		Requester:          fields[4],
+		RequestID:          fields[5],
+		Operation:          fields[6],
+		Key:                fields[7],
+		RequestURI:         strings.Trim(fields[8], "\""),
+		HTTPStatus:         httpStatus,
+		ErrorCode:          fields[10],
+		BytesSent:          bytesSent,
+		ObjectSize:         objectSize,
+		TotalTime:          totalTime,
+		TurnAroundTime:     turnAroundTime,
+		Referer:            strings.Trim(fields[15], "\""),
+		UserAgent:          strings.Trim(fields[16], "\""),
+		VersionID:          fields[17],
+		HostID:             fields[18],
+		SignatureVersion:   fields[19],
+		CipherSuite:        fields[20],
+		AuthenticationType: fields[21],
+		HostHeader:         fields[22],
+		TLSVersion:         fields[23],
+		AccessPointARN:     fields[24],
+		ACLRequired:        fields[25],
 	}, nil
 }
 
@@ -339,6 +355,25 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLog) {
 		Expect(actual.ErrorCode).To(Equal(expected.ErrorCode),
 			"Error code mismatch")
 	}
+
+	// Verify infrastructure fields are populated
+	Expect(actual.RequestURI).NotTo(BeEmpty(),
+		"RequestURI should be present")
+	Expect(actual.AuthenticationType).NotTo(BeEmpty(),
+		"AuthenticationType should be present")
+	Expect(actual.HostHeader).NotTo(BeEmpty(),
+		"HostHeader should be present")
+	Expect(actual.SignatureVersion).NotTo(BeEmpty(),
+		"SignatureVersion should be present")
+	// Note: TLSVersion and CipherSuite may legitimately be "-" for non-TLS connections
+
+	// Verify unsupported fields are always "-"
+	Expect(actual.HostID).To(Equal("-"),
+		"HostID should always be '-' (not supported)")
+	Expect(actual.AccessPointARN).To(Equal("-"),
+		"AccessPointARN should always be '-' (not supported)")
+	Expect(actual.ACLRequired).To(Equal("-"),
+		"ACLRequired should always be '-' (not supported)")
 }
 
 // verifyChronologicalOrder verifies logs are in chronological order

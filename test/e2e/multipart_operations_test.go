@@ -118,6 +118,12 @@ var _ = Describe("Multipart Operations", func() {
 			HTTPStatus: 200,
 		})
 
+		// TODO: S3C-10737. ObjectSize is not logged for multipart uploads.
+		// By("verifying complete multipart upload has correct ObjectSize")
+		// expectedSize := int64(len(part1Data) + len(part2Data)) // 10MB total
+		// Expect(logs[2].ObjectSize).To(Equal(expectedSize),
+		// 	"ObjectSize should equal sum of all parts")
+
 		By("verifying logs are in chronological order")
 		verifyChronologicalOrder(logs)
 	})

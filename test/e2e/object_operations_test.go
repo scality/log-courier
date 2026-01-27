@@ -70,6 +70,30 @@ var _ = Describe("Object Operations", func() {
 			HTTPStatus: 200,
 		})
 
+		By("verifying put operation has correct ObjectSize")
+		Expect(logs[0].ObjectSize).To(Equal(int64(len(testContent))),
+			"PUT ObjectSize should match content length")
+
+		By("verifying put operation timing fields")
+		Expect(logs[0].TotalTime).To(BeNumerically(">", 0),
+			"TotalTime should be positive")
+		Expect(logs[0].TurnAroundTime).To(BeNumerically(">=", 0),
+			"TurnAroundTime should be non-negative")
+		Expect(logs[0].TurnAroundTime).To(BeNumerically("<=", logs[0].TotalTime),
+			"TurnAroundTime should not exceed TotalTime")
+
+		By("verifying common metadata fields are populated")
+		Expect(logs[0].BucketOwner).NotTo(BeEmpty(),
+			"BucketOwner should be present")
+		Expect(logs[0].RemoteIP).NotTo(BeEmpty(),
+			"RemoteIP should be present")
+		Expect(logs[0].Requester).NotTo(BeEmpty(),
+			"Requester should be present")
+		Expect(logs[0].UserAgent).NotTo(BeEmpty(),
+			"UserAgent should be present")
+		Expect(logs[0].UserAgent).To(ContainSubstring("aws-sdk"),
+			"UserAgent should identify AWS SDK")
+
 		By("verifying get operation log")
 		verifyLogRecord(logs[1], ExpectedLog{
 			Operation:  "REST.GET.OBJECT",
@@ -77,6 +101,10 @@ var _ = Describe("Object Operations", func() {
 			Key:        testKey,
 			HTTPStatus: 200,
 		})
+
+		By("verifying get operation has correct BytesSent")
+		Expect(logs[1].BytesSent).To(Equal(int64(len(testContent))),
+			"GET BytesSent should match content length")
 
 		By("verifying head operation log")
 		verifyLogRecord(logs[2], ExpectedLog{
@@ -232,6 +260,12 @@ var _ = Describe("Object Operations", func() {
 			Key:        destKey,
 			HTTPStatus: 200,
 		})
+
+		// TODO: S3C-10839. ObjectSize is not logged for COPY operations.
+		// By("verifying COPY operation preserves ObjectSize")
+		// Source object "content-1" is 9 bytes
+		// Expect(logs[7].ObjectSize).To(Equal(int64(len("content-1"))),
+		// 	"COPY ObjectSize should match source object size")
 
 		By("verifying logs are in chronological order")
 		verifyChronologicalOrder(logs)

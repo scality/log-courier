@@ -140,6 +140,10 @@ var _ = Describe("Bucket Operations", func() {
 			HTTPStatus: 200,
 		})
 
+		By("verifying put object has VersionID when versioning enabled")
+		Expect(logs[1].VersionID).NotTo(BeEmpty(),
+			"VersionID should be present for PUT with versioning enabled")
+
 		By("verifying list object versions log")
 		verifyLogRecord(logs[2], ExpectedLog{
 			Operation:  "REST.GET.BUCKET",
@@ -163,6 +167,10 @@ var _ = Describe("Bucket Operations", func() {
 			Key:        testKey,
 			HTTPStatus: 200,
 		})
+
+		By("verifying get object version has VersionID")
+		Expect(logs[4].VersionID).NotTo(BeEmpty(),
+			"VersionID should be present for GET with versionId parameter")
 
 		By("verifying delete object version log")
 		verifyLogRecord(logs[5], ExpectedLog{
