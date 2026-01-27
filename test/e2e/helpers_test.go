@@ -270,15 +270,25 @@ func parseLogContent(content []byte) []*ParsedLogRecord {
 
 // fetchAllLogsSince fetches and parses all log records since a given time
 func fetchAllLogsSince(ctx *E2ETestContext, since time.Time) ([]*ParsedLogRecord, error) {
-	objectKeys, err := findLogObjectsSince(ctx.S3Client, ctx.DestinationBucket,
-		ctx.LogPrefix, since)
+	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, ctx.LogPrefix, since)
+}
+
+// fetchAllLogsInBucketSince fetches and parses all log records from the entire bucket since a given time.
+// This is useful when the logging prefix may have changed during the test.
+func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedLogRecord, error) {
+	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, "", since)
+}
+
+// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time
+func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
+	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
 		return nil, err
 	}
 
 	var allRecords []*ParsedLogRecord
 	for _, key := range objectKeys {
-		content, err := downloadObject(ctx.S3Client, ctx.DestinationBucket, key)
+		content, err := downloadObject(client, bucket, key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download %s: %w", key, err)
 		}
@@ -471,13 +481,37 @@ func cleanupE2ETest(ctx *E2ETestContext) {
 		fmt.Printf("[E2E Cleanup] FAILED - Destination bucket: %s\n", ctx.DestinationBucket)
 	}
 
-	// Disable logging on source bucket before cleanup
+	// Disable logging on source bucket before cleanup.
+	// Use a time slightly before the disable call to avoid flakiness.
+	timeBeforeDisable := time.Now().Add(-2 * time.Second)
 	_, err := ctx.S3Client.PutBucketLogging(context.Background(), &s3.PutBucketLoggingInput{
 		Bucket:              aws.String(ctx.SourceBucket),
 		BucketLoggingStatus: &types.BucketLoggingStatus{},
 	})
 	if err != nil {
 		fmt.Printf("Warning: failed to disable logging on source bucket: %v\n", err)
+	} else {
+		// Wait for the disable logging operation to be logged.
+		// This ensures logs are delivered before we delete the destination bucket,
+		// preventing "NoSuchBucket" errors in log-courier.
+		// Search the entire bucket since tests may change the logging prefix.
+		Eventually(func() bool {
+			logs, fetchErr := fetchAllLogsInBucketSince(ctx, ctx.TestStartTime)
+			if fetchErr != nil {
+				return false
+			}
+
+			for _, log := range logs {
+				if log.Operation == "REST.PUT.LOGGING_STATUS" &&
+					log.Bucket == ctx.SourceBucket &&
+					log.Time.After(timeBeforeDisable) {
+					return true
+				}
+			}
+			return false
+		}).WithTimeout(30 * time.Second).
+			WithPolling(2 * time.Second).
+			Should(BeTrue())
 	}
 
 	// Delete source bucket
