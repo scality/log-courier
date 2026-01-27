@@ -65,11 +65,6 @@ var _ = Describe("Bucket Configuration", func() {
 
 		By("verifying logs are in chronological order")
 		verifyChronologicalOrder(logs)
-
-		// Restore original logging configuration
-		By("restoring original logging configuration")
-		err = configureBucketLogging(ctx.S3Client, ctx.SourceBucket, ctx.DestinationBucket, ctx.LogPrefix)
-		Expect(err).NotTo(HaveOccurred(), "Restore logging configuration should succeed")
 	})
 
 	It("logs bucket policy operations", func() {
