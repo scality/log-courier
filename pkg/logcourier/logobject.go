@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,105 +98,120 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 	var buf bytes.Buffer
 
 	for i := range records {
-		line := b.formatLogRecord(&records[i])
-		buf.WriteString(line)
-		buf.WriteString("\n")
+		b.writeLogRecord(&buf, &records[i])
+		buf.WriteByte('\n')
 	}
 
 	return buf.Bytes()
 }
 
-// formatLogRecord formats a single log record according to AWS format
+// writeLogRecord writes a single log record according to AWS format
 // Takes a pointer to avoid copying the ~1KB struct on each call (called for each record in the batch)
 // Field order must match AWS S3 Server Access Log format exactly
 //
-// Note: ClickHouse stores "-" for fields not applicable to an operation
-func (b *LogObjectBuilder) formatLogRecord(rec *LogRecord) string {
-	return fmt.Sprintf("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
-		b.formatStringPtr(rec.BucketOwner),        // 1. Bucket Owner
-		b.formatString(rec.BucketName),            // 2. Bucket
-		b.formatTimestamp(rec.StartTime),          // 3. Time
-		b.formatStringPtr(rec.ClientIP),           // 4. Remote IP
-		b.formatStringPtr(rec.Requester),          // 5. Requester
-		b.formatString(rec.ReqID),                 // 6. Request ID
-		b.formatStringPtr(rec.Operation),          // 7. Operation
-		b.formatStringPtr(rec.ObjectKey),          // 8. Key
-		b.formatQuotedStringPtr(rec.RequestURI),   // 9. Request-URI (quoted)
-		b.formatUint16Ptr(rec.HttpCode),           // 10. HTTP Status
-		b.formatStringPtr(rec.ErrorCode),          // 11. Error Code
-		b.formatUint64Ptr(rec.BytesSent),          // 12. Bytes Sent
-		b.formatUint64Ptr(rec.ObjectSize),         // 13. Object Size
-		b.formatFloat32Ptr(rec.TotalTime),         // 14. Total Time
-		b.formatFloat32Ptr(rec.TurnAroundTime),    // 15. Turn-Around Time
-		b.formatQuotedStringPtr(rec.Referer),      // 16. Referer (quoted)
-		b.formatQuotedStringPtr(rec.UserAgent),    // 17. User-Agent (quoted)
-		b.formatStringPtr(rec.VersionID),          // 18. Version Id
-		"-",                                       // 19. Host Id (not implemented)
-		b.formatStringPtr(rec.SignatureVersion),   // 20. Signature Version
-		b.formatStringPtr(rec.CipherSuite),        // 21. Cipher Suite
-		b.formatStringPtr(rec.AuthenticationType), // 22. Authentication Type
-		b.formatStringPtr(rec.HostHeader),         // 23. Host Header
-		b.formatStringPtr(rec.TlsVersion),         // 24. TLS Version
-		"-",                                       // 25. Access Point ARN (not implemented)
-		b.formatStringPtr(rec.AclRequired),        // 26. ACL Required
-	)
+func (b *LogObjectBuilder) writeLogRecord(w *bytes.Buffer, rec *LogRecord) {
+	b.writeStringPtr(w, rec.BucketOwner) // 1. Bucket Owner
+	w.WriteByte(' ')
+	b.writeStringPtr(w, &rec.BucketName) // 2. Bucket
+	w.WriteByte(' ')
+	b.writeTimestamp(w, rec.StartTime) // 3. Time
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.ClientIP) // 4. Remote IP
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.Requester) // 5. Requester
+	w.WriteByte(' ')
+	b.writeStringPtr(w, &rec.ReqID) // 6. Request ID
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.Operation) // 7. Operation
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.ObjectKey) // 8. Key
+	w.WriteByte(' ')
+	b.writeQuotedStringPtr(w, rec.RequestURI) // 9. Request-URI (quoted)
+	w.WriteByte(' ')
+	b.writeUint16Ptr(w, rec.HttpCode) // 10. HTTP Status
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.ErrorCode) // 11. Error Code
+	w.WriteByte(' ')
+	b.writeUint64Ptr(w, rec.BytesSent) // 12. Bytes Sent
+	w.WriteByte(' ')
+	b.writeUint64Ptr(w, rec.ObjectSize) // 13. Object Size
+	w.WriteByte(' ')
+	b.writeFloat32Ptr(w, rec.TotalTime) // 14. Total Time
+	w.WriteByte(' ')
+	b.writeFloat32Ptr(w, rec.TurnAroundTime) // 15. Turn-Around Time
+	w.WriteByte(' ')
+	b.writeQuotedStringPtr(w, rec.Referer) // 16. Referer (quoted)
+	w.WriteByte(' ')
+	b.writeQuotedStringPtr(w, rec.UserAgent) // 17. User-Agent (quoted)
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.VersionID)        // 18. Version Id
+	w.WriteString(" - ")                      // 19. Host Id (not implemented)
+	b.writeStringPtr(w, rec.SignatureVersion) // 20. Signature Version
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.CipherSuite) // 21. Cipher Suite
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.AuthenticationType) // 22. Authentication Type
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.HostHeader) // 23. Host Header
+	w.WriteByte(' ')
+	b.writeStringPtr(w, rec.TlsVersion)  // 24. TLS Version
+	w.WriteString(" - ")                 // 25. Access Point ARN (not implemented)
+	b.writeStringPtr(w, rec.AclRequired) // 26. ACL Required
 }
 
-// formatStringPtr formats a nullable unquoted string field
+// writeStringPtr writes a nullable unquoted string field to a bytes.Buffer
 // Both NULL and empty string → "-" (cannot distinguish in space-delimited format)
-func (b *LogObjectBuilder) formatStringPtr(s *string) string {
+func (b *LogObjectBuilder) writeStringPtr(w *bytes.Buffer, s *string) {
 	if s == nil || *s == "" {
-		return "-"
+		w.WriteByte('-')
+		return
 	}
-	return *s
+	w.WriteString(*s)
 }
 
-// formatString formats a non-nullable string field, using "-" for empty values
-func (b *LogObjectBuilder) formatString(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
-}
-
-// formatQuotedStringPtr formats a nullable quoted string field
+// writeQuotedStringPtr writes a nullable quoted string field to a bytes.Buffer
 // Both NULL and empty string -> "-"
 // Non-empty -> quoted value
 // Fields that need quoting: Request-URI, Referer, User-Agent
-func (b *LogObjectBuilder) formatQuotedStringPtr(s *string) string {
+func (b *LogObjectBuilder) writeQuotedStringPtr(w *bytes.Buffer, s *string) {
 	if s == nil || *s == "" {
-		return "-"
+		w.WriteByte('-')
+		return
 	}
-	return fmt.Sprintf("%q", *s)
+	w.WriteString(strconv.Quote(*s))
 }
 
-// formatTimestamp formats a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
+// writeTimestamp writes a timestamp in AWS format: [DD/MMM/YYYY:HH:MM:SS +0000]
+// to a bytes.Buffer
 // Always outputs in UTC timezone
-func (b *LogObjectBuilder) formatTimestamp(t time.Time) string {
+func (b *LogObjectBuilder) writeTimestamp(w *bytes.Buffer, t time.Time) {
 	utc := t.UTC()
-	return utc.Format("[02/Jan/2006:15:04:05 +0000]")
+	w.WriteString(utc.Format("[02/Jan/2006:15:04:05 +0000]"))
 }
 
-// formatUint16Ptr formats a pointer to uint16, using "-" for NULL
-func (b *LogObjectBuilder) formatUint16Ptr(n *uint16) string {
+// writeUint16Ptr writes a pointer to uint16 to a bytes.Buffer, using "-" for NULL
+func (b *LogObjectBuilder) writeUint16Ptr(w *bytes.Buffer, n *uint16) {
 	if n == nil {
-		return "-"
+		w.WriteByte('-')
+		return
 	}
-	return fmt.Sprintf("%d", *n)
+	fmt.Fprintf(w, "%d", *n)
 }
 
-// formatUint64Ptr formats a pointer to uint64, using "-" for NULL
-func (b *LogObjectBuilder) formatUint64Ptr(n *uint64) string {
+// writeUint64Ptr writes a pointer to uint64 to a bytes.Buffer, using "-" for NULL
+func (b *LogObjectBuilder) writeUint64Ptr(w *bytes.Buffer, n *uint64) {
 	if n == nil {
-		return "-"
+		w.WriteByte('-')
+		return
 	}
-	return fmt.Sprintf("%d", *n)
+	fmt.Fprintf(w, "%d", *n)
 }
 
-// formatFloat32Ptr formats a pointer to float32, using "-" for NULL
-func (b *LogObjectBuilder) formatFloat32Ptr(f *float32) string {
+// writeFloat32Ptr writes a pointer to float32 to a bytes.Buffer, using "-" for NULL
+func (b *LogObjectBuilder) writeFloat32Ptr(w *bytes.Buffer, f *float32) {
 	if f == nil {
-		return "-"
+		w.WriteByte('-')
+		return
 	}
-	return fmt.Sprintf("%g", *f)
+	fmt.Fprintf(w, "%g", *f)
 }
