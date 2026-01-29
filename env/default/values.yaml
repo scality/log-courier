@@ -6,7 +6,7 @@ features:
     enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:9.2.14
+  image: ghcr.io/scality/cloudserver:9.2.23
 
 vault:
   image: ghcr.io/scality/vault:7.83.0
