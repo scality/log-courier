@@ -22,15 +22,11 @@ var _ = Describe("Bucket Configuration", func() {
 	})
 
 	It("logs bucket logging configuration operations", func() {
-		// GET Bucket Logging
-		By("getting bucket logging configuration")
 		_, err := ctx.S3Client.GetBucketLogging(context.Background(), &s3.GetBucketLoggingInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket logging should succeed")
 
-		// PUT Bucket Logging (update configuration)
-		By("putting bucket logging configuration")
 		_, err = ctx.S3Client.PutBucketLogging(context.Background(), &s3.PutBucketLoggingInput{
 			Bucket: aws.String(ctx.SourceBucket),
 			BucketLoggingStatus: &types.BucketLoggingStatus{
@@ -42,29 +38,10 @@ var _ = Describe("Bucket Configuration", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket logging should succeed")
 
-		// Wait for logs (2 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 2)
-
-		// Verify operations
-		By("verifying get bucket logging log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.GET.LOGGING_STATUS",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying put bucket logging log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.PUT.LOGGING_STATUS",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		ctx.VerifyLogs(
+			ctx.BucketOp("REST.GET.LOGGING_STATUS", 200),
+			ctx.BucketOp("REST.PUT.LOGGING_STATUS", 200),
+		)
 	})
 
 	It("logs bucket policy operations", func() {
@@ -78,59 +55,27 @@ var _ = Describe("Bucket Configuration", func() {
 				}]
 			}`
 
-		// PUT Bucket Policy
-		By("putting bucket policy")
 		_, err := ctx.S3Client.PutBucketPolicy(context.Background(), &s3.PutBucketPolicyInput{
 			Bucket: aws.String(ctx.SourceBucket),
 			Policy: aws.String(bucketPolicy),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket policy should succeed")
 
-		// GET Bucket Policy
-		By("getting bucket policy")
 		_, err = ctx.S3Client.GetBucketPolicy(context.Background(), &s3.GetBucketPolicyInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket policy should succeed")
 
-		// DELETE Bucket Policy
-		By("deleting bucket policy")
 		_, err = ctx.S3Client.DeleteBucketPolicy(context.Background(), &s3.DeleteBucketPolicyInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket policy should succeed")
 
-		// Wait for logs (3 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 3)
-
-		// Verify operations
-		By("verifying put bucket policy log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.PUT.BUCKETPOLICY",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket policy log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.GET.BUCKETPOLICY",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete bucket policy log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.DELETE.BUCKETPOLICY",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 204,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		ctx.VerifyLogs(
+			ctx.BucketOp("REST.PUT.BUCKETPOLICY", 200),
+			ctx.BucketOp("REST.GET.BUCKETPOLICY", 200),
+			ctx.BucketOp("REST.DELETE.BUCKETPOLICY", 204),
+		)
 	})
 
 	It("logs bucket CORS configuration operations", func() {
@@ -145,59 +90,27 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		// PUT Bucket CORS
-		By("putting bucket CORS configuration")
 		_, err := ctx.S3Client.PutBucketCors(context.Background(), &s3.PutBucketCorsInput{
 			Bucket:            aws.String(ctx.SourceBucket),
 			CORSConfiguration: corsConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket CORS should succeed")
 
-		// GET Bucket CORS
-		By("getting bucket CORS configuration")
 		_, err = ctx.S3Client.GetBucketCors(context.Background(), &s3.GetBucketCorsInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket CORS should succeed")
 
-		// DELETE Bucket CORS
-		By("deleting bucket CORS configuration")
 		_, err = ctx.S3Client.DeleteBucketCors(context.Background(), &s3.DeleteBucketCorsInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket CORS should succeed")
 
-		// Wait for logs (3 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 3)
-
-		// Verify operations
-		By("verifying put bucket CORS log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.PUT.CORS",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket CORS log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.GET.CORS",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete bucket CORS log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.DELETE.CORS",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 204,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		ctx.VerifyLogs(
+			ctx.BucketOp("REST.PUT.CORS", 200),
+			ctx.BucketOp("REST.GET.CORS", 200),
+			ctx.BucketOp("REST.DELETE.CORS", 204),
+		)
 	})
 
 	It("logs bucket website configuration operations", func() {
@@ -210,59 +123,27 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		// PUT Bucket Website
-		By("putting bucket website configuration")
 		_, err := ctx.S3Client.PutBucketWebsite(context.Background(), &s3.PutBucketWebsiteInput{
 			Bucket:               aws.String(ctx.SourceBucket),
 			WebsiteConfiguration: websiteConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket website should succeed")
 
-		// GET Bucket Website
-		By("getting bucket website configuration")
 		_, err = ctx.S3Client.GetBucketWebsite(context.Background(), &s3.GetBucketWebsiteInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket website should succeed")
 
-		// DELETE Bucket Website
-		By("deleting bucket website configuration")
 		_, err = ctx.S3Client.DeleteBucketWebsite(context.Background(), &s3.DeleteBucketWebsiteInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket website should succeed")
 
-		// Wait for logs (3 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 3)
-
-		// Verify operations
-		By("verifying put bucket website log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.PUT.WEBSITE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket website log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.GET.WEBSITE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete bucket website log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.DELETE.WEBSITE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 204,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		ctx.VerifyLogs(
+			ctx.BucketOp("REST.PUT.WEBSITE", 200),
+			ctx.BucketOp("REST.GET.WEBSITE", 200),
+			ctx.BucketOp("REST.DELETE.WEBSITE", 204),
+		)
 	})
 
 	It("logs bucket lifecycle configuration operations", func() {
@@ -279,58 +160,26 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		// PUT Bucket Lifecycle
-		By("putting bucket lifecycle configuration")
 		_, err := ctx.S3Client.PutBucketLifecycleConfiguration(context.Background(), &s3.PutBucketLifecycleConfigurationInput{
 			Bucket:                 aws.String(ctx.SourceBucket),
 			LifecycleConfiguration: lifecycleConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket lifecycle should succeed")
 
-		// GET Bucket Lifecycle
-		By("getting bucket lifecycle configuration")
 		_, err = ctx.S3Client.GetBucketLifecycleConfiguration(context.Background(), &s3.GetBucketLifecycleConfigurationInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket lifecycle should succeed")
 
-		// DELETE Bucket Lifecycle
-		By("deleting bucket lifecycle configuration")
 		_, err = ctx.S3Client.DeleteBucketLifecycle(context.Background(), &s3.DeleteBucketLifecycleInput{
 			Bucket: aws.String(ctx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket lifecycle should succeed")
 
-		// Wait for logs (3 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 3)
-
-		// Verify operations
-		By("verifying put bucket lifecycle log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.PUT.LIFECYCLE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket lifecycle log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.GET.LIFECYCLE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete bucket lifecycle log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.DELETE.LIFECYCLE",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 204,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		ctx.VerifyLogs(
+			ctx.BucketOp("REST.PUT.LIFECYCLE", 200),
+			ctx.BucketOp("REST.GET.LIFECYCLE", 200),
+			ctx.BucketOp("REST.DELETE.LIFECYCLE", 204),
+		)
 	})
 })
