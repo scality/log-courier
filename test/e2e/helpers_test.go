@@ -77,6 +77,59 @@ type ExpectedLog struct {
 	Key        string // Optional, use "" to skip check
 	ErrorCode  string // Optional, use "" to skip check
 	HTTPStatus int
+	BytesSent  int64 // Optional, use -1 to skip check
+	ObjectSize int64 // Optional, use -1 to skip check
+}
+
+// ExpectedLogBuilder allows fluent construction of ExpectedLog
+type ExpectedLogBuilder struct {
+	log ExpectedLog
+}
+
+// WithBytesSent sets the expected BytesSent value
+func (b ExpectedLogBuilder) WithBytesSent(n int64) ExpectedLogBuilder {
+	b.log.BytesSent = n
+	return b
+}
+
+// WithObjectSize sets the expected ObjectSize value
+func (b ExpectedLogBuilder) WithObjectSize(size int64) ExpectedLogBuilder {
+	b.log.ObjectSize = size
+	return b
+}
+
+// WithErrorCode sets the expected ErrorCode value
+func (b ExpectedLogBuilder) WithErrorCode(code string) ExpectedLogBuilder {
+	b.log.ErrorCode = code
+	return b
+}
+
+// BucketOp creates an ExpectedLog for bucket-level operations (no key)
+func (ctx *E2ETestContext) BucketOp(operation string, httpStatus int) ExpectedLogBuilder {
+	return ExpectedLogBuilder{
+		log: ExpectedLog{
+			Operation:  operation,
+			Bucket:     ctx.SourceBucket,
+			Key:        "",
+			HTTPStatus: httpStatus,
+			BytesSent:  -1,
+			ObjectSize: -1,
+		},
+	}
+}
+
+// ObjectOp creates an ExpectedLog for object-level operations
+func (ctx *E2ETestContext) ObjectOp(operation, key string, httpStatus int) ExpectedLogBuilder {
+	return ExpectedLogBuilder{
+		log: ExpectedLog{
+			Operation:  operation,
+			Bucket:     ctx.SourceBucket,
+			Key:        key,
+			HTTPStatus: httpStatus,
+			BytesSent:  -1,
+			ObjectSize: -1,
+		},
+	}
 }
 
 // emptyBucket deletes all objects in a bucket
@@ -333,26 +386,43 @@ func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord 
 	return allLogs
 }
 
-// verifyLogRecord verifies a log record matches expected values
-func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLog) {
+// VerifyLogs waits for logs, verifies they match expected values, and checks chronological order.
+// Returns the logs for additional assertions if needed.
+func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedLogRecord {
 	GinkgoHelper()
 
-	Expect(actual.Operation).To(Equal(expected.Operation),
+	logs := waitForLogCount(ctx, len(expected))
+
+	for i, exp := range expected {
+		verifyLogRecord(logs[i], exp)
+	}
+
+	verifyChronologicalOrder(logs)
+
+	return logs
+}
+
+// verifyLogRecord verifies a log record matches expected values
+func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
+	GinkgoHelper()
+	exp := expected.log
+
+	Expect(actual.Operation).To(Equal(exp.Operation),
 		"Operation mismatch")
 
-	Expect(actual.Bucket).To(Equal(expected.Bucket),
+	Expect(actual.Bucket).To(Equal(exp.Bucket),
 		"Bucket mismatch")
 
-	if expected.Key != "" {
-		Expect(actual.Key).To(Equal(expected.Key),
+	if exp.Key != "" {
+		Expect(actual.Key).To(Equal(exp.Key),
 			"Key mismatch")
 	}
 
-	Expect(actual.HTTPStatus).To(Equal(expected.HTTPStatus),
+	Expect(actual.HTTPStatus).To(Equal(exp.HTTPStatus),
 		"HTTP status mismatch")
 
-	if expected.ErrorCode != "" {
-		Expect(actual.ErrorCode).To(Equal(expected.ErrorCode),
+	if exp.ErrorCode != "" {
+		Expect(actual.ErrorCode).To(Equal(exp.ErrorCode),
 			"Error code mismatch")
 	}
 
