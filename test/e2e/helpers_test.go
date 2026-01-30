@@ -42,24 +42,32 @@ type E2ETestContext struct {
 
 // ParsedLogRecord represents a parsed S3 Server Access Log entry
 type ParsedLogRecord struct {
-	Time           time.Time
-	BucketOwner    string
-	Bucket         string
-	RemoteIP       string
-	Requester      string
-	RequestID      string
-	Operation      string
-	Key            string
-	RequestURI     string
-	ErrorCode      string
-	Referer        string
-	UserAgent      string
-	VersionID      string
-	BytesSent      int64
-	ObjectSize     int64
-	HTTPStatus     int
-	TotalTime      int
-	TurnAroundTime int
+	Time               time.Time
+	BucketOwner        string
+	Bucket             string
+	RemoteIP           string
+	Requester          string
+	RequestID          string
+	Operation          string
+	Key                string
+	RequestURI         string
+	ErrorCode          string
+	Referer            string
+	UserAgent          string
+	VersionID          string
+	HostID             string // Field 19 - always "-" (not supported)
+	SignatureVersion   string
+	CipherSuite        string
+	AuthenticationType string
+	HostHeader         string
+	TLSVersion         string
+	AccessPointARN     string // Field 25 - always "-" (not supported)
+	ACLRequired        string // Field 26 - always "-" (not supported)
+	BytesSent          int64
+	ObjectSize         int64
+	HTTPStatus         int
+	TotalTime          int
+	TurnAroundTime     int
 }
 
 // ExpectedLog defines expected log record fields for verification
@@ -224,24 +232,32 @@ func parseLogLine(line string) (*ParsedLogRecord, error) {
 	turnAroundTime, _ := strconv.Atoi(fields[14])
 
 	return &ParsedLogRecord{
-		BucketOwner:    fields[0],
-		Bucket:         fields[1],
-		Time:           timestamp,
-		RemoteIP:       fields[3],
-		Requester:      fields[4],
-		RequestID:      fields[5],
-		Operation:      fields[6],
-		Key:            fields[7],
-		RequestURI:     strings.Trim(fields[8], "\""),
-		HTTPStatus:     httpStatus,
-		ErrorCode:      fields[10],
-		BytesSent:      bytesSent,
-		ObjectSize:     objectSize,
-		TotalTime:      totalTime,
-		TurnAroundTime: turnAroundTime,
-		Referer:        strings.Trim(fields[15], "\""),
-		UserAgent:      strings.Trim(fields[16], "\""),
-		VersionID:      fields[17],
+		BucketOwner:        fields[0],
+		Bucket:             fields[1],
+		Time:               timestamp,
+		RemoteIP:           fields[3],
+		Requester:          fields[4],
+		RequestID:          fields[5],
+		Operation:          fields[6],
+		Key:                fields[7],
+		RequestURI:         strings.Trim(fields[8], "\""),
+		HTTPStatus:         httpStatus,
+		ErrorCode:          fields[10],
+		BytesSent:          bytesSent,
+		ObjectSize:         objectSize,
+		TotalTime:          totalTime,
+		TurnAroundTime:     turnAroundTime,
+		Referer:            strings.Trim(fields[15], "\""),
+		UserAgent:          strings.Trim(fields[16], "\""),
+		VersionID:          fields[17],
+		HostID:             fields[18],
+		SignatureVersion:   fields[19],
+		CipherSuite:        fields[20],
+		AuthenticationType: fields[21],
+		HostHeader:         fields[22],
+		TLSVersion:         fields[23],
+		AccessPointARN:     fields[24],
+		ACLRequired:        fields[25],
 	}, nil
 }
 
@@ -338,6 +354,58 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLog) {
 	if expected.ErrorCode != "" {
 		Expect(actual.ErrorCode).To(Equal(expected.ErrorCode),
 			"Error code mismatch")
+	}
+
+	// Verify common metadata fields have actual values (not "-")
+	// Some operations have "-" for most fields:
+	// - Copy source operations (REST.COPY.OBJECT_GET, REST.COPY.PART_GET)
+	// - Batch delete operations (BATCH.DELETE.OBJECT)
+	skipMetadataCheck := actual.Operation == "REST.COPY.OBJECT_GET" ||
+		actual.Operation == "REST.COPY.PART_GET" ||
+		actual.Operation == "BATCH.DELETE.OBJECT"
+	if !skipMetadataCheck {
+		Expect(actual.BucketOwner).NotTo(Equal("-"),
+			"BucketOwner should be present")
+		Expect(actual.RemoteIP).NotTo(Equal("-"),
+			"RemoteIP should be present")
+		Expect(actual.Requester).NotTo(Equal("-"),
+			"Requester should be present")
+		Expect(actual.RequestURI).NotTo(Equal("-"),
+			"RequestURI should be present")
+		Expect(actual.UserAgent).NotTo(Equal("-"),
+			"UserAgent should be present")
+		Expect(actual.AuthenticationType).NotTo(Equal("-"),
+			"AuthenticationType should be present")
+		Expect(actual.HostHeader).NotTo(Equal("-"),
+			"HostHeader should be present")
+		Expect(actual.SignatureVersion).NotTo(Equal("-"),
+			"SignatureVersion should be present")
+	}
+
+	// Verify unsupported fields are always "-"
+	Expect(actual.HostID).To(Equal("-"),
+		"HostID should always be '-' (not supported)")
+	Expect(actual.AccessPointARN).To(Equal("-"),
+		"AccessPointARN should always be '-' (not supported)")
+	Expect(actual.ACLRequired).To(Equal("-"),
+		"ACLRequired should always be '-' (not supported)")
+
+	// Verify timing fields relationship
+	Expect(actual.TotalTime).To(BeNumerically(">=", 0),
+		"TotalTime should be non-negative")
+	Expect(actual.TurnAroundTime).To(BeNumerically(">=", 0),
+		"TurnAroundTime should be non-negative")
+	Expect(actual.TurnAroundTime).To(BeNumerically("<=", actual.TotalTime),
+		"TurnAroundTime should not exceed TotalTime")
+
+	// Verify optional size fields when specified (use -1 to skip)
+	if exp.BytesSent >= 0 {
+		Expect(actual.BytesSent).To(Equal(exp.BytesSent),
+			"BytesSent mismatch")
+	}
+	if exp.ObjectSize >= 0 {
+		Expect(actual.ObjectSize).To(Equal(exp.ObjectSize),
+			"ObjectSize mismatch")
 	}
 }
 

@@ -78,6 +78,10 @@ var _ = Describe("Object Operations", func() {
 			HTTPStatus: 200,
 		})
 
+		By("verifying get operation has correct BytesSent")
+		Expect(logs[1].BytesSent).To(Equal(int64(len(testContent))),
+			"GET BytesSent should match content length")
+
 		By("verifying head operation log")
 		verifyLogRecord(logs[2], ExpectedLog{
 			Operation:  "REST.HEAD.OBJECT",
