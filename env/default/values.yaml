@@ -6,7 +6,7 @@ features:
     enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:9.2.14
+  image: ghcr.io/scality/cloudserver:9.2.24
 
 vault:
   image: ghcr.io/scality/vault:7.83.0
@@ -18,4 +18,4 @@ clickhouse:
   image: clickhouse/clickhouse-server:24.3.2.23-alpine
 
 fluentbit:
-  image: fluent/fluent-bit:3.2.2
+  image: fluent/fluent-bit:3.0.2

@@ -39,7 +39,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Start Workbench
-        uses: scality/workbench@v0.10.0
+        uses: scality/workbench@v0.12.0
 
       - name: Wait for all services
         run: |

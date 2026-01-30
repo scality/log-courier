@@ -41,7 +41,8 @@ jobs:
           version: v2.1.6
 
       - name: Start Workbench
-        uses: scality/workbench@v0.10.0
+        id: start-workbench
+        uses: scality/workbench@v0.12.0
 
       - name: Wait for ClickHouse setup and fix permissions
         run: |
@@ -83,7 +84,7 @@ jobs:
           path: ./bin/log-courier
 
       - name: Stop Workbench
-        if: always()
+        if: (success() || failure()) && steps.start-workbench.outcome != 'skipped'
         run: |
           workbench logs
           workbench down
