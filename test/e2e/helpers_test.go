@@ -122,6 +122,32 @@ func configureBucketLogging(client *s3.Client, sourceBucket, targetBucket, prefi
 	return err
 }
 
+// configureBucketPolicyForCrossAccountAccess sets up a bucket policy granting
+// PutObject permission to the service-access-logging-user. Required for cross-account
+// access in Integration environments.
+func configureBucketPolicyForCrossAccountAccess(client *s3.Client, bucket string) error {
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Sid": "AllowCrossAccountPutObject",
+				"Effect": "Allow",
+				"Principal": {
+					"AWS": "arn:aws:iam::000000000000:user/scality-internal/service-access-logging-user"
+				},
+				"Action": "s3:PutObject",
+				"Resource": "arn:aws:s3:::%s/*"
+			}
+		]
+	}`, bucket)
+
+	_, err := client.PutBucketPolicy(context.Background(), &s3.PutBucketPolicyInput{
+		Bucket: aws.String(bucket),
+		Policy: aws.String(policy),
+	})
+	return err
+}
+
 // findLogObjectsSince finds all log objects in a bucket created after a given time
 // returns the list of object keys that were created after the given time
 func findLogObjectsSince(client *s3.Client, bucket, prefix string, since time.Time) ([]string, error) {
@@ -411,6 +437,10 @@ func setupE2ETest() *E2ETestContext {
 	// Configure bucket logging
 	err = configureBucketLogging(sharedS3Client, sourceBucket, destBucket, logPrefix)
 	Expect(err).NotTo(HaveOccurred(), "Failed to configure bucket logging")
+
+	// Configure bucket policy for cross-account access
+	err = configureBucketPolicyForCrossAccountAccess(sharedS3Client, destBucket)
+	Expect(err).NotTo(HaveOccurred(), "Failed to configure bucket policy")
 
 	return &E2ETestContext{
 		TestName:          testName,
