@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -12,198 +11,69 @@ import (
 )
 
 var _ = Describe("Bucket Operations", func() {
-	var ctx *E2ETestContext
+	var testCtx *E2ETestContext
 
 	BeforeEach(func() {
-		ctx = setupE2ETest()
+		testCtx = setupE2ETest()
 	})
 
 	AfterEach(func() {
-		cleanupE2ETest(ctx)
+		cleanupE2ETest(testCtx)
 	})
 
-	It("logs bucket management operations", func() {
-		// HEAD Bucket
-		By("performing head bucket")
-		_, err := ctx.S3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
-			Bucket: aws.String(ctx.SourceBucket),
+	It("logs bucket management operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.HeadBucket(ctx, &s3.HeadBucketInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "HEAD bucket should succeed")
 
-		// GET Bucket Location
-		By("getting bucket location")
-		_, err = ctx.S3Client.GetBucketLocation(context.Background(), &s3.GetBucketLocationInput{
-			Bucket: aws.String(ctx.SourceBucket),
+		_, err = testCtx.S3Client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket location should succeed")
 
-		// Wait for logs (2 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 2)
-
-		// Verify operations
-		By("verifying head bucket log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.HEAD.BUCKET",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket location log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.GET.LOCATION",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		testCtx.VerifyLogs(
+			testCtx.BucketOp("REST.HEAD.BUCKET", 200),
+			testCtx.BucketOp("REST.GET.LOCATION", 200),
+		)
 	})
 
-	It("logs bucket versioning operations", func() {
-		testKey := "versioned-object.txt"
-
-		// Enable versioning on source bucket
-		By("enabling versioning on source bucket")
-		_, err := ctx.S3Client.PutBucketVersioning(context.Background(), &s3.PutBucketVersioningInput{
-			Bucket: aws.String(ctx.SourceBucket),
-			VersioningConfiguration: &types.VersioningConfiguration{
-				Status: types.BucketVersioningStatusEnabled,
-			},
+	It("logs GET bucket versioning operation", func(ctx context.Context) {
+		_, err := testCtx.S3Client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 		})
-		Expect(err).NotTo(HaveOccurred(), "Enable versioning should succeed")
+		Expect(err).NotTo(HaveOccurred(), "GET bucket versioning should succeed")
 
-		// PUT Object version
-		By("putting version of object")
-		putV1Resp, err := ctx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
-			Bucket: aws.String(ctx.SourceBucket),
-			Key:    aws.String(testKey),
-			Body:   bytes.NewReader([]byte("version content")),
-		})
-		Expect(err).NotTo(HaveOccurred(), "PUT object version should succeed")
-		versionID := putV1Resp.VersionId
-
-		// List Object Versions
-		By("listing object versions")
-		_, err = ctx.S3Client.ListObjectVersions(context.Background(), &s3.ListObjectVersionsInput{
-			Bucket: aws.String(ctx.SourceBucket),
-		})
-		Expect(err).NotTo(HaveOccurred(), "List object versions should succeed")
-
-		// DELETE Object (creates delete marker)
-		By("deleting object (creates delete marker)")
-		deleteResp, err := ctx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-			Bucket: aws.String(ctx.SourceBucket),
-			Key:    aws.String(testKey),
-		})
-		Expect(err).NotTo(HaveOccurred(), "DELETE object should succeed")
-		deleteMarkerVersionID := deleteResp.VersionId
-
-		// GET Object Version (specific version)
-		By("getting specific object version")
-		_, err = ctx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
-			Bucket:    aws.String(ctx.SourceBucket),
-			Key:       aws.String(testKey),
-			VersionId: versionID,
-		})
-		Expect(err).NotTo(HaveOccurred(), "GET object version should succeed")
-
-		// DELETE Object Version (delete the delete marker)
-		By("deleting delete marker version")
-		_, err = ctx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-			Bucket:    aws.String(ctx.SourceBucket),
-			Key:       aws.String(testKey),
-			VersionId: deleteMarkerVersionID,
-		})
-		Expect(err).NotTo(HaveOccurred(), "DELETE object version should succeed")
-
-		// Wait for logs (6 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 6)
-
-		// Verify operations
-		By("verifying put bucket versioning log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.PUT.VERSIONING",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying put object version log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.PUT.OBJECT",
-			Bucket:     ctx.SourceBucket,
-			Key:        testKey,
-			HTTPStatus: 200,
-		})
-
-		By("verifying list object versions log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.GET.BUCKET",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete object (create delete marker) log")
-		verifyLogRecord(logs[3], ExpectedLog{
-			Operation:  "REST.DELETE.OBJECT",
-			Bucket:     ctx.SourceBucket,
-			Key:        testKey,
-			HTTPStatus: 204,
-		})
-
-		By("verifying get object version log")
-		verifyLogRecord(logs[4], ExpectedLog{
-			Operation:  "REST.GET.OBJECT",
-			Bucket:     ctx.SourceBucket,
-			Key:        testKey,
-			HTTPStatus: 200,
-		})
-
-		By("verifying delete object version log")
-		verifyLogRecord(logs[5], ExpectedLog{
-			Operation:  "REST.DELETE.OBJECT",
-			Bucket:     ctx.SourceBucket,
-			Key:        testKey,
-			HTTPStatus: 204,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
-
-		// Cleanup: Delete remaining version
-		By("cleaning up remaining version")
-		_, _ = ctx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
-			Bucket:    aws.String(ctx.SourceBucket),
-			Key:       aws.String(testKey),
-			VersionId: versionID,
-		})
+		testCtx.VerifyLogs(
+			testCtx.BucketOp("REST.GET.VERSIONING", 200),
+		)
 	})
 
-	It("logs bucket ACL and tagging operations", func() {
-		// GET Bucket ACL
-		By("getting bucket ACL")
-		_, err := ctx.S3Client.GetBucketAcl(context.Background(), &s3.GetBucketAclInput{
-			Bucket: aws.String(ctx.SourceBucket),
+	It("logs delete bucket operation", func(ctx context.Context) {
+		_, err := testCtx.S3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).NotTo(HaveOccurred(), "DELETE bucket should succeed")
+
+		testCtx.VerifyLogs(
+			testCtx.BucketOp("REST.DELETE.BUCKET", 204),
+		)
+	})
+
+	It("logs bucket ACL and tagging operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket ACL should succeed")
 
-		// PUT Bucket ACL
-		By("putting bucket ACL")
-		_, err = ctx.S3Client.PutBucketAcl(context.Background(), &s3.PutBucketAclInput{
-			Bucket: aws.String(ctx.SourceBucket),
+		_, err = testCtx.S3Client.PutBucketAcl(ctx, &s3.PutBucketAclInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 			ACL:    types.BucketCannedACLPrivate,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket ACL should succeed")
 
-		// PUT Bucket Tagging
-		By("putting bucket tagging")
-		_, err = ctx.S3Client.PutBucketTagging(context.Background(), &s3.PutBucketTaggingInput{
-			Bucket: aws.String(ctx.SourceBucket),
+		_, err = testCtx.S3Client.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 			Tagging: &types.Tagging{
 				TagSet: []types.Tag{
 					{Key: aws.String("Environment"), Value: aws.String("test")},
@@ -213,51 +83,16 @@ var _ = Describe("Bucket Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket tagging should succeed")
 
-		// GET Bucket Tagging
-		By("getting bucket tagging")
-		_, err = ctx.S3Client.GetBucketTagging(context.Background(), &s3.GetBucketTaggingInput{
-			Bucket: aws.String(ctx.SourceBucket),
+		_, err = testCtx.S3Client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
+			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket tagging should succeed")
 
-		// Wait for logs (4 operations)
-		By("waiting for logs to appear in destination bucket")
-		logs := waitForLogCount(ctx, 4)
-
-		// Verify operations
-		By("verifying get bucket ACL log")
-		verifyLogRecord(logs[0], ExpectedLog{
-			Operation:  "REST.GET.ACL",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying put bucket ACL log")
-		verifyLogRecord(logs[1], ExpectedLog{
-			Operation:  "REST.PUT.ACL",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying put bucket tagging log")
-		verifyLogRecord(logs[2], ExpectedLog{
-			Operation:  "REST.PUT.TAGGING",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying get bucket tagging log")
-		verifyLogRecord(logs[3], ExpectedLog{
-			Operation:  "REST.GET.TAGGING",
-			Bucket:     ctx.SourceBucket,
-			Key:        "",
-			HTTPStatus: 200,
-		})
-
-		By("verifying logs are in chronological order")
-		verifyChronologicalOrder(logs)
+		testCtx.VerifyLogs(
+			testCtx.BucketOp("REST.GET.ACL", 200),
+			testCtx.BucketOp("REST.PUT.ACL", 200),
+			testCtx.BucketOp("REST.PUT.TAGGING", 200),
+			testCtx.BucketOp("REST.GET.TAGGING", 200),
+		)
 	})
 })

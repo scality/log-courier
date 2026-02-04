@@ -42,24 +42,32 @@ type E2ETestContext struct {
 
 // ParsedLogRecord represents a parsed S3 Server Access Log entry
 type ParsedLogRecord struct {
-	Time           time.Time
-	BucketOwner    string
-	Bucket         string
-	RemoteIP       string
-	Requester      string
-	RequestID      string
-	Operation      string
-	Key            string
-	RequestURI     string
-	ErrorCode      string
-	Referer        string
-	UserAgent      string
-	VersionID      string
-	BytesSent      int64
-	ObjectSize     int64
-	HTTPStatus     int
-	TotalTime      int
-	TurnAroundTime int
+	Time               time.Time
+	BucketOwner        string
+	Bucket             string
+	RemoteIP           string
+	Requester          string
+	RequestID          string
+	Operation          string
+	Key                string
+	RequestURI         string
+	ErrorCode          string
+	Referer            string
+	UserAgent          string
+	VersionID          string
+	HostID             string // Field 19 - always "-" (not supported)
+	SignatureVersion   string
+	CipherSuite        string
+	AuthenticationType string
+	HostHeader         string
+	TLSVersion         string
+	AccessPointARN     string // Field 25 - always "-" (not supported)
+	ACLRequired        string // Field 26 - always "-" (not supported)
+	BytesSent          int64
+	ObjectSize         int64
+	HTTPStatus         int
+	TotalTime          int
+	TurnAroundTime     int
 }
 
 // ExpectedLog defines expected log record fields for verification
@@ -69,6 +77,59 @@ type ExpectedLog struct {
 	Key        string // Optional, use "" to skip check
 	ErrorCode  string // Optional, use "" to skip check
 	HTTPStatus int
+	BytesSent  int64 // Optional, use -1 to skip check
+	ObjectSize int64 // Optional, use -1 to skip check
+}
+
+// ExpectedLogBuilder allows fluent construction of ExpectedLog
+type ExpectedLogBuilder struct {
+	log ExpectedLog
+}
+
+// WithBytesSent sets the expected BytesSent value
+func (b ExpectedLogBuilder) WithBytesSent(n int64) ExpectedLogBuilder {
+	b.log.BytesSent = n
+	return b
+}
+
+// WithObjectSize sets the expected ObjectSize value
+func (b ExpectedLogBuilder) WithObjectSize(size int64) ExpectedLogBuilder {
+	b.log.ObjectSize = size
+	return b
+}
+
+// WithErrorCode sets the expected ErrorCode value
+func (b ExpectedLogBuilder) WithErrorCode(code string) ExpectedLogBuilder {
+	b.log.ErrorCode = code
+	return b
+}
+
+// BucketOp creates an ExpectedLog for bucket-level operations (no key)
+func (ctx *E2ETestContext) BucketOp(operation string, httpStatus int) ExpectedLogBuilder {
+	return ExpectedLogBuilder{
+		log: ExpectedLog{
+			Operation:  operation,
+			Bucket:     ctx.SourceBucket,
+			Key:        "",
+			HTTPStatus: httpStatus,
+			BytesSent:  -1,
+			ObjectSize: -1,
+		},
+	}
+}
+
+// ObjectOp creates an ExpectedLog for object-level operations
+func (ctx *E2ETestContext) ObjectOp(operation, key string, httpStatus int) ExpectedLogBuilder {
+	return ExpectedLogBuilder{
+		log: ExpectedLog{
+			Operation:  operation,
+			Bucket:     ctx.SourceBucket,
+			Key:        key,
+			HTTPStatus: httpStatus,
+			BytesSent:  -1,
+			ObjectSize: -1,
+		},
+	}
 }
 
 // emptyBucket deletes all objects in a bucket
@@ -224,24 +285,32 @@ func parseLogLine(line string) (*ParsedLogRecord, error) {
 	turnAroundTime, _ := strconv.Atoi(fields[14])
 
 	return &ParsedLogRecord{
-		BucketOwner:    fields[0],
-		Bucket:         fields[1],
-		Time:           timestamp,
-		RemoteIP:       fields[3],
-		Requester:      fields[4],
-		RequestID:      fields[5],
-		Operation:      fields[6],
-		Key:            fields[7],
-		RequestURI:     strings.Trim(fields[8], "\""),
-		HTTPStatus:     httpStatus,
-		ErrorCode:      fields[10],
-		BytesSent:      bytesSent,
-		ObjectSize:     objectSize,
-		TotalTime:      totalTime,
-		TurnAroundTime: turnAroundTime,
-		Referer:        strings.Trim(fields[15], "\""),
-		UserAgent:      strings.Trim(fields[16], "\""),
-		VersionID:      fields[17],
+		BucketOwner:        fields[0],
+		Bucket:             fields[1],
+		Time:               timestamp,
+		RemoteIP:           fields[3],
+		Requester:          fields[4],
+		RequestID:          fields[5],
+		Operation:          fields[6],
+		Key:                fields[7],
+		RequestURI:         strings.Trim(fields[8], "\""),
+		HTTPStatus:         httpStatus,
+		ErrorCode:          fields[10],
+		BytesSent:          bytesSent,
+		ObjectSize:         objectSize,
+		TotalTime:          totalTime,
+		TurnAroundTime:     turnAroundTime,
+		Referer:            strings.Trim(fields[15], "\""),
+		UserAgent:          strings.Trim(fields[16], "\""),
+		VersionID:          fields[17],
+		HostID:             fields[18],
+		SignatureVersion:   fields[19],
+		CipherSuite:        fields[20],
+		AuthenticationType: fields[21],
+		HostHeader:         fields[22],
+		TLSVersion:         fields[23],
+		AccessPointARN:     fields[24],
+		ACLRequired:        fields[25],
 	}, nil
 }
 
@@ -270,15 +339,25 @@ func parseLogContent(content []byte) []*ParsedLogRecord {
 
 // fetchAllLogsSince fetches and parses all log records since a given time
 func fetchAllLogsSince(ctx *E2ETestContext, since time.Time) ([]*ParsedLogRecord, error) {
-	objectKeys, err := findLogObjectsSince(ctx.S3Client, ctx.DestinationBucket,
-		ctx.LogPrefix, since)
+	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, ctx.LogPrefix, since)
+}
+
+// fetchAllLogsInBucketSince fetches and parses all log records from the entire bucket since a given time.
+// This is useful when the logging prefix may have changed during the test.
+func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedLogRecord, error) {
+	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, "", since)
+}
+
+// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time
+func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
+	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
 		return nil, err
 	}
 
 	var allRecords []*ParsedLogRecord
 	for _, key := range objectKeys {
-		content, err := downloadObject(ctx.S3Client, ctx.DestinationBucket, key)
+		content, err := downloadObject(client, bucket, key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download %s: %w", key, err)
 		}
@@ -307,27 +386,96 @@ func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord 
 	return allLogs
 }
 
-// verifyLogRecord verifies a log record matches expected values
-func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLog) {
+// VerifyLogs waits for logs, verifies they match expected values, and checks chronological order.
+// Returns the logs for additional assertions if needed.
+func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedLogRecord {
 	GinkgoHelper()
 
-	Expect(actual.Operation).To(Equal(expected.Operation),
+	logs := waitForLogCount(ctx, len(expected))
+
+	for i, exp := range expected {
+		verifyLogRecord(logs[i], exp)
+	}
+
+	verifyChronologicalOrder(logs)
+
+	return logs
+}
+
+// verifyLogRecord verifies a log record matches expected values
+func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
+	GinkgoHelper()
+	exp := expected.log
+
+	Expect(actual.Operation).To(Equal(exp.Operation),
 		"Operation mismatch")
 
-	Expect(actual.Bucket).To(Equal(expected.Bucket),
+	Expect(actual.Bucket).To(Equal(exp.Bucket),
 		"Bucket mismatch")
 
-	if expected.Key != "" {
-		Expect(actual.Key).To(Equal(expected.Key),
+	if exp.Key != "" {
+		Expect(actual.Key).To(Equal(exp.Key),
 			"Key mismatch")
 	}
 
-	Expect(actual.HTTPStatus).To(Equal(expected.HTTPStatus),
+	Expect(actual.HTTPStatus).To(Equal(exp.HTTPStatus),
 		"HTTP status mismatch")
 
-	if expected.ErrorCode != "" {
-		Expect(actual.ErrorCode).To(Equal(expected.ErrorCode),
+	if exp.ErrorCode != "" {
+		Expect(actual.ErrorCode).To(Equal(exp.ErrorCode),
 			"Error code mismatch")
+	}
+
+	// Verify common metadata fields have actual values (not "-")
+	// Some operations have "-" for most fields:
+	// - Copy source operations (REST.COPY.OBJECT_GET, REST.COPY.PART_GET)
+	// - Batch delete operations (BATCH.DELETE.OBJECT)
+	skipMetadataCheck := actual.Operation == "REST.COPY.OBJECT_GET" ||
+		actual.Operation == "REST.COPY.PART_GET" ||
+		actual.Operation == "BATCH.DELETE.OBJECT"
+	if !skipMetadataCheck {
+		Expect(actual.BucketOwner).NotTo(Equal("-"),
+			"BucketOwner should be present")
+		Expect(actual.RemoteIP).NotTo(Equal("-"),
+			"RemoteIP should be present")
+		Expect(actual.Requester).NotTo(Equal("-"),
+			"Requester should be present")
+		Expect(actual.RequestURI).NotTo(Equal("-"),
+			"RequestURI should be present")
+		Expect(actual.UserAgent).NotTo(Equal("-"),
+			"UserAgent should be present")
+		Expect(actual.AuthenticationType).NotTo(Equal("-"),
+			"AuthenticationType should be present")
+		Expect(actual.HostHeader).NotTo(Equal("-"),
+			"HostHeader should be present")
+		Expect(actual.SignatureVersion).NotTo(Equal("-"),
+			"SignatureVersion should be present")
+	}
+
+	// Verify unsupported fields are always "-"
+	Expect(actual.HostID).To(Equal("-"),
+		"HostID should always be '-' (not supported)")
+	Expect(actual.AccessPointARN).To(Equal("-"),
+		"AccessPointARN should always be '-' (not supported)")
+	Expect(actual.ACLRequired).To(Equal("-"),
+		"ACLRequired should always be '-' (not supported)")
+
+	// Verify timing fields relationship
+	Expect(actual.TotalTime).To(BeNumerically(">=", 0),
+		"TotalTime should be non-negative")
+	Expect(actual.TurnAroundTime).To(BeNumerically(">=", 0),
+		"TurnAroundTime should be non-negative")
+	Expect(actual.TurnAroundTime).To(BeNumerically("<=", actual.TotalTime),
+		"TurnAroundTime should not exceed TotalTime")
+
+	// Verify optional size fields when specified (use -1 to skip)
+	if exp.BytesSent >= 0 {
+		Expect(actual.BytesSent).To(Equal(exp.BytesSent),
+			"BytesSent mismatch")
+	}
+	if exp.ObjectSize >= 0 {
+		Expect(actual.ObjectSize).To(Equal(exp.ObjectSize),
+			"ObjectSize mismatch")
 	}
 }
 
@@ -471,13 +619,37 @@ func cleanupE2ETest(ctx *E2ETestContext) {
 		fmt.Printf("[E2E Cleanup] FAILED - Destination bucket: %s\n", ctx.DestinationBucket)
 	}
 
-	// Disable logging on source bucket before cleanup
+	// Disable logging on source bucket before cleanup.
+	// Use a time slightly before the disable call to avoid flakiness.
+	timeBeforeDisable := time.Now().Add(-2 * time.Second)
 	_, err := ctx.S3Client.PutBucketLogging(context.Background(), &s3.PutBucketLoggingInput{
 		Bucket:              aws.String(ctx.SourceBucket),
 		BucketLoggingStatus: &types.BucketLoggingStatus{},
 	})
 	if err != nil {
 		fmt.Printf("Warning: failed to disable logging on source bucket: %v\n", err)
+	} else {
+		// Wait for the disable logging operation to be logged.
+		// This ensures logs are delivered before we delete the destination bucket,
+		// preventing "NoSuchBucket" errors in log-courier.
+		// Search the entire bucket since tests may change the logging prefix.
+		Eventually(func() bool {
+			logs, fetchErr := fetchAllLogsInBucketSince(ctx, ctx.TestStartTime)
+			if fetchErr != nil {
+				return false
+			}
+
+			for _, log := range logs {
+				if log.Operation == "REST.PUT.LOGGING_STATUS" &&
+					log.Bucket == ctx.SourceBucket &&
+					log.Time.After(timeBeforeDisable) {
+					return true
+				}
+			}
+			return false
+		}).WithTimeout(30 * time.Second).
+			WithPolling(2 * time.Second).
+			Should(BeTrue())
 	}
 
 	// Delete source bucket
