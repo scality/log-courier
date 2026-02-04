@@ -395,21 +395,29 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 	return allRecords, nil
 }
 
-// waitForLogCount waits for at least expectedCount logs to appear
-func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord {
+// waitForLogCountWithPrefix waits for at least expectedCount logs to appear under a specific prefix.
+func waitForLogCountWithPrefix(ctx *E2ETestContext, prefix string, expectedCount int) []*ParsedLogRecord {
+	GinkgoHelper()
+
 	var allLogs []*ParsedLogRecord
 
 	Eventually(func() int {
-		logs, err := fetchAllLogsSince(ctx, ctx.TestStartTime)
+		logs, err := fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, prefix, ctx.TestStartTime)
 		if err != nil {
 			return 0
 		}
 		allLogs = logs
 		return len(logs)
 	}, logWaitTimeout, logPollInterval).Should(BeNumerically(">=", expectedCount),
-		"Expected at least %d logs within %v", expectedCount, logWaitTimeout)
+		"Expected at least %d logs with prefix %s within %v", expectedCount, prefix, logWaitTimeout)
 
 	return allLogs
+}
+
+// waitForLogCount waits for at least expectedCount logs to appear.
+func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord {
+	GinkgoHelper()
+	return waitForLogCountWithPrefix(ctx, ctx.LogPrefix, expectedCount)
 }
 
 // VerifyLogs waits for logs, verifies they match expected values, and checks chronological order.
@@ -517,6 +525,33 @@ func verifyChronologicalOrder(records []*ParsedLogRecord) {
 	}
 }
 
+// verifyLogKeys verifies that logs contain exactly the expected keys with no duplicates.
+// It filters logs by bucket and keyPrefix, then checks:
+// - Each matching log has the expected operation
+// - Each key is in the expectedKeys set
+// - No duplicate keys exist
+// - The total count matches expected
+func verifyLogKeys(logs []*ParsedLogRecord, bucket, keyPrefix string, expectedKeys map[string]bool, expectedOp string) {
+	GinkgoHelper()
+
+	seenKeys := make(map[string]bool)
+	for _, log := range logs {
+		if log.Bucket != bucket || !strings.HasPrefix(log.Key, keyPrefix) {
+			continue
+		}
+		Expect(log.Operation).To(Equal(expectedOp),
+			"Expected %s operation for key %s", expectedOp, log.Key)
+		Expect(expectedKeys[log.Key]).To(BeTrue(),
+			"Unexpected key: %s", log.Key)
+		Expect(seenKeys[log.Key]).To(BeFalse(),
+			"Duplicate key: %s", log.Key)
+		seenKeys[log.Key] = true
+	}
+
+	Expect(seenKeys).To(HaveLen(len(expectedKeys)),
+		"Expected %d unique keys, got %d", len(expectedKeys), len(seenKeys))
+}
+
 // retryWithBackoff executes a function with exponential backoff retry logic.
 // The shouldRetry function determines if an error should trigger a retry (if nil, all errors are retried).
 func retryWithBackoff(operation func() error, shouldRetry func(error) bool) error {
@@ -562,6 +597,25 @@ func createBucketWithRetry(client *s3.Client, bucket string) error {
 		return fmt.Errorf("failed to create bucket %s after %d attempts: %w", bucket, bucketOperationMaxRetries+1, err)
 	}
 	return nil
+}
+
+// putObjects creates multiple objects with keys based on keyFormat.
+// keyFormat should contain a single %d verb (e.g., "prefix-%d.txt").
+// If content is nil, generates unique content per object.
+func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte) {
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf(keyFormat, i)
+		body := content
+		if body == nil {
+			body = []byte(fmt.Sprintf("data %d", i))
+		}
+		_, err := ctx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket: aws.String(ctx.SourceBucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(body),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT operation %d should succeed", i)
+	}
 }
 
 // setupE2ETest creates and initializes an E2E test context
