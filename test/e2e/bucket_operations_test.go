@@ -21,13 +21,13 @@ var _ = Describe("Bucket Operations", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs bucket management operations", func() {
-		_, err := testCtx.S3Client.HeadBucket(context.Background(), &s3.HeadBucketInput{
+	It("logs bucket management operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.HeadBucket(ctx, &s3.HeadBucketInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "HEAD bucket should succeed")
 
-		_, err = testCtx.S3Client.GetBucketLocation(context.Background(), &s3.GetBucketLocationInput{
+		_, err = testCtx.S3Client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket location should succeed")
@@ -38,8 +38,8 @@ var _ = Describe("Bucket Operations", func() {
 		)
 	})
 
-	It("logs GET bucket versioning operation", func() {
-		_, err := testCtx.S3Client.GetBucketVersioning(context.Background(), &s3.GetBucketVersioningInput{
+	It("logs GET bucket versioning operation", func(ctx context.Context) {
+		_, err := testCtx.S3Client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket versioning should succeed")
@@ -49,8 +49,8 @@ var _ = Describe("Bucket Operations", func() {
 		)
 	})
 
-	It("logs delete bucket operation", func() {
-		_, err := testCtx.S3Client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
+	It("logs delete bucket operation", func(ctx context.Context) {
+		_, err := testCtx.S3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket should succeed")
@@ -60,19 +60,19 @@ var _ = Describe("Bucket Operations", func() {
 		)
 	})
 
-	It("logs bucket ACL and tagging operations", func() {
-		_, err := testCtx.S3Client.GetBucketAcl(context.Background(), &s3.GetBucketAclInput{
+	It("logs bucket ACL and tagging operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket ACL should succeed")
 
-		_, err = testCtx.S3Client.PutBucketAcl(context.Background(), &s3.PutBucketAclInput{
+		_, err = testCtx.S3Client.PutBucketAcl(ctx, &s3.PutBucketAclInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			ACL:    types.BucketCannedACLPrivate,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket ACL should succeed")
 
-		_, err = testCtx.S3Client.PutBucketTagging(context.Background(), &s3.PutBucketTaggingInput{
+		_, err = testCtx.S3Client.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Tagging: &types.Tagging{
 				TagSet: []types.Tag{
@@ -83,7 +83,7 @@ var _ = Describe("Bucket Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket tagging should succeed")
 
-		_, err = testCtx.S3Client.GetBucketTagging(context.Background(), &s3.GetBucketTaggingInput{
+		_, err = testCtx.S3Client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket tagging should succeed")

@@ -23,19 +23,19 @@ var _ = Describe("Multipart Operations", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs complete multipart upload flow", func() {
+	It("logs complete multipart upload flow", func(ctx context.Context) {
 		testKey := "multipart-test-object.txt"
 		part1Data := bytes.Repeat([]byte("a"), 5*1024*1024) // 5MB
 		part2Data := bytes.Repeat([]byte("b"), 5*1024*1024) // 5MB
 
-		createResp, err := testCtx.S3Client.CreateMultipartUpload(context.Background(), &s3.CreateMultipartUploadInput{
+		createResp, err := testCtx.S3Client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Create multipart upload should succeed")
 		uploadID := createResp.UploadId
 
-		part1Resp, err := testCtx.S3Client.UploadPart(context.Background(), &s3.UploadPartInput{
+		part1Resp, err := testCtx.S3Client.UploadPart(ctx, &s3.UploadPartInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
 			Key:        aws.String(testKey),
 			PartNumber: aws.Int32(1),
@@ -44,7 +44,7 @@ var _ = Describe("Multipart Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Upload part 1 should succeed")
 
-		part2Resp, err := testCtx.S3Client.UploadPart(context.Background(), &s3.UploadPartInput{
+		part2Resp, err := testCtx.S3Client.UploadPart(ctx, &s3.UploadPartInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
 			Key:        aws.String(testKey),
 			PartNumber: aws.Int32(2),
@@ -53,14 +53,14 @@ var _ = Describe("Multipart Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Upload part 2 should succeed")
 
-		_, err = testCtx.S3Client.ListParts(context.Background(), &s3.ListPartsInput{
+		_, err = testCtx.S3Client.ListParts(ctx, &s3.ListPartsInput{
 			Bucket:   aws.String(testCtx.SourceBucket),
 			Key:      aws.String(testKey),
 			UploadId: uploadID,
 		})
 		Expect(err).NotTo(HaveOccurred(), "List parts should succeed")
 
-		_, err = testCtx.S3Client.CompleteMultipartUpload(context.Background(), &s3.CompleteMultipartUploadInput{
+		_, err = testCtx.S3Client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
 			Bucket:   aws.String(testCtx.SourceBucket),
 			Key:      aws.String(testKey),
 			UploadId: uploadID,
@@ -89,18 +89,18 @@ var _ = Describe("Multipart Operations", func() {
 		)
 	})
 
-	It("logs multipart abort and list uploads", func() {
+	It("logs multipart abort and list uploads", func(ctx context.Context) {
 		testKey := "multipart-abort-test.txt"
 		partData := bytes.Repeat([]byte("x"), 5*1024*1024) // 5MB
 
-		createResp, err := testCtx.S3Client.CreateMultipartUpload(context.Background(), &s3.CreateMultipartUploadInput{
+		createResp, err := testCtx.S3Client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Create multipart upload should succeed")
 		uploadID := createResp.UploadId
 
-		_, err = testCtx.S3Client.UploadPart(context.Background(), &s3.UploadPartInput{
+		_, err = testCtx.S3Client.UploadPart(ctx, &s3.UploadPartInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
 			Key:        aws.String(testKey),
 			PartNumber: aws.Int32(1),
@@ -109,12 +109,12 @@ var _ = Describe("Multipart Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Upload part should succeed")
 
-		_, err = testCtx.S3Client.ListMultipartUploads(context.Background(), &s3.ListMultipartUploadsInput{
+		_, err = testCtx.S3Client.ListMultipartUploads(ctx, &s3.ListMultipartUploadsInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "List multipart uploads should succeed")
 
-		_, err = testCtx.S3Client.AbortMultipartUpload(context.Background(), &s3.AbortMultipartUploadInput{
+		_, err = testCtx.S3Client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
 			Bucket:   aws.String(testCtx.SourceBucket),
 			Key:      aws.String(testKey),
 			UploadId: uploadID,
@@ -129,26 +129,26 @@ var _ = Describe("Multipart Operations", func() {
 		)
 	})
 
-	It("logs multipart upload with copy part operations", func() {
+	It("logs multipart upload with copy part operations", func(ctx context.Context) {
 		sourceKey := "multipart-source.txt"
 		destKey := "multipart-dest.txt"
 		sourceContent := bytes.Repeat([]byte("a"), 5*1024*1024)
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(sourceKey),
 			Body:   bytes.NewReader(sourceContent),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT source object should succeed")
 
-		initResp, err := testCtx.S3Client.CreateMultipartUpload(context.Background(), &s3.CreateMultipartUploadInput{
+		initResp, err := testCtx.S3Client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(destKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Initiate multipart upload should succeed")
 		uploadID := initResp.UploadId
 
-		copyPartResp, err := testCtx.S3Client.UploadPartCopy(context.Background(), &s3.UploadPartCopyInput{
+		copyPartResp, err := testCtx.S3Client.UploadPartCopy(ctx, &s3.UploadPartCopyInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
 			Key:        aws.String(destKey),
 			CopySource: aws.String(fmt.Sprintf("%s/%s", testCtx.SourceBucket, sourceKey)),
@@ -157,7 +157,7 @@ var _ = Describe("Multipart Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "UploadPartCopy should succeed")
 
-		_, err = testCtx.S3Client.CompleteMultipartUpload(context.Background(), &s3.CompleteMultipartUploadInput{
+		_, err = testCtx.S3Client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
 			Bucket:   aws.String(testCtx.SourceBucket),
 			Key:      aws.String(destKey),
 			UploadId: uploadID,

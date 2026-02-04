@@ -21,13 +21,13 @@ var _ = Describe("Bucket Configuration", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs bucket logging configuration operations", func() {
-		_, err := testCtx.S3Client.GetBucketLogging(context.Background(), &s3.GetBucketLoggingInput{
+	It("logs bucket logging configuration operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.GetBucketLogging(ctx, &s3.GetBucketLoggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket logging should succeed")
 
-		_, err = testCtx.S3Client.PutBucketLogging(context.Background(), &s3.PutBucketLoggingInput{
+		_, err = testCtx.S3Client.PutBucketLogging(ctx, &s3.PutBucketLoggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			BucketLoggingStatus: &types.BucketLoggingStatus{
 				LoggingEnabled: &types.LoggingEnabled{
@@ -44,7 +44,7 @@ var _ = Describe("Bucket Configuration", func() {
 		)
 	})
 
-	It("logs bucket policy operations", func() {
+	It("logs bucket policy operations", func(ctx context.Context) {
 		bucketPolicy := `{
 				"Version": "2012-10-17",
 				"Statement": [{
@@ -55,18 +55,18 @@ var _ = Describe("Bucket Configuration", func() {
 				}]
 			}`
 
-		_, err := testCtx.S3Client.PutBucketPolicy(context.Background(), &s3.PutBucketPolicyInput{
+		_, err := testCtx.S3Client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Policy: aws.String(bucketPolicy),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket policy should succeed")
 
-		_, err = testCtx.S3Client.GetBucketPolicy(context.Background(), &s3.GetBucketPolicyInput{
+		_, err = testCtx.S3Client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket policy should succeed")
 
-		_, err = testCtx.S3Client.DeleteBucketPolicy(context.Background(), &s3.DeleteBucketPolicyInput{
+		_, err = testCtx.S3Client.DeleteBucketPolicy(ctx, &s3.DeleteBucketPolicyInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket policy should succeed")
@@ -78,7 +78,7 @@ var _ = Describe("Bucket Configuration", func() {
 		)
 	})
 
-	It("logs bucket CORS configuration operations", func() {
+	It("logs bucket CORS configuration operations", func(ctx context.Context) {
 		corsConfig := &types.CORSConfiguration{
 			CORSRules: []types.CORSRule{
 				{
@@ -90,18 +90,18 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		_, err := testCtx.S3Client.PutBucketCors(context.Background(), &s3.PutBucketCorsInput{
+		_, err := testCtx.S3Client.PutBucketCors(ctx, &s3.PutBucketCorsInput{
 			Bucket:            aws.String(testCtx.SourceBucket),
 			CORSConfiguration: corsConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket CORS should succeed")
 
-		_, err = testCtx.S3Client.GetBucketCors(context.Background(), &s3.GetBucketCorsInput{
+		_, err = testCtx.S3Client.GetBucketCors(ctx, &s3.GetBucketCorsInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket CORS should succeed")
 
-		_, err = testCtx.S3Client.DeleteBucketCors(context.Background(), &s3.DeleteBucketCorsInput{
+		_, err = testCtx.S3Client.DeleteBucketCors(ctx, &s3.DeleteBucketCorsInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket CORS should succeed")
@@ -113,7 +113,7 @@ var _ = Describe("Bucket Configuration", func() {
 		)
 	})
 
-	It("logs bucket website configuration operations", func() {
+	It("logs bucket website configuration operations", func(ctx context.Context) {
 		websiteConfig := &types.WebsiteConfiguration{
 			IndexDocument: &types.IndexDocument{
 				Suffix: aws.String("index.html"),
@@ -123,18 +123,18 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		_, err := testCtx.S3Client.PutBucketWebsite(context.Background(), &s3.PutBucketWebsiteInput{
+		_, err := testCtx.S3Client.PutBucketWebsite(ctx, &s3.PutBucketWebsiteInput{
 			Bucket:               aws.String(testCtx.SourceBucket),
 			WebsiteConfiguration: websiteConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket website should succeed")
 
-		_, err = testCtx.S3Client.GetBucketWebsite(context.Background(), &s3.GetBucketWebsiteInput{
+		_, err = testCtx.S3Client.GetBucketWebsite(ctx, &s3.GetBucketWebsiteInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket website should succeed")
 
-		_, err = testCtx.S3Client.DeleteBucketWebsite(context.Background(), &s3.DeleteBucketWebsiteInput{
+		_, err = testCtx.S3Client.DeleteBucketWebsite(ctx, &s3.DeleteBucketWebsiteInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket website should succeed")
@@ -146,7 +146,7 @@ var _ = Describe("Bucket Configuration", func() {
 		)
 	})
 
-	It("logs bucket lifecycle configuration operations", func() {
+	It("logs bucket lifecycle configuration operations", func(ctx context.Context) {
 		lifecycleConfig := &types.BucketLifecycleConfiguration{
 			Rules: []types.LifecycleRule{
 				{
@@ -160,18 +160,18 @@ var _ = Describe("Bucket Configuration", func() {
 			},
 		}
 
-		_, err := testCtx.S3Client.PutBucketLifecycleConfiguration(context.Background(), &s3.PutBucketLifecycleConfigurationInput{
+		_, err := testCtx.S3Client.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
 			Bucket:                 aws.String(testCtx.SourceBucket),
 			LifecycleConfiguration: lifecycleConfig,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT bucket lifecycle should succeed")
 
-		_, err = testCtx.S3Client.GetBucketLifecycleConfiguration(context.Background(), &s3.GetBucketLifecycleConfigurationInput{
+		_, err = testCtx.S3Client.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET bucket lifecycle should succeed")
 
-		_, err = testCtx.S3Client.DeleteBucketLifecycle(context.Background(), &s3.DeleteBucketLifecycleInput{
+		_, err = testCtx.S3Client.DeleteBucketLifecycle(ctx, &s3.DeleteBucketLifecycleInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket lifecycle should succeed")

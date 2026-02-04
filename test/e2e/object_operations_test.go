@@ -23,30 +23,30 @@ var _ = Describe("Object Operations", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs basic CRUD operations (PUT/GET/HEAD/DELETE)", func() {
+	It("logs basic CRUD operations (PUT/GET/HEAD/DELETE)", func(ctx context.Context) {
 		testKey := "test-object.txt"
 		testContent := []byte("test data for basic CRUD operations")
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation should succeed")
 
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET operation should succeed")
 
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "HEAD operation should succeed")
 
-		_, err = testCtx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		_, err = testCtx.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
@@ -60,12 +60,12 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs PUT operations with ACL and metadata", func() {
+	It("logs PUT operations with ACL and metadata", func(ctx context.Context) {
 		keyWithACL := "object-with-acl.txt"
 		keyWithMeta := "object-with-metadata.txt"
 		testContent := []byte("test data")
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(keyWithACL),
 			Body:   bytes.NewReader(testContent),
@@ -73,7 +73,7 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT with ACL should succeed")
 
-		_, err = testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err = testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(keyWithMeta),
 			Body:   bytes.NewReader(testContent),
@@ -90,10 +90,10 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs list and copy operations", func() {
+	It("logs list and copy operations", func(ctx context.Context) {
 		for i := 1; i <= 5; i++ {
 			key := fmt.Sprintf("list-test/object-%d.txt", i)
-			_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+			_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 				Bucket: aws.String(testCtx.SourceBucket),
 				Key:    aws.String(key),
 				Body:   bytes.NewReader([]byte(fmt.Sprintf("content-%d", i))),
@@ -101,12 +101,12 @@ var _ = Describe("Object Operations", func() {
 			Expect(err).NotTo(HaveOccurred(), "PUT object %d should succeed", i)
 		}
 
-		_, err := testCtx.S3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+		_, err := testCtx.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 			Bucket: aws.String(testCtx.SourceBucket),
 		})
 		Expect(err).NotTo(HaveOccurred(), "LIST objects should succeed")
 
-		_, err = testCtx.S3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+		_, err = testCtx.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Prefix: aws.String("list-test/"),
 		})
@@ -114,7 +114,7 @@ var _ = Describe("Object Operations", func() {
 
 		sourceKey := "list-test/object-1.txt"
 		destKey := "list-test/object-1-copy.txt"
-		_, err = testCtx.S3Client.CopyObject(context.Background(), &s3.CopyObjectInput{
+		_, err = testCtx.S3Client.CopyObject(ctx, &s3.CopyObjectInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
 			Key:        aws.String(destKey),
 			CopySource: aws.String(fmt.Sprintf("%s/%s", testCtx.SourceBucket, sourceKey)),
@@ -134,31 +134,31 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs object ACL operations", func() {
+	It("logs object ACL operations", func(ctx context.Context) {
 		testKey := "acl-test-object.txt"
 		testContent := []byte("test data for ACL operations")
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation should succeed")
 
-		_, err = testCtx.S3Client.GetObjectAcl(context.Background(), &s3.GetObjectAclInput{
+		_, err = testCtx.S3Client.GetObjectAcl(ctx, &s3.GetObjectAclInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET ACL should succeed")
 
-		_, err = testCtx.S3Client.PutObjectAcl(context.Background(), &s3.PutObjectAclInput{
+		_, err = testCtx.S3Client.PutObjectAcl(ctx, &s3.PutObjectAclInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			ACL:    types.ObjectCannedACLPublicRead,
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT ACL should succeed")
 
-		_, err = testCtx.S3Client.GetObjectAcl(context.Background(), &s3.GetObjectAclInput{
+		_, err = testCtx.S3Client.GetObjectAcl(ctx, &s3.GetObjectAclInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
@@ -172,18 +172,18 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs object tagging operations", func() {
+	It("logs object tagging operations", func(ctx context.Context) {
 		testKey := "tagging-test-object.txt"
 		testContent := []byte("test data for tagging operations")
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation should succeed")
 
-		_, err = testCtx.S3Client.PutObjectTagging(context.Background(), &s3.PutObjectTaggingInput{
+		_, err = testCtx.S3Client.PutObjectTagging(ctx, &s3.PutObjectTaggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Tagging: &types.Tagging{
@@ -195,13 +195,13 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT tagging should succeed")
 
-		_, err = testCtx.S3Client.GetObjectTagging(context.Background(), &s3.GetObjectTaggingInput{
+		_, err = testCtx.S3Client.GetObjectTagging(ctx, &s3.GetObjectTaggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET tagging should succeed")
 
-		_, err = testCtx.S3Client.DeleteObjectTagging(context.Background(), &s3.DeleteObjectTaggingInput{
+		_, err = testCtx.S3Client.DeleteObjectTagging(ctx, &s3.DeleteObjectTaggingInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
@@ -215,11 +215,11 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs range GET/HEAD operations", func() {
+	It("logs range GET/HEAD operations", func(ctx context.Context) {
 		testKey := "range-test-object.txt"
 		testContent := []byte("0123456789ABCDEFGHIJ") // 20 bytes
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
@@ -228,7 +228,7 @@ var _ = Describe("Object Operations", func() {
 
 		// Range GET - first 10 bytes
 		rangeHeader := "bytes=0-9"
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader),
@@ -237,7 +237,7 @@ var _ = Describe("Object Operations", func() {
 
 		// Range GET - last 5 bytes
 		rangeHeader2 := "bytes=-5"
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader2),
@@ -246,21 +246,21 @@ var _ = Describe("Object Operations", func() {
 
 		// Range GET - middle portion (bytes 5-14)
 		rangeHeader3 := "bytes=5-14"
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader3),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range GET (middle) should succeed")
 
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range HEAD should succeed")
 
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader2),
@@ -278,24 +278,24 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs empty object operations (0 bytes)", func() {
+	It("logs empty object operations (0 bytes)", func(ctx context.Context) {
 		testKey := "empty-object.txt"
 		emptyContent := []byte{}
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(emptyContent),
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT empty object should succeed")
 
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET empty object should succeed")
 
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
@@ -308,7 +308,7 @@ var _ = Describe("Object Operations", func() {
 		)
 	})
 
-	It("logs batch delete operations", func() {
+	It("logs batch delete operations", func(ctx context.Context) {
 		objectKeys := []string{
 			"delete-test/object-1.txt",
 			"delete-test/object-2.txt",
@@ -318,7 +318,7 @@ var _ = Describe("Object Operations", func() {
 		contentSize := int64(len("content-1")) // 9 bytes
 
 		for i, key := range objectKeys {
-			_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+			_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 				Bucket: aws.String(testCtx.SourceBucket),
 				Key:    aws.String(key),
 				Body:   bytes.NewReader([]byte(fmt.Sprintf("content-%d", i+1))),
@@ -337,7 +337,7 @@ var _ = Describe("Object Operations", func() {
 			Key: aws.String(nonExistentKey),
 		})
 
-		_, err := testCtx.S3Client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
+		_, err := testCtx.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Delete: &types.Delete{
 				Objects: objectIds,
@@ -378,12 +378,12 @@ var _ = Describe("Object Operations", func() {
 		Expect(logs[7].HTTPStatus).To(Equal(200))
 	})
 
-	It("logs object operations with versioning enabled", func() {
+	It("logs object operations with versioning enabled", func(ctx context.Context) {
 		testKey := "versioned-object.txt"
 		testContent := []byte("version content")
 
 		// Enable versioning
-		_, err := testCtx.S3Client.PutBucketVersioning(context.Background(), &s3.PutBucketVersioningInput{
+		_, err := testCtx.S3Client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			VersioningConfiguration: &types.VersioningConfiguration{
 				Status: types.BucketVersioningStatusEnabled,
@@ -392,7 +392,7 @@ var _ = Describe("Object Operations", func() {
 		Expect(err).NotTo(HaveOccurred(), "Enable versioning should succeed")
 
 		// PUT object (creates first version)
-		putResp, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		putResp, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
@@ -401,7 +401,7 @@ var _ = Describe("Object Operations", func() {
 		versionID := putResp.VersionId
 
 		// DELETE object without versionId (creates delete marker)
-		deleteResp, err := testCtx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		deleteResp, err := testCtx.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
@@ -409,7 +409,7 @@ var _ = Describe("Object Operations", func() {
 		deleteMarkerVersionID := deleteResp.VersionId
 
 		// GET object WITH ?versionId= (should log the versionId)
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket:    aws.String(testCtx.SourceBucket),
 			Key:       aws.String(testKey),
 			VersionId: versionID,
@@ -417,7 +417,7 @@ var _ = Describe("Object Operations", func() {
 		Expect(err).NotTo(HaveOccurred(), "GET object version should succeed")
 
 		// HEAD object WITH ?versionId= (should log the versionId)
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket:    aws.String(testCtx.SourceBucket),
 			Key:       aws.String(testKey),
 			VersionId: versionID,
@@ -425,7 +425,7 @@ var _ = Describe("Object Operations", func() {
 		Expect(err).NotTo(HaveOccurred(), "HEAD object version should succeed")
 
 		// DELETE object WITH ?versionId= (should log the versionId)
-		_, err = testCtx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		_, err = testCtx.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket:    aws.String(testCtx.SourceBucket),
 			Key:       aws.String(testKey),
 			VersionId: deleteMarkerVersionID,
@@ -457,7 +457,7 @@ var _ = Describe("Object Operations", func() {
 			"DELETE with ?versionId= should log the requested version")
 
 		// Cleanup: Delete remaining version
-		_, _ = testCtx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		_, _ = testCtx.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket:    aws.String(testCtx.SourceBucket),
 			Key:       aws.String(testKey),
 			VersionId: versionID,

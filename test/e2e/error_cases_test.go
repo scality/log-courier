@@ -21,12 +21,12 @@ var _ = Describe("Error Cases", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs error responses (404s)", func() {
+	It("logs error responses (404s)", func(ctx context.Context) {
 		nonExistentKey := "does-not-exist.txt"
 		testKey := "error-test-object.txt"
 		testContent := []byte("test data")
 
-		_, err := testCtx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Body:   bytes.NewReader(testContent),
@@ -34,14 +34,14 @@ var _ = Describe("Error Cases", func() {
 		Expect(err).NotTo(HaveOccurred(), "PUT test object should succeed")
 
 		// GET non-existent object (404)
-		_, err = testCtx.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(nonExistentKey),
 		})
 		Expect(err).To(HaveOccurred(), "GET non-existent object should fail")
 
 		// DELETE non-existent object (404)
-		_, _ = testCtx.S3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		_, _ = testCtx.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(nonExistentKey),
 		})
@@ -49,7 +49,7 @@ var _ = Describe("Error Cases", func() {
 		// So we don't check for error here
 
 		// HEAD non-existent object (404)
-		_, err = testCtx.S3Client.HeadObject(context.Background(), &s3.HeadObjectInput{
+		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(nonExistentKey),
 		})
