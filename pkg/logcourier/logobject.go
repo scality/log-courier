@@ -108,7 +108,6 @@ func (b *LogObjectBuilder) formatLogRecords(records []LogRecord) []byte {
 // writeLogRecord writes a single log record according to AWS format
 // Takes a pointer to avoid copying the ~1KB struct on each call (called for each record in the batch)
 // Field order must match AWS S3 Server Access Log format exactly
-//
 func (b *LogObjectBuilder) writeLogRecord(w *bytes.Buffer, rec *LogRecord) {
 	b.writeStringPtr(w, rec.BucketOwner) // 1. Bucket Owner
 	w.WriteByte(' ')
