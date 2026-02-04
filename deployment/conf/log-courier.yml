@@ -21,7 +21,7 @@ consumer:
   max-discovery-interval-seconds: 1
   discovery-interval-jitter-factor: 0
   num-workers: 5
-  max-buckets-per-discovery: 100
+  max-buckets-per-discovery: 5
   max-logs-per-bucket: 100000
 
 # Retry logic
