@@ -374,7 +374,9 @@ func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedL
 	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, "", since)
 }
 
-// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time
+// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time.
+// Verifies that records within each log object are in chronological order.
+// Returns all records combined across objects (no ordering guarantee across objects).
 func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
 	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
@@ -389,6 +391,15 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 		}
 
 		records := parseLogContent(content)
+
+		// Verify chronological order within this object
+		for i := 1; i < len(records); i++ {
+			if records[i].Time.Before(records[i-1].Time) {
+				return nil, fmt.Errorf("object %s: logs not in chronological order: record %d (%v) is before record %d (%v)",
+					key, i, records[i].Time, i-1, records[i-1].Time)
+			}
+		}
+
 		allRecords = append(allRecords, records...)
 	}
 
@@ -420,7 +431,7 @@ func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord 
 	return waitForLogCountWithPrefix(ctx, ctx.LogPrefix, expectedCount)
 }
 
-// VerifyLogs waits for logs, verifies they match expected values, and checks chronological order.
+// VerifyLogs waits for logs and verifies they match expected values.
 // Returns the logs for additional assertions if needed.
 func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedLogRecord {
 	GinkgoHelper()
@@ -430,8 +441,6 @@ func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedL
 	for i, exp := range expected {
 		verifyLogRecord(logs[i], exp)
 	}
-
-	verifyChronologicalOrder(logs)
 
 	return logs
 }
@@ -510,18 +519,6 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 	if exp.ObjectSize >= 0 {
 		Expect(actual.ObjectSize).To(Equal(exp.ObjectSize),
 			"ObjectSize mismatch")
-	}
-}
-
-// verifyChronologicalOrder verifies logs are in chronological order
-func verifyChronologicalOrder(records []*ParsedLogRecord) {
-	GinkgoHelper()
-
-	for i := 1; i < len(records); i++ {
-		Expect(records[i].Time.After(records[i-1].Time) ||
-			records[i].Time.Equal(records[i-1].Time)).To(BeTrue(),
-			"Logs should be in chronological order: record %d (%v) should be after or equal to record %d (%v)",
-			i, records[i].Time, i-1, records[i-1].Time)
 	}
 }
 
