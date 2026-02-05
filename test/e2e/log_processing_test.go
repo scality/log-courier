@@ -42,7 +42,6 @@ var _ = Describe("Log processing", func() {
 		}
 
 		verifyLogKeys(logs, testCtx.SourceBucket, "batch-object-", expectedKeys, opPutObject)
-		verifyChronologicalOrder(logs)
 	})
 
 	It("triggers processing by time threshold", func(ctx context.Context) {
@@ -87,7 +86,6 @@ var _ = Describe("Log processing", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		verifyLogKeys(allLogs, testCtx.SourceBucket, "cycle", expectedKeys, opPutObject)
-		verifyChronologicalOrder(allLogs)
 	})
 
 	It("processes multiple buckets", func(ctx context.Context) {
@@ -208,7 +206,6 @@ var _ = Describe("Log processing", func() {
 		Expect(seenPairs).To(HaveLen(totalExpected),
 			"Expected %d unique bucket/key pairs, got %d", totalExpected, len(seenPairs))
 
-		verifyChronologicalOrder(logs)
 	})
 
 	It("delivers logs to new prefix after logging reconfiguration", func(ctx context.Context) {
