@@ -35,6 +35,17 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
+      - name: Check Go formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted:"
+            echo "$unformatted"
+            echo ""
+            echo "Please run 'make fmt' to format the code"
+            exit 1
+          fi
+
       - name: Run GolangCI linter
         uses: golangci/golangci-lint-action@v9
         with:
