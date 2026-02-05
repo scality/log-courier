@@ -131,19 +131,59 @@ var _ = Describe("Log processing", func() {
 
 		// Cleanup all additional buckets after test
 		defer func() {
+			// Use a time slightly before the disable calls to avoid flakiness.
+			timeBeforeDisable := time.Now().Add(-2 * time.Second)
+
+			// Disable logging on all additional buckets
 			for i := 1; i < numValidBuckets; i++ {
 				_, _ = testCtx.S3Client.PutBucketLogging(ctx,
 					&s3.PutBucketLoggingInput{
 						Bucket:              aws.String(validBuckets[i]),
 						BucketLoggingStatus: &types.BucketLoggingStatus{},
 					})
-				_ = deleteBucketWithRetry(testCtx.S3Client, validBuckets[i])
 			}
 			_, _ = testCtx.S3Client.PutBucketLogging(ctx,
 				&s3.PutBucketLoggingInput{
 					Bucket:              aws.String(failingBucket),
 					BucketLoggingStatus: &types.BucketLoggingStatus{},
 				})
+
+			// Wait for all disable logging operations to be logged.
+			// We need to see REST.PUT.LOGGING_STATUS for the 11 additional valid buckets.
+			// The failing bucket logs to a deleted destination, so we won't see its operation.
+			expectedDisableOps := numValidBuckets - 1 // -1 because validBuckets[0] is cleaned by AfterEach
+			Eventually(func() int {
+				logs, fetchErr := fetchAllLogsInBucketSince(testCtx, testCtx.TestStartTime)
+				if fetchErr != nil {
+					return 0
+				}
+
+				count := 0
+				seenBuckets := make(map[string]bool)
+				for _, log := range logs {
+					if log.Operation == "REST.PUT.LOGGING_STATUS" &&
+						log.Time.After(timeBeforeDisable) &&
+						!seenBuckets[log.Bucket] {
+						// Check if this is from one of our additional valid buckets
+						// (failing bucket logs to a deleted destination, so won't appear here)
+						for i := 1; i < numValidBuckets; i++ {
+							if log.Bucket == validBuckets[i] {
+								seenBuckets[log.Bucket] = true
+								count++
+								break
+							}
+						}
+					}
+				}
+				return count
+			}).WithTimeout(30 * time.Second).
+				WithPolling(2 * time.Second).
+				Should(BeNumerically(">=", expectedDisableOps))
+
+			// Now delete the source buckets
+			for i := 1; i < numValidBuckets; i++ {
+				_ = deleteBucketWithRetry(testCtx.S3Client, validBuckets[i])
+			}
 			_ = deleteBucketWithRetry(testCtx.S3Client, failingBucket)
 		}()
 
