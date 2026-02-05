@@ -8,11 +8,6 @@ on:
       tag:
         description: 'Tag to be released'
         required: true
-      build_debug:
-        description: 'Also build debug image'
-        type: boolean
-        default: false
-        required: false
 
 jobs:
   build-image:
@@ -21,7 +16,6 @@ jobs:
       tag: ${{ inputs.tag }}
 
   build-debug-image:
-    if: ${{ inputs.build_debug }}
     uses: ./.github/workflows/build-debug-image.yaml
     with:
       tag: ${{ inputs.tag }}
