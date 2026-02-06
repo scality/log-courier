@@ -30,28 +30,24 @@ var _ = BeforeSuite(func() {
 	err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
 	Expect(err).NotTo(HaveOccurred())
 
-	// Override S3 config for E2E tests
+	// Get S3 credentials for test operations
 	// Check environment variables first, fall back to defaults
-	endpoint := os.Getenv("LOG_COURIER_S3_ENDPOINT")
+	endpoint := os.Getenv("E2E_S3_ENDPOINT")
 	if endpoint == "" {
 		endpoint = testS3Endpoint
 	}
 
-	accessKey := os.Getenv("LOG_COURIER_S3_ACCESS_KEY_ID")
+	accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
 	if accessKey == "" {
 		accessKey = testAccessKeyID
 	}
 
-	secretKey := os.Getenv("LOG_COURIER_S3_SECRET_ACCESS_KEY")
+	secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
 	if secretKey == "" {
 		secretKey = testSecretAccessKey
 	}
 
-	logcourier.ConfigSpec.Set("s3.endpoint", endpoint)
-	logcourier.ConfigSpec.Set("s3.access-key-id", accessKey)
-	logcourier.ConfigSpec.Set("s3.secret-access-key", secretKey)
-
-	// Create shared S3 client
+	// Create shared S3 client for test operations
 	sharedS3Client = s3.NewFromConfig(aws.Config{
 		Region: testRegion,
 		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {

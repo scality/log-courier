@@ -183,6 +183,32 @@ func configureBucketLogging(client *s3.Client, sourceBucket, targetBucket, prefi
 	return err
 }
 
+// configureBucketPolicyForCrossAccountAccess sets up a bucket policy granting
+// PutObject permission to the service-access-logging-user. Required for cross-account
+// access in Integration environments.
+func configureBucketPolicyForCrossAccountAccess(client *s3.Client, bucket string) error {
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Sid": "AllowCrossAccountPutObject",
+				"Effect": "Allow",
+				"Principal": {
+					"AWS": "arn:aws:iam::000000000000:user/scality-internal/service-access-logging-user"
+				},
+				"Action": "s3:PutObject",
+				"Resource": "arn:aws:s3:::%s/*"
+			}
+		]
+	}`, bucket)
+
+	_, err := client.PutBucketPolicy(context.Background(), &s3.PutBucketPolicyInput{
+		Bucket: aws.String(bucket),
+		Policy: aws.String(policy),
+	})
+	return err
+}
+
 // findLogObjectsSince finds all log objects in a bucket created after a given time
 // returns the list of object keys that were created after the given time
 func findLogObjectsSince(client *s3.Client, bucket, prefix string, since time.Time) ([]string, error) {
@@ -348,7 +374,9 @@ func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedL
 	return fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, "", since)
 }
 
-// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time
+// fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time.
+// Verifies that records within each log object are in chronological order.
+// Returns all records combined across objects (no ordering guarantee across objects).
 func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
 	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
@@ -363,30 +391,47 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 		}
 
 		records := parseLogContent(content)
+
+		// Verify chronological order within this object
+		for i := 1; i < len(records); i++ {
+			if records[i].Time.Before(records[i-1].Time) {
+				return nil, fmt.Errorf("object %s: logs not in chronological order: record %d (%v) is before record %d (%v)",
+					key, i, records[i].Time, i-1, records[i-1].Time)
+			}
+		}
+
 		allRecords = append(allRecords, records...)
 	}
 
 	return allRecords, nil
 }
 
-// waitForLogCount waits for at least expectedCount logs to appear
-func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord {
+// waitForLogCountWithPrefix waits for at least expectedCount logs to appear under a specific prefix.
+func waitForLogCountWithPrefix(ctx *E2ETestContext, prefix string, expectedCount int) []*ParsedLogRecord {
+	GinkgoHelper()
+
 	var allLogs []*ParsedLogRecord
 
 	Eventually(func() int {
-		logs, err := fetchAllLogsSince(ctx, ctx.TestStartTime)
+		logs, err := fetchLogsFromPrefix(ctx.S3Client, ctx.DestinationBucket, prefix, ctx.TestStartTime)
 		if err != nil {
 			return 0
 		}
 		allLogs = logs
 		return len(logs)
 	}, logWaitTimeout, logPollInterval).Should(BeNumerically(">=", expectedCount),
-		"Expected at least %d logs within %v", expectedCount, logWaitTimeout)
+		"Expected at least %d logs with prefix %s within %v", expectedCount, prefix, logWaitTimeout)
 
 	return allLogs
 }
 
-// VerifyLogs waits for logs, verifies they match expected values, and checks chronological order.
+// waitForLogCount waits for at least expectedCount logs to appear.
+func waitForLogCount(ctx *E2ETestContext, expectedCount int) []*ParsedLogRecord {
+	GinkgoHelper()
+	return waitForLogCountWithPrefix(ctx, ctx.LogPrefix, expectedCount)
+}
+
+// VerifyLogs waits for logs and verifies they match expected values.
 // Returns the logs for additional assertions if needed.
 func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedLogRecord {
 	GinkgoHelper()
@@ -396,8 +441,6 @@ func (ctx *E2ETestContext) VerifyLogs(expected ...ExpectedLogBuilder) []*ParsedL
 	for i, exp := range expected {
 		verifyLogRecord(logs[i], exp)
 	}
-
-	verifyChronologicalOrder(logs)
 
 	return logs
 }
@@ -479,16 +522,31 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 	}
 }
 
-// verifyChronologicalOrder verifies logs are in chronological order
-func verifyChronologicalOrder(records []*ParsedLogRecord) {
+// verifyLogKeys verifies that logs contain exactly the expected keys with no duplicates.
+// It filters logs by bucket and keyPrefix, then checks:
+// - Each matching log has the expected operation
+// - Each key is in the expectedKeys set
+// - No duplicate keys exist
+// - The total count matches expected
+func verifyLogKeys(logs []*ParsedLogRecord, bucket, keyPrefix string, expectedKeys map[string]bool, expectedOp string) {
 	GinkgoHelper()
 
-	for i := 1; i < len(records); i++ {
-		Expect(records[i].Time.After(records[i-1].Time) ||
-			records[i].Time.Equal(records[i-1].Time)).To(BeTrue(),
-			"Logs should be in chronological order: record %d (%v) should be after or equal to record %d (%v)",
-			i, records[i].Time, i-1, records[i-1].Time)
+	seenKeys := make(map[string]bool)
+	for _, log := range logs {
+		if log.Bucket != bucket || !strings.HasPrefix(log.Key, keyPrefix) {
+			continue
+		}
+		Expect(log.Operation).To(Equal(expectedOp),
+			"Expected %s operation for key %s", expectedOp, log.Key)
+		Expect(expectedKeys[log.Key]).To(BeTrue(),
+			"Unexpected key: %s", log.Key)
+		Expect(seenKeys[log.Key]).To(BeFalse(),
+			"Duplicate key: %s", log.Key)
+		seenKeys[log.Key] = true
 	}
+
+	Expect(seenKeys).To(HaveLen(len(expectedKeys)),
+		"Expected %d unique keys, got %d", len(expectedKeys), len(seenKeys))
 }
 
 // retryWithBackoff executes a function with exponential backoff retry logic.
@@ -538,6 +596,25 @@ func createBucketWithRetry(client *s3.Client, bucket string) error {
 	return nil
 }
 
+// putObjects creates multiple objects with keys based on keyFormat.
+// keyFormat should contain a single %d verb (e.g., "prefix-%d.txt").
+// If content is nil, generates unique content per object.
+func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte) {
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf(keyFormat, i)
+		body := content
+		if body == nil {
+			body = []byte(fmt.Sprintf("data %d", i))
+		}
+		_, err := ctx.S3Client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket: aws.String(ctx.SourceBucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(body),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT operation %d should succeed", i)
+	}
+}
+
 // setupE2ETest creates and initializes an E2E test context
 func setupE2ETest() *E2ETestContext {
 	GinkgoHelper()
@@ -559,6 +636,10 @@ func setupE2ETest() *E2ETestContext {
 	// Configure bucket logging
 	err = configureBucketLogging(sharedS3Client, sourceBucket, destBucket, logPrefix)
 	Expect(err).NotTo(HaveOccurred(), "Failed to configure bucket logging")
+
+	// Configure bucket policy for cross-account access
+	err = configureBucketPolicyForCrossAccountAccess(sharedS3Client, destBucket)
+	Expect(err).NotTo(HaveOccurred(), "Failed to configure bucket policy")
 
 	return &E2ETestContext{
 		TestName:          testName,
