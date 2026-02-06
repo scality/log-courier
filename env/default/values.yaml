@@ -9,7 +9,7 @@ cloudserver:
   image: ghcr.io/scality/cloudserver:9.2.24
 
 vault:
-  image: ghcr.io/scality/vault:7.83.0
+  image: ghcr.io/scality/vault:7.84.0
 
 s3_metadata:
   image: ghcr.io/scality/metadata:9.1.0-standalone
