@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -376,7 +377,9 @@ func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedL
 
 // fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time.
 // Verifies that records within each log object are in chronological order.
-// Returns all records combined across objects (no ordering guarantee across objects).
+// Returns all records merged across objects in chronological order.
+// Within each object, records are verified to be in chronological order.
+// Records across objects are sorted by timestamp
 func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
 	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
@@ -402,6 +405,12 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 
 		allRecords = append(allRecords, records...)
 	}
+
+	// Sort by timestamp to merge records across objects chronologically.
+	// This preserves within-object ordering.
+	sort.SliceStable(allRecords, func(i, j int) bool {
+		return allRecords[i].Time.Before(allRecords[j].Time)
+	})
 
 	return allRecords, nil
 }
