@@ -110,6 +110,62 @@ var _ = Describe("Error Cases", func() {
 		)
 	})
 
+	// Authentication failures (SignatureDoesNotMatch, InvalidAccessKeyId) are not
+	// written to bucket access logs.
+	It("does not log SignatureDoesNotMatch errors", func(ctx context.Context) {
+		testKey := "auth-test-object.txt"
+		testContent := []byte("auth test data")
+
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+			Body:   bytes.NewReader(testContent),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
+
+		accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
+		if accessKey == "" {
+			accessKey = testAccessKeyID
+		}
+		wrongSecretClient := newS3ClientWithCredentials(accessKey, "wrong-secret-key-for-testing")
+
+		_, err = wrongSecretClient.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+		})
+		Expect(err).To(HaveOccurred(), "GET with wrong secret key should fail")
+
+		// Only the PUT should be logged; the auth failure is not logged
+		testCtx.VerifyLogs(
+			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),
+		)
+	})
+
+	It("does not log InvalidAccessKeyId errors", func(ctx context.Context) {
+		testKey := "invalid-key-test.txt"
+		testContent := []byte("invalid key test data")
+
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+			Body:   bytes.NewReader(testContent),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
+
+		invalidKeyClient := newS3ClientWithCredentials("INVALIDACCESSKEY12345", "invalid-secret-key")
+
+		_, err = invalidKeyClient.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+		})
+		Expect(err).To(HaveOccurred(), "GET with invalid access key should fail")
+
+		// Only the PUT should be logged; the auth failure is not logged
+		testCtx.VerifyLogs(
+			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),
+		)
+	})
+
 	It("logs AccessDenied error for IAM user without permissions", func(ctx context.Context) {
 		testKey := "access-denied-test.txt"
 		testContent := []byte("access denied test data")
