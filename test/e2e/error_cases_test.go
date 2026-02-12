@@ -81,4 +81,28 @@ var _ = Describe("Error Cases", func() {
 			testCtx.BucketOp("REST.DELETE.BUCKET", 409).WithErrorCode("BucketNotEmpty"),
 		)
 	})
+
+	It("logs NoSuchUpload error for invalid multipart upload ID", func(ctx context.Context) {
+		testKey := "no-such-upload.txt"
+		fakeUploadID := "00000000-0000-0000-0000-000000000000"
+
+		_, err := testCtx.S3Client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
+			Bucket:   aws.String(testCtx.SourceBucket),
+			Key:      aws.String(testKey),
+			UploadId: aws.String(fakeUploadID),
+		})
+		Expect(err).To(HaveOccurred(), "Abort with invalid upload ID should fail")
+
+		_, err = testCtx.S3Client.ListParts(ctx, &s3.ListPartsInput{
+			Bucket:   aws.String(testCtx.SourceBucket),
+			Key:      aws.String(testKey),
+			UploadId: aws.String(fakeUploadID),
+		})
+		Expect(err).To(HaveOccurred(), "ListParts with invalid upload ID should fail")
+
+		testCtx.VerifyLogs(
+			testCtx.ObjectOp("REST.DELETE.UPLOAD", testKey, 404).WithErrorCode("NoSuchUpload"),
+			testCtx.ObjectOp("REST.GET.UPLOAD", testKey, 404).WithErrorCode("NoSuchUpload"),
+		)
+	})
 })
