@@ -121,6 +121,16 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "COPY object should succeed")
 
+		// copy from non-existent source key (404)
+		nonExistentSource := "list-test/does-not-exist.txt"
+		failedCopyDest := "list-test/failed-copy.txt"
+		_, err = testCtx.S3Client.CopyObject(ctx, &s3.CopyObjectInput{
+			Bucket:     aws.String(testCtx.SourceBucket),
+			Key:        aws.String(failedCopyDest),
+			CopySource: aws.String(fmt.Sprintf("%s/%s", testCtx.SourceBucket, nonExistentSource)),
+		})
+		Expect(err).To(HaveOccurred(), "COPY from non-existent source should fail")
+
 		testCtx.VerifyLogs(
 			testCtx.ObjectOp("REST.PUT.OBJECT", "list-test/object-1.txt", 200),
 			testCtx.ObjectOp("REST.PUT.OBJECT", "list-test/object-2.txt", 200),
@@ -131,6 +141,7 @@ var _ = Describe("Object Operations", func() {
 			testCtx.BucketOp("REST.GET.BUCKET", 200),
 			testCtx.ObjectOp("REST.COPY.OBJECT_GET", sourceKey, 200).WithObjectSize(int64(len("content-1"))),
 			testCtx.ObjectOp("REST.COPY.OBJECT", destKey, 200).WithObjectSize(int64(len("content-1"))),
+			testCtx.ObjectOp("REST.COPY.OBJECT_GET", nonExistentSource, 404).WithErrorCode("NoSuchKey"),
 		)
 	})
 
