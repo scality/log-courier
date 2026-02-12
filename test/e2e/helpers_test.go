@@ -745,3 +745,100 @@ func cleanupE2ETest(ctx *E2ETestContext) {
 		fmt.Printf("Warning: failed to delete destination bucket: %v\n", err)
 	}
 }
+
+func verifyPerObjectSSE(ctx context.Context, testCtx *E2ETestContext, algorithm types.ServerSideEncryption) {
+	GinkgoHelper()
+
+	putKey := "sse-put-object.txt"
+	putContent := []byte("test data with per-object SSE")
+	_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:               aws.String(testCtx.SourceBucket),
+		Key:                  aws.String(putKey),
+		Body:                 bytes.NewReader(putContent),
+		ServerSideEncryption: algorithm,
+	})
+	Expect(err).NotTo(HaveOccurred(), "PUT with %s should succeed", algorithm)
+
+	copyKey := "sse-copy-object.txt"
+	_, err = testCtx.S3Client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:               aws.String(testCtx.SourceBucket),
+		Key:                  aws.String(copyKey),
+		CopySource:           aws.String(fmt.Sprintf("%s/%s", testCtx.SourceBucket, putKey)),
+		ServerSideEncryption: algorithm,
+	})
+	Expect(err).NotTo(HaveOccurred(), "COPY with %s should succeed", algorithm)
+
+	mputKey := "sse-multipart-object.txt"
+	partData := bytes.Repeat([]byte("c"), 5*1024*1024) // 5MB minimum part size
+	createResp, err := testCtx.S3Client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+		Bucket:               aws.String(testCtx.SourceBucket),
+		Key:                  aws.String(mputKey),
+		ServerSideEncryption: algorithm,
+	})
+	Expect(err).NotTo(HaveOccurred(), "CreateMultipartUpload with %s should succeed", algorithm)
+
+	partResp, err := testCtx.S3Client.UploadPart(ctx, &s3.UploadPartInput{
+		Bucket:     aws.String(testCtx.SourceBucket),
+		Key:        aws.String(mputKey),
+		PartNumber: aws.Int32(1),
+		UploadId:   createResp.UploadId,
+		Body:       bytes.NewReader(partData),
+	})
+	Expect(err).NotTo(HaveOccurred(), "UploadPart should succeed")
+
+	_, err = testCtx.S3Client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+		Bucket:   aws.String(testCtx.SourceBucket),
+		Key:      aws.String(mputKey),
+		UploadId: createResp.UploadId,
+		MultipartUpload: &types.CompletedMultipartUpload{
+			Parts: []types.CompletedPart{
+				{
+					ETag:       partResp.ETag,
+					PartNumber: aws.Int32(1),
+				},
+			},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred(), "CompleteMultipartUpload should succeed")
+
+	testCtx.VerifyLogs(
+		testCtx.ObjectOp(opPutObject, putKey, 200).WithObjectSize(int64(len(putContent))),
+		testCtx.ObjectOp("REST.COPY.OBJECT_GET", putKey, 200).WithObjectSize(int64(len(putContent))),
+		testCtx.ObjectOp("REST.COPY.OBJECT", copyKey, 200).WithObjectSize(int64(len(putContent))),
+		testCtx.ObjectOp("REST.POST.UPLOADS", mputKey, 200),
+		testCtx.ObjectOp("REST.PUT.PART", mputKey, 200),
+		testCtx.ObjectOp("REST.POST.UPLOAD", mputKey, 200).WithObjectSize(int64(len(partData))),
+	)
+}
+
+func verifyLogDeliveryWithEncryption(ctx context.Context, testCtx *E2ETestContext, bucket string, algorithm types.ServerSideEncryption) {
+	GinkgoHelper()
+
+	testKey := "sse-test-object.txt"
+	testContent := []byte("test data for SSE bucket")
+
+	_, err := testCtx.S3Client.PutBucketEncryption(ctx, &s3.PutBucketEncryptionInput{
+		Bucket: aws.String(bucket),
+		ServerSideEncryptionConfiguration: &types.ServerSideEncryptionConfiguration{
+			Rules: []types.ServerSideEncryptionRule{
+				{
+					ApplyServerSideEncryptionByDefault: &types.ServerSideEncryptionByDefault{
+						SSEAlgorithm: algorithm,
+					},
+				},
+			},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred(), "PutBucketEncryption with %s should succeed", algorithm)
+
+	_, err = testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(testCtx.SourceBucket),
+		Key:    aws.String(testKey),
+		Body:   bytes.NewReader(testContent),
+	})
+	Expect(err).NotTo(HaveOccurred(), "PUT operation should succeed")
+
+	testCtx.VerifyLogs(
+		testCtx.ObjectOp(opPutObject, testKey, 200).WithObjectSize(int64(len(testContent))),
+	)
+}
