@@ -62,4 +62,23 @@ var _ = Describe("Error Cases", func() {
 			testCtx.ObjectOp("REST.HEAD.OBJECT", nonExistentKey, 404).WithErrorCode("NoSuchKey"),
 		)
 	})
+
+	It("logs BucketNotEmpty error when deleting non-empty bucket", func(ctx context.Context) {
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String("block-delete.txt"),
+			Body:   bytes.NewReader([]byte("data")),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
+
+		_, err = testCtx.S3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).To(HaveOccurred(), "DELETE non-empty bucket should fail")
+
+		testCtx.VerifyLogs(
+			testCtx.ObjectOp("REST.PUT.OBJECT", "block-delete.txt", 200),
+			testCtx.BucketOp("REST.DELETE.BUCKET", 409).WithErrorCode("BucketNotEmpty"),
+		)
+	})
 })
