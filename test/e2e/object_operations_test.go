@@ -253,6 +253,14 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range GET (middle) should succeed")
 
+		// invalid range (beyond object size)
+		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+			Range:  aws.String("bytes=100-200"),
+		})
+		Expect(err).To(HaveOccurred(), "Invalid range GET should fail")
+
 		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
@@ -272,6 +280,7 @@ var _ = Describe("Object Operations", func() {
 			testCtx.ObjectOp("REST.GET.OBJECT", testKey, 206).WithBytesSent(10).WithObjectSize(int64(len(testContent))),
 			testCtx.ObjectOp("REST.GET.OBJECT", testKey, 206).WithBytesSent(5).WithObjectSize(int64(len(testContent))),
 			testCtx.ObjectOp("REST.GET.OBJECT", testKey, 206).WithBytesSent(10).WithObjectSize(int64(len(testContent))),
+			testCtx.ObjectOp("REST.GET.OBJECT", testKey, 416).WithErrorCode("InvalidRange"),
 			// Range HEAD returns full object size in logs
 			testCtx.ObjectOp("REST.HEAD.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),
 			testCtx.ObjectOp("REST.HEAD.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),
