@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -622,6 +623,28 @@ func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation %d should succeed", i)
 	}
+}
+
+// newS3ClientWithCredentials creates an S3 client with the given credentials,
+// using the same endpoint configuration as the shared test client.
+func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client {
+	endpoint := os.Getenv("E2E_S3_ENDPOINT")
+	if endpoint == "" {
+		endpoint = testS3Endpoint
+	}
+
+	return s3.NewFromConfig(aws.Config{
+		Region: testRegion,
+		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     accessKeyID,
+				SecretAccessKey: secretAccessKey,
+			}, nil
+		}),
+	}, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true
+	})
 }
 
 // setupE2ETest creates and initializes an E2E test context

@@ -3,8 +3,12 @@ package e2e_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -103,6 +107,86 @@ var _ = Describe("Error Cases", func() {
 		testCtx.VerifyLogs(
 			testCtx.ObjectOp("REST.DELETE.UPLOAD", testKey, 404).WithErrorCode("NoSuchUpload"),
 			testCtx.ObjectOp("REST.GET.UPLOAD", testKey, 404).WithErrorCode("NoSuchUpload"),
+		)
+	})
+
+	It("logs AccessDenied error for IAM user without permissions", func(ctx context.Context) {
+		testKey := "access-denied-test.txt"
+		testContent := []byte("access denied test data")
+
+		_, err := testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+			Body:   bytes.NewReader(testContent),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
+
+		// Sleep to ensure the PUT gets a strictly earlier timestamp than the GET
+		// (log timestamps have second granularity)
+		// This prevents flakiness.
+		time.Sleep(1 * time.Second)
+
+		// Create IAM user with no permissions
+		iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
+		if iamEndpoint == "" {
+			iamEndpoint = testIAMEndpoint
+		}
+		accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
+		if accessKey == "" {
+			accessKey = testAccessKeyID
+		}
+		secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
+		if secretKey == "" {
+			secretKey = testSecretAccessKey
+		}
+
+		iamClient := iam.NewFromConfig(aws.Config{
+			Region: testRegion,
+			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+				return aws.Credentials{
+					AccessKeyID:     accessKey,
+					SecretAccessKey: secretKey,
+				}, nil
+			}),
+		}, func(o *iam.Options) {
+			o.BaseEndpoint = aws.String(iamEndpoint)
+		})
+
+		userName := fmt.Sprintf("e2e-test-user-%d", time.Now().UnixNano())
+		_, err = iamClient.CreateUser(ctx, &iam.CreateUserInput{
+			UserName: aws.String(userName),
+		})
+		Expect(err).NotTo(HaveOccurred(), "CreateUser should succeed")
+
+		createKeyResp, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
+			UserName: aws.String(userName),
+		})
+		Expect(err).NotTo(HaveOccurred(), "CreateAccessKey should succeed")
+
+		defer func() {
+			_, _ = iamClient.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+				UserName:    aws.String(userName),
+				AccessKeyId: createKeyResp.AccessKey.AccessKeyId,
+			})
+			_, _ = iamClient.DeleteUser(ctx, &iam.DeleteUserInput{
+				UserName: aws.String(userName),
+			})
+		}()
+
+		unprivilegedClient := newS3ClientWithCredentials(
+			*createKeyResp.AccessKey.AccessKeyId,
+			*createKeyResp.AccessKey.SecretAccessKey,
+		)
+
+		_, err = unprivilegedClient.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+		})
+		Expect(err).To(HaveOccurred(), "GET with unprivileged user should fail")
+
+		testCtx.VerifyLogs(
+			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),
+			testCtx.ObjectOp("REST.GET.OBJECT", testKey, 403).WithErrorCode("AccessDenied"),
 		)
 	})
 })
