@@ -107,10 +107,16 @@ var _ = Describe("Bucket Configuration", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket CORS should succeed")
 
+		_, err = testCtx.S3Client.GetBucketCors(ctx, &s3.GetBucketCorsInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).To(HaveOccurred(), "GET bucket CORS after DELETE should fail")
+
 		testCtx.VerifyLogs(
 			testCtx.BucketOp("REST.PUT.CORS", 200),
 			testCtx.BucketOp("REST.GET.CORS", 200),
 			testCtx.BucketOp("REST.DELETE.CORS", 204),
+			testCtx.BucketOp("REST.GET.CORS", 404).WithErrorCode("NoSuchCORSConfiguration"),
 		)
 	})
 
@@ -140,10 +146,16 @@ var _ = Describe("Bucket Configuration", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket website should succeed")
 
+		_, err = testCtx.S3Client.GetBucketWebsite(ctx, &s3.GetBucketWebsiteInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).To(HaveOccurred(), "GET bucket website after DELETE should fail")
+
 		testCtx.VerifyLogs(
 			testCtx.BucketOp("REST.PUT.WEBSITE", 200),
 			testCtx.BucketOp("REST.GET.WEBSITE", 200),
 			testCtx.BucketOp("REST.DELETE.WEBSITE", 204),
+			testCtx.BucketOp("REST.GET.WEBSITE", 404).WithErrorCode("NoSuchWebsiteConfiguration"),
 		)
 	})
 
@@ -219,10 +231,16 @@ var _ = Describe("Bucket Configuration", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "DELETE bucket lifecycle should succeed")
 
+		_, err = testCtx.S3Client.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).To(HaveOccurred(), "GET bucket lifecycle after DELETE should fail")
+
 		testCtx.VerifyLogs(
 			testCtx.BucketOp("REST.PUT.LIFECYCLE", 200),
 			testCtx.BucketOp("REST.GET.LIFECYCLE", 200),
 			testCtx.BucketOp("REST.DELETE.LIFECYCLE", 204),
+			testCtx.BucketOp("REST.GET.LIFECYCLE", 404).WithErrorCode("NoSuchLifecycleConfiguration"),
 		)
 	})
 })
