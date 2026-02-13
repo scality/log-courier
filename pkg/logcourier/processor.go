@@ -276,41 +276,7 @@ func (p *Processor) Run(ctx context.Context) error {
 	var cycleStart time.Time // Zero value forces first run immediately
 
 	for {
-		// Select base interval based on work found
-		baseInterval := p.maxDiscoveryInterval
-		intervalMode := "max"
-		if batchCount > 0 {
-			baseInterval = p.minDiscoveryInterval
-			intervalMode = "min"
-		}
-
-		// Apply jitter to base interval
-		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
-
-		// Calculate sleep duration accounting for processing time
-		var processingTime time.Duration
-		var sleepDuration time.Duration
-		if !cycleStart.IsZero() {
-			processingTime = time.Since(cycleStart)
-			sleepDuration = jitteredInterval - processingTime
-			if sleepDuration < 0 {
-				sleepDuration = 0
-			}
-		} else {
-			// First run: no sleep needed
-			sleepDuration = 0
-		}
-
-		// Don't log scheduling for the first run
-		if !cycleStart.IsZero() {
-			p.logger.Debug("scheduling next discovery cycle",
-				"batchesFound", batchCount,
-				"processingTimeSeconds", processingTime.Seconds(),
-				"baseIntervalSeconds", baseInterval.Seconds(),
-				"jitteredIntervalSeconds", jitteredInterval.Seconds(),
-				"sleepDurationSeconds", sleepDuration.Seconds(),
-				"intervalMode", intervalMode)
-		}
+		sleepDuration := p.nextCycleDelay(batchCount, cycleStart)
 
 		select {
 		case <-ctx.Done():
@@ -335,6 +301,43 @@ func (p *Processor) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// nextCycleDelay calculates how long to sleep before the next discovery cycle.
+// Uses minDiscoveryInterval when work was found, maxDiscoveryInterval when idle,
+// and subtracts processing time from the previous cycle.
+func (p *Processor) nextCycleDelay(batchCount int, cycleStart time.Time) time.Duration {
+	// Select base interval based on work found
+	baseInterval := p.maxDiscoveryInterval
+	intervalMode := "max"
+	if batchCount > 0 {
+		baseInterval = p.minDiscoveryInterval
+		intervalMode = "min"
+	}
+
+	// Apply jitter to base interval
+	jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
+
+	// Calculate sleep duration accounting for processing time
+	if cycleStart.IsZero() {
+		return 0 // First run: no sleep needed
+	}
+
+	processingTime := time.Since(cycleStart)
+	sleepDuration := jitteredInterval - processingTime
+	if sleepDuration < 0 {
+		sleepDuration = 0
+	}
+
+	p.logger.Debug("scheduling next discovery cycle",
+		"batchesFound", batchCount,
+		"processingTimeSeconds", processingTime.Seconds(),
+		"baseIntervalSeconds", baseInterval.Seconds(),
+		"jitteredIntervalSeconds", jitteredInterval.Seconds(),
+		"sleepDurationSeconds", sleepDuration.Seconds(),
+		"intervalMode", intervalMode)
+
+	return sleepDuration
 }
 
 // runCycle executes a single discovery and processing cycle
