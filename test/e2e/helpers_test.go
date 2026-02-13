@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -376,7 +378,9 @@ func fetchAllLogsInBucketSince(ctx *E2ETestContext, since time.Time) ([]*ParsedL
 
 // fetchLogsFromPrefix fetches and parses all log records from a specific prefix since a given time.
 // Verifies that records within each log object are in chronological order.
-// Returns all records combined across objects (no ordering guarantee across objects).
+// Returns all records merged across objects in chronological order.
+// Within each object, records are verified to be in chronological order.
+// Records across objects are sorted by timestamp
 func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Time) ([]*ParsedLogRecord, error) {
 	objectKeys, err := findLogObjectsSince(client, bucket, prefix, since)
 	if err != nil {
@@ -402,6 +406,12 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 
 		allRecords = append(allRecords, records...)
 	}
+
+	// Sort by timestamp to merge records across objects chronologically.
+	// This preserves within-object ordering.
+	sort.SliceStable(allRecords, func(i, j int) bool {
+		return allRecords[i].Time.Before(allRecords[j].Time)
+	})
 
 	return allRecords, nil
 }
@@ -613,6 +623,28 @@ func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation %d should succeed", i)
 	}
+}
+
+// newS3ClientWithCredentials creates an S3 client with the given credentials,
+// using the same endpoint configuration as the shared test client.
+func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client {
+	endpoint := os.Getenv("E2E_S3_ENDPOINT")
+	if endpoint == "" {
+		endpoint = testS3Endpoint
+	}
+
+	return s3.NewFromConfig(aws.Config{
+		Region: testRegion,
+		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     accessKeyID,
+				SecretAccessKey: secretAccessKey,
+			}, nil
+		}),
+	}, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true
+	})
 }
 
 // setupE2ETest creates and initializes an E2E test context
