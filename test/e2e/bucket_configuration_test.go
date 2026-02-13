@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -143,6 +144,48 @@ var _ = Describe("Bucket Configuration", func() {
 			testCtx.BucketOp("REST.PUT.WEBSITE", 200),
 			testCtx.BucketOp("REST.GET.WEBSITE", 200),
 			testCtx.BucketOp("REST.DELETE.WEBSITE", 204),
+		)
+	})
+
+	It("logs bucket encryption configuration operations", func(ctx context.Context) {
+		_, err := testCtx.S3Client.PutBucketEncryption(ctx, &s3.PutBucketEncryptionInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			ServerSideEncryptionConfiguration: &types.ServerSideEncryptionConfiguration{
+				Rules: []types.ServerSideEncryptionRule{
+					{
+						ApplyServerSideEncryptionByDefault: &types.ServerSideEncryptionByDefault{
+							SSEAlgorithm: types.ServerSideEncryptionAes256,
+						},
+					},
+				},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT bucket encryption should succeed")
+
+		_, err = testCtx.S3Client.GetBucketEncryption(ctx, &s3.GetBucketEncryptionInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).NotTo(HaveOccurred(), "GET bucket encryption should succeed")
+
+		testKey := "sse-test-object.txt"
+		testContent := []byte("test data for encrypted bucket")
+		_, err = testCtx.S3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+			Key:    aws.String(testKey),
+			Body:   bytes.NewReader(testContent),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
+
+		_, err = testCtx.S3Client.DeleteBucketEncryption(ctx, &s3.DeleteBucketEncryptionInput{
+			Bucket: aws.String(testCtx.SourceBucket),
+		})
+		Expect(err).NotTo(HaveOccurred(), "DELETE bucket encryption should succeed")
+
+		testCtx.VerifyLogs(
+			testCtx.BucketOp("REST.PUT.ENCRYPTION", 200),
+			testCtx.BucketOp("REST.GET.ENCRYPTION", 200),
+			testCtx.ObjectOp(opPutObject, testKey, 200).WithObjectSize(int64(len(testContent))),
+			testCtx.BucketOp("REST.DELETE.ENCRYPTION", 204),
 		)
 	})
 

@@ -378,6 +378,14 @@ var _ = Describe("Object Operations", func() {
 		Expect(logs[7].HTTPStatus).To(Equal(200))
 	})
 
+	It("logs object operations with per-object SSE-S3 encryption", func(ctx context.Context) {
+		verifyPerObjectSSE(ctx, testCtx, types.ServerSideEncryptionAes256)
+	})
+
+	It("logs object operations with per-object SSE-KMS encryption", func(ctx context.Context) {
+		verifyPerObjectSSE(ctx, testCtx, types.ServerSideEncryptionAwsKms)
+	})
+
 	It("logs object operations with versioning enabled", func(ctx context.Context) {
 		testKey := "versioned-object.txt"
 		testContent := []byte("version content")

@@ -248,6 +248,14 @@ var _ = Describe("Log processing", func() {
 
 	})
 
+	It("delivers logs when SSE-S3 encryption is enabled on the destination bucket", func(ctx context.Context) {
+		verifyLogDeliveryWithEncryption(ctx, testCtx, testCtx.DestinationBucket, types.ServerSideEncryptionAes256)
+	})
+
+	It("delivers logs when SSE-KMS encryption is enabled on the destination bucket", func(ctx context.Context) {
+		verifyLogDeliveryWithEncryption(ctx, testCtx, testCtx.DestinationBucket, types.ServerSideEncryptionAwsKms)
+	})
+
 	It("delivers logs to new prefix after logging reconfiguration", func(ctx context.Context) {
 		const newPrefix = "reconfigured-prefix/"
 		// Extended timeout: may need multiple batch cycles for prefix change to take effect
