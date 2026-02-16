@@ -12,7 +12,7 @@ import (
 // correctly interprets as DateTime64(3). The Go driver truncates milliseconds
 // when binding time.Time directly to DateTime64 parameters.
 func toDateTime64String(t time.Time) string {
-	return fmt.Sprintf("%.3f", float64(t.UnixMilli())/1000.0)
+	return t.UTC().Format("2006-01-02 15:04:05.000")
 }
 
 // LogFetcher fetches logs from ClickHouse
