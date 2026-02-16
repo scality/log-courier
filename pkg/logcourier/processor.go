@@ -403,35 +403,7 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 				return
 			}
 
-			if err := p.processLogBatchWithRetry(ctx, batch); err != nil {
-				mu.Lock()
-				failedBatches = append(failedBatches, batch.Bucket)
-				mu.Unlock()
-
-				// Determine if error is permanent
-				isPermanent := IsPermanentError(err)
-				status := "failed_transient"
-				if isPermanent {
-					status = "failed_permanent"
-				}
-				p.metrics.General.BatchesProcessed.WithLabelValues(status).Inc()
-
-				// Records that may be lost after TTL if permanent error is not fixed
-				if isPermanent {
-					p.metrics.General.RecordsPermanentErrors.Add(float64(batch.LogCount))
-				}
-
-				p.logger.Error("batch processing failed",
-					"bucketName", batch.Bucket,
-					"logCount", batch.LogCount,
-					"error", err)
-			} else {
-				mu.Lock()
-				successCount++
-				mu.Unlock()
-
-				p.metrics.General.BatchesProcessed.WithLabelValues("success").Inc()
-			}
+			p.processBatchAndRecord(ctx, batch, &mu, &successCount, &failedBatches)
 		}()
 	}
 
@@ -451,6 +423,40 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	}
 
 	return len(batches), nil
+}
+
+// processBatchAndRecord processes a single batch and records the result in shared state.
+func (p *Processor) processBatchAndRecord(ctx context.Context, batch LogBatch,
+	mu *sync.Mutex, successCount *int, failedBatches *[]string) {
+	if err := p.processLogBatchWithRetry(ctx, batch); err != nil {
+		mu.Lock()
+		*failedBatches = append(*failedBatches, batch.Bucket)
+		mu.Unlock()
+
+		// Determine if error is permanent
+		isPermanent := IsPermanentError(err)
+		status := "failed_transient"
+		if isPermanent {
+			status = "failed_permanent"
+		}
+		p.metrics.General.BatchesProcessed.WithLabelValues(status).Inc()
+
+		// Records that may be lost after TTL if permanent error is not fixed
+		if isPermanent {
+			p.metrics.General.RecordsPermanentErrors.Add(float64(batch.LogCount))
+		}
+
+		p.logger.Error("batch processing failed",
+			"bucketName", batch.Bucket,
+			"logCount", batch.LogCount,
+			"error", err)
+	} else {
+		mu.Lock()
+		*successCount++
+		mu.Unlock()
+
+		p.metrics.General.BatchesProcessed.WithLabelValues("success").Inc()
+	}
 }
 
 // ============================================================================
