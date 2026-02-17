@@ -1226,15 +1226,12 @@ var _ = Describe("Processor", func() {
 			})
 		})
 
-		Describe("Cycle Failure Behavior", func() {
+		Describe("Cycle Failure and Shutdown", func() {
 			var (
-				processor        *logcourier.Processor
-				s3Helper         *testutil.S3TestHelper
-				countingUploader *testutil.CountingUploader
+				s3Helper *testutil.S3TestHelper
 			)
 
 			BeforeEach(func() {
-				// Set up Viper for config access
 				logcourier.ConfigSpec.Set("clickhouse.url", os.Getenv("LOG_COURIER_CLICKHOUSE_URL"))
 				if logcourier.ConfigSpec.GetString("clickhouse.url") == "" {
 					logcourier.ConfigSpec.Set("clickhouse.url", "localhost:9002")
@@ -1243,213 +1240,436 @@ var _ = Describe("Processor", func() {
 				logcourier.ConfigSpec.Set("s3.access-key-id", workbenchAccessKey)
 				logcourier.ConfigSpec.Set("s3.secret-access-key", workbenchSecretKey)
 
-				// Create S3 helper
 				var err error
 				s3Helper, err = testutil.NewS3TestHelper(ctx)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Ensure test bucket exists
 				err = s3Helper.CreateBucket(ctx, testTargetBucket)
-				Expect(err).NotTo(HaveOccurred())
-
-				// Create S3 client with counting uploader
-				s3Config := testutil.GetS3Config()
-				s3Client, err := s3.NewClient(ctx, s3Config)
-				Expect(err).NotTo(HaveOccurred())
-
-				uploader := s3.NewUploader(s3Client)
-				countingUploader = testutil.NewCountingUploader(uploader)
-
-				cfg := logcourier.Config{
-					Logger:                 logger,
-					Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
-					ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHouseDatabase:     helper.DatabaseName,
-					ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseTimeout:      30 * time.Second,
-					CountThreshold:         5,
-					TimeThresholdSec:       60,
-					MinDiscoveryInterval:   1 * time.Second,
-					MaxDiscoveryInterval:   10 * time.Second,
-					NumWorkers:             2,
-					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:       10000,
-					MaxRetries:             1,
-					InitialBackoff:         100 * time.Millisecond,
-					MaxBackoff:             500 * time.Millisecond,
-					S3Uploader:             countingUploader,
-				}
-
-				processor, err = logcourier.NewProcessor(ctx, cfg)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
 			AfterEach(func() {
-				if processor != nil {
-					_ = processor.Close()
-				}
 				if s3Helper != nil {
 					_ = s3Helper.DeleteBucket(ctx, testTargetBucket)
 				}
 			})
 
-			It("should not fail processor cycle when all batches have permanent errors", func() {
-				// Insert logs for two buckets, both with non-existent target buckets
-				// The processor should continue running because permanent errors don't cause processor cycle failure
-				timestamp := time.Now()
-
-				// Bucket 1: permanent error (target doesn't exist)
-				for i := 0; i < 6; i++ {
-					err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
-						LoggingEnabled: true,
-						BucketName:     "bucket-perm-1",
-						RaftSessionID:  1,
-						StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
-						ReqID:          fmt.Sprintf("req-b1-%d", i),
-						Action:         "GetObject",
-						HttpCode:       200,
-					}, "nonexistent-target-bucket-1", testTargetPrefix)
-					Expect(err).NotTo(HaveOccurred())
-				}
-
-				// Bucket 2: permanent error (target doesn't exist)
-				for i := 0; i < 6; i++ {
-					err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
-						LoggingEnabled: true,
-						BucketName:     "bucket-perm-2",
-						RaftSessionID:  1,
-						StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
-						ReqID:          fmt.Sprintf("req-b2-%d", i),
-						Action:         "GetObject",
-						HttpCode:       200,
-					}, "nonexistent-target-bucket-2", testTargetPrefix)
-					Expect(err).NotTo(HaveOccurred())
-				}
-
-				testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-
-				errChan := make(chan error, 1)
-				go func() {
-					errChan <- processor.Run(testCtx)
-				}()
-
-				// Wait for both batches to be attempted (2 upload attempts with permanent errors)
-				Eventually(func() int64 {
-					return countingUploader.GetUploadCount()
-				}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(
-					BeNumerically(">=", 2),
+			Describe("Cycle Failure Behavior", func() {
+				var (
+					processor        *logcourier.Processor
+					countingUploader *testutil.CountingUploader
 				)
-				cancel()
 
-				runErr := <-errChan
+				BeforeEach(func() {
+					s3Config := testutil.GetS3Config()
+					s3Client, err := s3.NewClient(ctx, s3Config)
+					Expect(err).NotTo(HaveOccurred())
 
-				// Processor should stop with context canceled, not because of consecutive failures
-				Expect(runErr).To(MatchError(context.Canceled))
+					uploader := s3.NewUploader(s3Client)
+					countingUploader = testutil.NewCountingUploader(uploader)
+
+					cfg := logcourier.Config{
+						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   1 * time.Second,
+						MaxDiscoveryInterval:   10 * time.Second,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             1,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             500 * time.Millisecond,
+						S3Uploader:             countingUploader,
+					}
+
+					processor, err = logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					if processor != nil {
+						_ = processor.Close()
+					}
+				})
+
+				It("should not fail processor cycle when all batches have permanent errors", func() {
+					// Insert logs for two buckets, both with non-existent target buckets
+					// The processor should continue running because permanent errors don't cause processor cycle failure
+					timestamp := time.Now()
+
+					// Bucket 1: permanent error (target doesn't exist)
+					for i := 0; i < 6; i++ {
+						err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "bucket-perm-1",
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-b1-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, "nonexistent-target-bucket-1", testTargetPrefix)
+						Expect(err).NotTo(HaveOccurred())
+					}
+
+					// Bucket 2: permanent error (target doesn't exist)
+					for i := 0; i < 6; i++ {
+						err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "bucket-perm-2",
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-b2-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, "nonexistent-target-bucket-2", testTargetPrefix)
+						Expect(err).NotTo(HaveOccurred())
+					}
+
+					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					errChan := make(chan error, 1)
+					go func() {
+						errChan <- processor.Run(testCtx)
+					}()
+
+					// Wait for both batches to be attempted (2 upload attempts with permanent errors)
+					Eventually(func() int64 {
+						return countingUploader.GetUploadCount()
+					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(
+						BeNumerically(">=", 2),
+					)
+					cancel()
+
+					runErr := <-errChan
+
+					// Processor should stop cleanly, not because of consecutive failures
+					Expect(runErr).ToNot(HaveOccurred())
+				})
+
+				It("should not fail processor cycle when mixing permanent and transient errors", func() {
+					// Close the default processor from BeforeEach
+					_ = processor.Close()
+
+					// Create offset manager that will:
+					// - Fail attempts 1 and 2 (first cycle exhausts retries)
+					// - Succeed on attempt 3 (second cycle succeeds)
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
+					failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2)
+
+					// Create processor with MaxRetries=1 (2 total attempts per cycle)
+					cfg := logcourier.Config{
+						Logger:             logger,
+						Metrics:            logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
+						ClickHouseHosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername: logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase: helper.DatabaseName,
+						ClickHousePassword: logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:  30 * time.Second,
+						ClickHouseSettings: map[string]interface{}{
+							"insert_distributed_sync": 1,
+						},
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   1 * time.Second,
+						MaxDiscoveryInterval:   10 * time.Second,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             1, // 2 total attempts (0 and 1)
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             500 * time.Millisecond,
+						S3Endpoint:             testS3Endpoint,
+						S3AccessKeyID:          workbenchAccessKey,
+						S3SecretAccessKey:      workbenchSecretKey,
+						OffsetManager:          failingOffsetMgr,
+					}
+
+					var err error
+					processor, err = logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+
+					// Insert logs for two buckets:
+					// - Bucket 1: permanent error (target doesn't exist)
+					// - Bucket 2: transient error (offset commit exhausts retries in cycle 1, succeeds in cycle 2)
+					timestamp := time.Now()
+
+					// Bucket 1: permanent error
+					for i := 0; i < 6; i++ {
+						err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "bucket-perm-mixed",
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-perm-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, "nonexistent-bucket-mixed", testTargetPrefix)
+						Expect(err).NotTo(HaveOccurred())
+					}
+
+					// Bucket 2: transient error that will exhaust retries in first cycle
+					for i := 0; i < 6; i++ {
+						err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "bucket-transient-mixed",
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-transient-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, testTargetBucket, testTargetPrefix)
+						Expect(err).NotTo(HaveOccurred())
+					}
+
+					testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					errChan := make(chan error, 1)
+					go func() {
+						errChan <- processor.Run(testCtx)
+					}()
+
+					// Wait for bucket 2 to succeed (proves cycle 2 completed)
+					// Cycle 1: both buckets fail (1 permanent, 1 transient exhausts retries)
+					// Cycle 2: bucket 1 fails (permanent), bucket 2 succeeds (transient)
+					Eventually(func() int {
+						objects, err := s3Helper.ListObjects(ctx, testTargetBucket, testTargetPrefix)
+						if err != nil {
+							return 0
+						}
+						return len(objects)
+					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(
+						BeNumerically(">=", 1),
+					)
+					cancel()
+
+					runErr := <-errChan
+
+					// Processor should stop cleanly, not because of consecutive failures
+					Expect(runErr).ToNot(HaveOccurred())
+				})
 			})
 
-			It("should not fail processor cycle when mixing permanent and transient errors", func() {
-				// Close the default processor from BeforeEach
-				_ = processor.Close()
-
-				// Create offset manager that will:
-				// - Fail attempts 1 and 2 (first cycle exhausts retries)
-				// - Succeed on attempt 3 (second cycle succeeds)
-				offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
-				failingOffsetMgr := testutil.NewFailingOffsetManager(offsetMgr, 2)
-
-				// Create processor with MaxRetries=1 (2 total attempts per cycle)
-				cfg := logcourier.Config{
-					Logger:             logger,
-					Metrics:            logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
-					ClickHouseHosts:    logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
-					ClickHouseUsername: logcourier.ConfigSpec.GetString("clickhouse.username"),
-					ClickHouseDatabase: helper.DatabaseName,
-					ClickHousePassword: logcourier.ConfigSpec.GetString("clickhouse.password"),
-					ClickHouseTimeout:  30 * time.Second,
-					ClickHouseSettings: map[string]interface{}{
-						"insert_distributed_sync": 1,
-					},
-					CountThreshold:         5,
-					TimeThresholdSec:       60,
-					MinDiscoveryInterval:   1 * time.Second,
-					MaxDiscoveryInterval:   10 * time.Second,
-					NumWorkers:             2,
-					MaxBucketsPerDiscovery: 100,
-					MaxLogsPerBucket:       10000,
-					MaxRetries:             1, // 2 total attempts (0 and 1)
-					InitialBackoff:         100 * time.Millisecond,
-					MaxBackoff:             500 * time.Millisecond,
-					S3Endpoint:             testS3Endpoint,
-					S3AccessKeyID:          workbenchAccessKey,
-					S3SecretAccessKey:      workbenchSecretKey,
-					OffsetManager:          failingOffsetMgr,
-				}
-
-				var err error
-				processor, err = logcourier.NewProcessor(ctx, cfg)
-				Expect(err).NotTo(HaveOccurred())
-
-				// Insert logs for two buckets:
-				// - Bucket 1: permanent error (target doesn't exist)
-				// - Bucket 2: transient error (offset commit exhausts retries in cycle 1, succeeds in cycle 2)
-				timestamp := time.Now()
-
-				// Bucket 1: permanent error
-				for i := 0; i < 6; i++ {
-					err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
-						LoggingEnabled: true,
-						BucketName:     "bucket-perm-mixed",
-						RaftSessionID:  1,
-						StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
-						ReqID:          fmt.Sprintf("req-perm-%d", i),
-						Action:         "GetObject",
-						HttpCode:       200,
-					}, "nonexistent-bucket-mixed", testTargetPrefix)
+			Describe("Graceful Shutdown", func() {
+				It("should return nil and flush offsets when context is cancelled between cycles", func() {
+					// Create S3 client with counting uploader
+					s3Config := testutil.GetS3Config()
+					s3Client, err := s3.NewClient(ctx, s3Config)
 					Expect(err).NotTo(HaveOccurred())
-				}
 
-				// Bucket 2: transient error that will exhaust retries in first cycle
-				for i := 0; i < 6; i++ {
-					err := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
-						LoggingEnabled: true,
-						BucketName:     "bucket-transient-mixed",
-						RaftSessionID:  1,
-						StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
-						ReqID:          fmt.Sprintf("req-transient-%d", i),
-						Action:         "GetObject",
-						HttpCode:       200,
-					}, testTargetBucket, testTargetPrefix)
-					Expect(err).NotTo(HaveOccurred())
-				}
+					uploader := s3.NewUploader(s3Client)
+					countingUploader := testutil.NewCountingUploader(uploader)
 
-				testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-
-				errChan := make(chan error, 1)
-				go func() {
-					errChan <- processor.Run(testCtx)
-				}()
-
-				// Wait for bucket 2 to succeed (proves cycle 2 completed)
-				// Cycle 1: both buckets fail (1 permanent, 1 transient exhausts retries)
-				// Cycle 2: bucket 1 fails (permanent), bucket 2 succeeds (transient)
-				Eventually(func() int {
-					objects, err := s3Helper.ListObjects(ctx, testTargetBucket, testTargetPrefix)
-					if err != nil {
-						return 0
+					// Long MinDiscoveryInterval ensures processor is sleeping after first cycle
+					cfg := logcourier.Config{
+						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   30 * time.Second, // Long sleep after cycle
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             2,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             countingUploader,
 					}
-					return len(objects)
-				}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(
-					BeNumerically(">=", 1),
-				)
-				cancel()
 
-				runErr := <-errChan
+					processor, err := logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = processor.Close() }()
 
-				// Processor should stop with context canceled, not consecutive failures
-				Expect(runErr).To(MatchError(context.Canceled))
+					// Insert 6 logs to exceed count threshold of 5
+					timestamp := time.Now()
+					for i := 0; i < 6; i++ {
+						insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+							LoggingEnabled: true,
+							BucketName:     "graceful-stop-bucket",
+							RaftSessionID:  1,
+							StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+							ReqID:          fmt.Sprintf("req-graceful-%d", i),
+							Action:         "GetObject",
+							HttpCode:       200,
+						}, testTargetBucket, "graceful-stop/")
+						Expect(insertErr).NotTo(HaveOccurred())
+					}
+
+					// Start processor with cancellable context
+					runCtx, runCancel := context.WithCancel(ctx)
+					defer runCancel()
+					errChan := make(chan error, 1)
+					go func() {
+						errChan <- processor.Run(runCtx)
+					}()
+
+					// Wait for first cycle to complete (upload succeeded)
+					Eventually(func() int64 {
+						return countingUploader.GetSuccessCount()
+					}).WithTimeout(10 * time.Second).WithPolling(100 * time.Millisecond).Should(
+						BeNumerically(">=", 1),
+					)
+
+					// Cancel context (processor should be sleeping between cycles)
+					runCancel()
+
+					// Wait for processor to exit
+					var runErr error
+					Eventually(func() bool {
+						select {
+						case runErr = <-errChan:
+							return true
+						default:
+							return false
+						}
+					}).WithTimeout(5 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
+
+					// Key assertion: Run() returns nil
+					Expect(runErr).ToNot(HaveOccurred())
+
+					// Verify upload happened
+					Expect(countingUploader.GetSuccessCount()).To(Equal(int64(1)))
+
+					// Close processor to shut down offset buffer
+					closeErr := processor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
+
+					// Verify offset was committed after graceful stop
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
+					offset, offsetErr := offsetMgr.GetOffset(ctx, "graceful-stop-bucket", 1)
+					Expect(offsetErr).NotTo(HaveOccurred())
+					Expect(offset.InsertedAt.IsZero()).To(BeFalse(), "Expected offset to be committed after graceful stop")
+				})
+
+				It("should complete in-flight upload and skip queued work when context is cancelled during processing", func() {
+					// Create S3 client with blocking uploader
+					s3Config := testutil.GetS3Config()
+					s3Client, err := s3.NewClient(ctx, s3Config)
+					Expect(err).NotTo(HaveOccurred())
+
+					uploader := s3.NewUploader(s3Client)
+					blockingUploader := testutil.NewBlockingUploader(uploader)
+
+					// NumWorkers=1 means only 1 batch can process at a time;
+					// other workers queue at the semaphore select
+					cfg := logcourier.Config{
+						Logger:                 logger,
+						Metrics:                logcourier.NewMetricsWithRegistry(prometheus.NewRegistry()),
+						ClickHouseHosts:        logcourier.ConfigSpec.GetStringSlice("clickhouse.url"),
+						ClickHouseUsername:     logcourier.ConfigSpec.GetString("clickhouse.username"),
+						ClickHouseDatabase:     helper.DatabaseName,
+						ClickHousePassword:     logcourier.ConfigSpec.GetString("clickhouse.password"),
+						ClickHouseTimeout:      30 * time.Second,
+						CountThreshold:         5,
+						TimeThresholdSec:       60,
+						MinDiscoveryInterval:   30 * time.Second,
+						MaxDiscoveryInterval:   60 * time.Second,
+						NumWorkers:             1,
+						MaxBucketsPerDiscovery: 100,
+						MaxLogsPerBucket:       10000,
+						MaxRetries:             3,
+						InitialBackoff:         100 * time.Millisecond,
+						MaxBackoff:             5 * time.Second,
+						S3Uploader:             blockingUploader,
+					}
+
+					processor, err := logcourier.NewProcessor(ctx, cfg)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = processor.Close() }()
+
+					// Insert 6 logs each for 3 buckets (all above threshold)
+					timestamp := time.Now()
+					bucketNames := []string{"blocking-bucket-1", "blocking-bucket-2", "blocking-bucket-3"}
+					for _, bucketName := range bucketNames {
+						for i := 0; i < 6; i++ {
+							insertErr := helper.InsertTestLogWithTargetBucket(ctx, testutil.TestLogRecord{
+								LoggingEnabled: true,
+								BucketName:     bucketName,
+								RaftSessionID:  1,
+								StartTime:      timestamp.Add(time.Duration(i) * time.Minute),
+								ReqID:          fmt.Sprintf("req-%s-%d", bucketName, i),
+								Action:         "GetObject",
+								HttpCode:       200,
+							}, testTargetBucket, "blocking-test/")
+							Expect(insertErr).NotTo(HaveOccurred())
+						}
+					}
+
+					// Start processor with cancellable context
+					runCtx, runCancel := context.WithCancel(ctx)
+					defer runCancel()
+					errChan := make(chan error, 1)
+					go func() {
+						errChan <- processor.Run(runCtx)
+					}()
+
+					// Wait for first upload to start (worker is blocked inside Upload)
+					Eventually(func() bool {
+						select {
+						case <-blockingUploader.UploadStarted():
+							return true
+						default:
+							return false
+						}
+					}).WithTimeout(10 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
+
+					// Cancel context — workers queued at semaphore see ctx.Done() and bail out
+					runCancel()
+
+					// Unblock the in-flight upload
+					close(blockingUploader.Proceed())
+
+					// Wait for processor to exit
+					var runErr error
+					Eventually(func() bool {
+						select {
+						case runErr = <-errChan:
+							return true
+						default:
+							return false
+						}
+					}).WithTimeout(10 * time.Second).WithPolling(100 * time.Millisecond).Should(BeTrue())
+
+					// Key assertions
+					Expect(runErr).ToNot(HaveOccurred())
+					Expect(blockingUploader.GetUploadCount()).To(Equal(int64(1)), "Only 1 upload should have started")
+					Expect(blockingUploader.GetSuccessCount()).To(Equal(int64(1)), "The in-flight upload should have succeeded")
+
+					// Close processor to shut down offset buffer
+					closeErr := processor.Close()
+					Expect(closeErr).NotTo(HaveOccurred())
+
+					// Verify exactly 1 bucket has offset committed
+					offsetMgr := logcourier.NewOffsetManager(helper.Client(), helper.DatabaseName)
+					committedCount := 0
+					for _, bucketName := range bucketNames {
+						offset, offsetErr := offsetMgr.GetOffset(ctx, bucketName, 1)
+						Expect(offsetErr).NotTo(HaveOccurred())
+						if !offset.InsertedAt.IsZero() {
+							committedCount++
+						}
+					}
+					Expect(committedCount).To(Equal(1), "Exactly 1 bucket should have its offset committed")
+
+					// Verify exactly 1 S3 object was created
+					objects, listErr := s3Helper.ListObjects(ctx, testTargetBucket, "blocking-test/")
+					Expect(listErr).NotTo(HaveOccurred())
+					Expect(objects).To(HaveLen(1), "Expected exactly 1 S3 object")
+				})
 			})
 		})
 	})
