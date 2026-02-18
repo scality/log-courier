@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -234,4 +235,49 @@ func (c *CountingUploader) GetSuccessCount() int64 {
 // GetFailureCount returns the number of failed uploads
 func (c *CountingUploader) GetFailureCount() int64 {
 	return c.failureCount.Load()
+}
+
+// BlockingUploader wraps an S3 uploader, signaling when the first Upload is
+// entered and blocking until the test closes the proceed channel. This enables
+// deterministic concurrency testing by freezing a worker inside Upload().
+type BlockingUploader struct {
+	*CountingUploader
+	started     chan struct{}
+	proceed     chan struct{}
+	startedOnce sync.Once
+}
+
+// NewBlockingUploader creates a new blocking uploader
+func NewBlockingUploader(uploader s3.UploaderInterface) *BlockingUploader {
+	return &BlockingUploader{
+		CountingUploader: NewCountingUploader(uploader),
+		started:          make(chan struct{}),
+		proceed:          make(chan struct{}),
+	}
+}
+
+// Upload signals that an upload has started, then blocks until the proceed
+// channel is closed or the context is cancelled.
+func (b *BlockingUploader) Upload(ctx context.Context, bucket, key string, content []byte) error {
+	b.startedOnce.Do(func() {
+		close(b.started)
+	})
+
+	select {
+	case <-b.proceed:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	return b.CountingUploader.Upload(ctx, bucket, key, content)
+}
+
+// UploadStarted returns a channel that is closed when the first Upload call begins
+func (b *BlockingUploader) UploadStarted() <-chan struct{} {
+	return b.started
+}
+
+// Proceed returns the proceed channel. Close it to unblock all waiting uploads.
+func (b *BlockingUploader) Proceed() chan struct{} {
+	return b.proceed
 }

@@ -245,7 +245,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 	}, nil
 }
 
-// Close closes the processor and releases resources
+// Close closes the processor and releases resources.
 func (p *Processor) Close() error {
 	// Stop offset buffer if it was started
 	if p.stopOffsetBuffer != nil {
@@ -263,90 +263,108 @@ func (p *Processor) Close() error {
 // The processor runs cycles indefinitely. If errors occur during a cycle,
 // they are logged and the processor waits for the next discovery interval
 // before retrying (eventual delivery).
+//
+// Cancelling ctx signals the processor to stop dispatching new work.
+// In-flight operations complete with a separate context so they are not
+// interrupted by the cancellation.
 func (p *Processor) Run(ctx context.Context) error {
 	p.logger.Info("processor starting")
 
+	// workCtx is used by in-flight operations (uploads, offset commits)
+	// so they run to completion even after ctx is cancelled.
+	workCtx, workCancel := context.WithCancel(context.Background())
+	defer workCancel()
+
 	// Start offset buffer flush loop
 	if p.offsetBuffer != nil {
-		p.stopOffsetBuffer = p.offsetBuffer.Start(ctx)
+		p.stopOffsetBuffer = p.offsetBuffer.Start(workCtx)
 	}
 
 	var batchCount int
 	var err error
 	var cycleStart time.Time // Zero value forces first run immediately
 
-	for {
-		// Select base interval based on work found
-		baseInterval := p.maxDiscoveryInterval
-		intervalMode := "max"
-		if batchCount > 0 {
-			baseInterval = p.minDiscoveryInterval
-			intervalMode = "min"
-		}
-
-		// Apply jitter to base interval
-		jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
-
-		// Calculate sleep duration accounting for processing time
-		var processingTime time.Duration
-		var sleepDuration time.Duration
-		if !cycleStart.IsZero() {
-			processingTime = time.Since(cycleStart)
-			sleepDuration = jitteredInterval - processingTime
-			if sleepDuration < 0 {
-				sleepDuration = 0
-			}
-		} else {
-			// First run: no sleep needed
-			sleepDuration = 0
-		}
-
-		// Don't log scheduling for the first run
-		if !cycleStart.IsZero() {
-			p.logger.Debug("scheduling next discovery cycle",
-				"batchesFound", batchCount,
-				"processingTimeSeconds", processingTime.Seconds(),
-				"baseIntervalSeconds", baseInterval.Seconds(),
-				"jitteredIntervalSeconds", jitteredInterval.Seconds(),
-				"sleepDurationSeconds", sleepDuration.Seconds(),
-				"intervalMode", intervalMode)
-		}
+	for ctx.Err() == nil {
+		sleepDuration := p.nextCycleDelay(batchCount, cycleStart)
 
 		select {
 		case <-ctx.Done():
-			p.logger.Info("processor stopping")
-			return ctx.Err()
-
+			continue
 		case <-time.After(sleepDuration):
-			cycleStart = time.Now()
-			batchCount, err = p.runCycle(ctx)
-			if err != nil {
-				p.logger.Error("cycle failed", "error", err)
-				batchCount = 0 // Treat error as no work found
-			}
+		}
 
-			// Mandatory flush after cycle completes
-			// This ensures the next cycle's BatchFinder sees up-to-date offsets.
-			// Without this flush, BatchFinder would query stale offsets from ClickHouse
-			// and rediscover batches we've already processed.
-			if flushErr := p.offsetBuffer.Flush(ctx, FlushReasonCycleBoundary); flushErr != nil {
-				p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
-				// Continue anyway - offsets remain buffered for next cycle
-			}
+		if ctx.Err() != nil {
+			break
+		}
+
+		cycleStart = time.Now()
+		batchCount, err = p.runCycle(ctx, workCtx)
+		if err != nil {
+			p.logger.Error("cycle failed", "error", err)
+			batchCount = 0 // Treat error as no work found
+		}
+
+		// Mandatory flush after cycle completes
+		// This ensures the next cycle's BatchFinder sees up-to-date offsets.
+		// Without this flush, BatchFinder would query stale offsets from ClickHouse
+		// and rediscover batches we've already processed.
+		if flushErr := p.offsetBuffer.Flush(workCtx, FlushReasonCycleBoundary); flushErr != nil {
+			p.logger.Error("failed to flush offsets at cycle boundary", "error", flushErr)
+			// Continue anyway - offsets remain buffered for next cycle
 		}
 	}
+
+	p.logger.Info("processor stopping")
+	return nil
 }
 
-// runCycle executes a single discovery and processing cycle
-// Returns the number of batches found
-func (p *Processor) runCycle(ctx context.Context) (int, error) {
+// nextCycleDelay calculates how long to sleep before the next discovery cycle.
+// Uses minDiscoveryInterval when work was found, maxDiscoveryInterval when idle,
+// and subtracts processing time from the previous cycle.
+func (p *Processor) nextCycleDelay(batchCount int, cycleStart time.Time) time.Duration {
+	// Select base interval based on work found
+	baseInterval := p.maxDiscoveryInterval
+	intervalMode := "max"
+	if batchCount > 0 {
+		baseInterval = p.minDiscoveryInterval
+		intervalMode = "min"
+	}
+
+	// Apply jitter to base interval
+	jitteredInterval := applyJitter(baseInterval, p.discoveryIntervalJitterFactor)
+
+	// Calculate sleep duration accounting for processing time
+	if cycleStart.IsZero() {
+		return 0 // First run: no sleep needed
+	}
+
+	processingTime := time.Since(cycleStart)
+	sleepDuration := jitteredInterval - processingTime
+	if sleepDuration < 0 {
+		sleepDuration = 0
+	}
+
+	p.logger.Debug("scheduling next discovery cycle",
+		"batchesFound", batchCount,
+		"processingTimeSeconds", processingTime.Seconds(),
+		"baseIntervalSeconds", baseInterval.Seconds(),
+		"jitteredIntervalSeconds", jitteredInterval.Seconds(),
+		"sleepDurationSeconds", sleepDuration.Seconds(),
+		"intervalMode", intervalMode)
+
+	return sleepDuration
+}
+
+// runCycle executes a single discovery and processing cycle.
+// Returns the number of batches dispatched.
+func (p *Processor) runCycle(ctx, workCtx context.Context) (int, error) {
 	start := time.Now()
 	defer func() {
 		p.metrics.General.CycleDuration.Observe(time.Since(start).Seconds())
 		p.metrics.General.CyclesTotal.Inc()
 	}()
 
-	batchCount, err := p.runBatchFinder(ctx)
+	batchCount, err := p.runBatchFinder(ctx, workCtx)
 	if err != nil {
 		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
@@ -354,9 +372,10 @@ func (p *Processor) runCycle(ctx context.Context) (int, error) {
 	return batchCount, nil
 }
 
-// runBatchFinder executes batch finder and processes log batches in parallel
-// Returns the number of batches found
-func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
+// runBatchFinder executes batch finder and processes log batches in parallel.
+// ctx is checked for cancellation to stop dispatching new work.
+// workCtx is used for in-flight operations so they complete uninterrupted.
+func (p *Processor) runBatchFinder(ctx, workCtx context.Context) (int, error) {
 	// Phase 1: Work Discovery
 	p.logger.Debug("starting batch finder")
 
@@ -366,6 +385,9 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	p.metrics.Discovery.Duration.Observe(discoveryDuration.Seconds())
 
 	if err != nil {
+		if ctx.Err() != nil {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("batch finder failed: %w", err)
 	}
 
@@ -385,8 +407,14 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 	var failedBatches []string
 
 	sem := make(chan struct{}, p.numWorkers)
+	var dispatched int
 
 	for _, batch := range batches {
+		if ctx.Err() != nil {
+			break
+		}
+
+		dispatched++
 		batch := batch
 		wg.Add(1)
 
@@ -400,35 +428,13 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 				return
 			}
 
-			if err := p.processLogBatchWithRetry(ctx, batch); err != nil {
-				mu.Lock()
-				failedBatches = append(failedBatches, batch.Bucket)
-				mu.Unlock()
-
-				// Determine if error is permanent
-				isPermanent := IsPermanentError(err)
-				status := "failed_transient"
-				if isPermanent {
-					status = "failed_permanent"
-				}
-				p.metrics.General.BatchesProcessed.WithLabelValues(status).Inc()
-
-				// Records that may be lost after TTL if permanent error is not fixed
-				if isPermanent {
-					p.metrics.General.RecordsPermanentErrors.Add(float64(batch.LogCount))
-				}
-
-				p.logger.Error("batch processing failed",
-					"bucketName", batch.Bucket,
-					"logCount", batch.LogCount,
-					"error", err)
-			} else {
-				mu.Lock()
-				successCount++
-				mu.Unlock()
-
-				p.metrics.General.BatchesProcessed.WithLabelValues("success").Inc()
+			// Don't start new work if ctx was cancelled while waiting
+			// for the semaphore (both channels ready, Go picked randomly).
+			if ctx.Err() != nil {
+				return
 			}
+
+			p.processBatchAndRecord(workCtx, batch, &mu, &successCount, &failedBatches)
 		}()
 	}
 
@@ -447,7 +453,41 @@ func (p *Processor) runBatchFinder(ctx context.Context) (int, error) {
 			"failed", 0)
 	}
 
-	return len(batches), nil
+	return dispatched, nil
+}
+
+// processBatchAndRecord processes a single batch and records the result in shared state.
+func (p *Processor) processBatchAndRecord(ctx context.Context, batch LogBatch,
+	mu *sync.Mutex, successCount *int, failedBatches *[]string) {
+	if err := p.processLogBatchWithRetry(ctx, batch); err != nil {
+		mu.Lock()
+		*failedBatches = append(*failedBatches, batch.Bucket)
+		mu.Unlock()
+
+		// Determine if error is permanent
+		isPermanent := IsPermanentError(err)
+		status := "failed_transient"
+		if isPermanent {
+			status = "failed_permanent"
+		}
+		p.metrics.General.BatchesProcessed.WithLabelValues(status).Inc()
+
+		// Records that may be lost after TTL if permanent error is not fixed
+		if isPermanent {
+			p.metrics.General.RecordsPermanentErrors.Add(float64(batch.LogCount))
+		}
+
+		p.logger.Error("batch processing failed",
+			"bucketName", batch.Bucket,
+			"logCount", batch.LogCount,
+			"error", err)
+	} else {
+		mu.Lock()
+		*successCount++
+		mu.Unlock()
+
+		p.metrics.General.BatchesProcessed.WithLabelValues("success").Inc()
+	}
 }
 
 // ============================================================================
