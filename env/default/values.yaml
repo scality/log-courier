@@ -12,7 +12,7 @@ vault:
   image: ghcr.io/scality/vault:7.84.0
 
 s3_metadata:
-  image: ghcr.io/scality/metadata:9.1.0-standalone
+  image: ghcr.io/scality/metadata:9.2.0-standalone
 
 clickhouse:
   image: clickhouse/clickhouse-server:24.3.2.23-alpine
