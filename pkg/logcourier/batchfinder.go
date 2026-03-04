@@ -37,6 +37,17 @@ func NewBatchFinder(
 //
 //nolint:funlen // Function length is due to extensive SQL comments for readability
 func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
+	// Table selection: offsets (local) + access_logs_federated (distributed).
+	//
+	// The distributed table reference triggers ClickHouse to push the entire query
+	// to all shards. On each shard, access_logs_federated resolves to the local
+	// access_logs table, while the offsets reference resolves to that shard's local
+	// offsets table. Both tables are sharded by raftSessionID, so the data is
+	// co-located and the JOIN produces correct results on each shard.
+	//
+	// Using offsets_federated (distributed) instead would cause ClickHouse to reject
+	// the query ("Double-distributed IN/JOIN subqueries is denied") because JOINing
+	// two distributed tables is not supported with default settings.
 	query := fmt.Sprintf(`
         WITH
             -- CTE 1: bucket_offsets
