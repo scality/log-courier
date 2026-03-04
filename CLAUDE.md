@@ -81,17 +81,12 @@ Log-courier interacts with these tables in the `logs` database:
 
 ## Design Decisions (Do Not Change Without Discussion)
 
-### Offset Table Read/Write Pattern
-The code intentionally uses different tables for reading and writing offsets:
-- **Writes** go to `offsets_federated` (distributed table) via `offset.go`
-- **Reads** come from `offsets` (local table) via `batchfinder.go`
+### Distributed vs Local Table Usage
+BatchFinder is the only query that references a local table (`offsets`), because it JOINs offsets with access logs. ClickHouse cannot JOIN two distributed tables, so the query references one distributed table (`access_logs_federated`) to trigger shard pushdown, and the local `offsets` table resolves on each shard with co-located data. See the comment in `batchfinder.go` for details.
 
-This is **intentional design**, not a bug. Do not "fix" this mismatch - it has been investigated and the current pattern is correct for our distributed ClickHouse setup.
-
-### Access Logs Table Read Pattern
-Similarly, different components read access logs from different tables:
-- **BatchFinder** reads from `access_logs` (local table) for work discovery
-- **LogFetcher** reads from `access_logs_federated` (distributed table) for log retrieval
+All other queries use distributed tables (no JOINs needed):
+- **LogFetcher** reads from `access_logs_federated`
+- **OffsetBuffer** writes to `offsets_federated`
 
 ## System Knowledge
 

@@ -3,7 +3,7 @@ name: review-pr
 description: Review a PR on log-courier (Go consumer that reads logs from ClickHouse and writes S3 access log objects)
 argument-hint: <pr-number-or-url>
 disable-model-invocation: true
-allowed-tools: Bash(gh repo view *), Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr comment *), Bash(gh api *), Bash(git diff *), Bash(git log *), Bash(git show *)
+allowed-tools: Read, Bash(gh repo view *), Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr comment *), Bash(gh api *), Bash(git diff *), Bash(git log *), Bash(git show *)
 ---
 
 # Review GitHub PR
@@ -43,7 +43,6 @@ gh pr diff <number> --repo <owner/repo>
 | Goroutine leaks | Ensure goroutines have exit conditions. Check for proper cleanup on context cancellation. |
 | Triple composite offset | Changes to offset logic (`insertedAt`, `startTime`, `reqID`) must be consistent across `batchfinder.go`, `logfetch.go`, and `offset.go`. |
 | OffsetBuffer invariants | Verify cycle boundary flush is preserved. Check that offsets are never committed before S3 upload succeeds. |
-| Distributed table usage | Reads from local tables, writes to federated tables — this is intentional. Do not flag as inconsistency. |
 | At-least-once delivery | Verify no code path can skip offset commit after successful upload, or commit before upload completes. |
 | ClickHouse query safety | Check for SQL injection, unbounded queries, missing `LIMIT` clauses on large tables. |
 | AWS SDK error handling | Permanent errors (`NoSuchBucket`, `InvalidAccessKeyId`, `AccessDenied`) are detected by string matching — verify new error types follow this pattern. |
@@ -127,4 +126,3 @@ End with: `Review by Claude Code`
 - Do not praise code — only flag problems or stay silent
 - If no issues are found, post only a summary saying "LGTM"
 - Do not flag style issues already covered by golangci-lint (.golangci.yml)
-- Do not flag the intentional offset read/write table mismatch (local reads, federated writes) — this is by design
