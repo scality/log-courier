@@ -30,7 +30,7 @@ var _ = Describe("LogFetcher", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		fetcher = logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 5)
+		fetcher = logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 5, 0)
 	})
 
 	AfterEach(func() {
@@ -430,6 +430,63 @@ var _ = Describe("LogFetcher", func() {
 
 			Expect(records[0].ReqID).To(Equal("req-000"))
 			Expect(records[4].ReqID).To(Equal("req-004"))
+		})
+
+		It("should not fetch logs within the processing delay window", func() {
+			fetcher60s := logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 100, 60)
+
+			// Insert records with insertedAt = now() (within the 60s delay window)
+			for i := 0; i < 3; i++ {
+				err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+					LoggingEnabled: true,
+					BucketName:     "test-bucket",
+					StartTime:      time.Now().Add(time.Duration(i) * time.Second),
+					ReqID:          fmt.Sprintf("req-%d", i),
+					Action:         "GetObject",
+					ObjectKey:      fmt.Sprintf("key-%d", i),
+				})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			batch := logcourier.LogBatch{
+				Bucket:              "test-bucket",
+				LastProcessedOffset: logcourier.Offset{},
+			}
+
+			records, err := fetcher60s.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(BeEmpty(), "Records within the processing delay window should not be fetched")
+		})
+
+		It("should fetch logs outside the processing delay window", func() {
+			fetcher60s := logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 100, 60)
+
+			baseTime := time.Now().Add(-2 * time.Hour)
+
+			query := fmt.Sprintf(`
+				INSERT INTO %s.%s
+				(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
+
+			for i := 0; i < 3; i++ {
+				err := helper.Client().Exec(ctx, query,
+					baseTime.Add(time.Duration(i)*time.Second),
+					"test-bucket",
+					baseTime.Add(time.Duration(i)*time.Second),
+					fmt.Sprintf("req-%d", i),
+					"GetObject", true, uint16(0), "/test-bucket/key")
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			batch := logcourier.LogBatch{
+				Bucket:              "test-bucket",
+				LastProcessedOffset: logcourier.Offset{},
+			}
+
+			records, err := fetcher60s.FetchLogs(ctx, batch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(3), "Records outside the processing delay window should be fetched")
 		})
 
 		It("should order by insertedAt", func() {
