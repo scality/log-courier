@@ -9,11 +9,12 @@ import (
 
 // BatchFinder finds log batches ready for processing from ClickHouse
 type BatchFinder struct {
-	client           *clickhouse.Client
-	database         string
-	countThreshold   int
-	timeThresholdSec int
-	maxBuckets       int
+	client             *clickhouse.Client
+	database           string
+	countThreshold     int
+	timeThresholdSec   int
+	maxBuckets         int
+	processingDelaySec int
 }
 
 // NewBatchFinder creates a new batch finder instance
@@ -23,13 +24,15 @@ func NewBatchFinder(
 	countThreshold int,
 	timeThresholdSec int,
 	maxBuckets int,
+	processingDelaySec int,
 ) *BatchFinder {
 	return &BatchFinder{
-		client:           client,
-		database:         database,
-		countThreshold:   countThreshold,
-		timeThresholdSec: timeThresholdSec,
-		maxBuckets:       maxBuckets,
+		client:             client,
+		database:           database,
+		countThreshold:     countThreshold,
+		timeThresholdSec:   timeThresholdSec,
+		maxBuckets:         maxBuckets,
+		processingDelaySec: processingDelaySec,
 	}
 }
 
@@ -48,6 +51,11 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
 	// Using offsets_federated (distributed) instead would cause ClickHouse to reject
 	// the query ("Double-distributed IN/JOIN subqueries is denied") because JOINing
 	// two distributed tables is not supported with default settings.
+	delayClause := ""
+	if bf.processingDelaySec > 0 {
+		delayClause = "AND l.insertedAt < now() - INTERVAL ? SECOND"
+	}
+
 	query := fmt.Sprintf(`
         WITH
             -- CTE 1: bucket_offsets
@@ -107,17 +115,20 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
                 WHERE
                     -- Triple composite offset comparison: log > offset
                     -- When no offset exists (NULL from LEFT JOIN), include all logs
-                    o.lastProcessedInsertedAt IS NULL
-                    OR l.insertedAt > o.lastProcessedInsertedAt
-                    OR (
-                        l.insertedAt = o.lastProcessedInsertedAt
-                        AND l.startTime > o.lastProcessedStartTime
+                    (
+                        o.lastProcessedInsertedAt IS NULL
+                        OR l.insertedAt > o.lastProcessedInsertedAt
+                        OR (
+                            l.insertedAt = o.lastProcessedInsertedAt
+                            AND l.startTime > o.lastProcessedStartTime
+                        )
+                        OR (
+                            l.insertedAt = o.lastProcessedInsertedAt
+                            AND l.startTime = o.lastProcessedStartTime
+                            AND l.req_id > o.lastProcessedReqId
+                        )
                     )
-                    OR (
-                        l.insertedAt = o.lastProcessedInsertedAt
-                        AND l.startTime = o.lastProcessedStartTime
-                        AND l.req_id > o.lastProcessedReqId
-                    )
+                    %s
                 GROUP BY l.bucketName, l.raftSessionID, o.lastProcessedInsertedAt, o.lastProcessedStartTime, o.lastProcessedReqId
             )
         -- Main query: Select buckets that are ready for processing
@@ -134,9 +145,15 @@ func (bf *BatchFinder) FindBatches(ctx context.Context) ([]LogBatch, error) {
            OR min_ts <= now() - INTERVAL ? SECOND
         ORDER BY min_ts ASC
         LIMIT ?
-    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated)
+    `, bf.database, clickhouse.TableOffsets, bf.database, clickhouse.TableAccessLogsFederated, delayClause)
 
-	rows, err := bf.client.Query(ctx, query, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
+	args := []any{}
+	if bf.processingDelaySec > 0 {
+		args = append(args, bf.processingDelaySec)
+	}
+	args = append(args, bf.countThreshold, bf.timeThresholdSec, bf.maxBuckets)
+
+	rows, err := bf.client.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("batch finder query failed: %w", err)
 	}
