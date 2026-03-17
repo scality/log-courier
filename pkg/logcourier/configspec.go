@@ -79,6 +79,11 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 100000,
 		EnvVar:       "LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET",
 	},
+	"consumer.processing-delay-seconds": util.ConfigVarSpec{
+		Help:         "Delay in seconds before records become eligible for processing, allowing ClickHouse data to settle across shards (0 to disable)",
+		DefaultValue: 60,
+		EnvVar:       "LOG_COURIER_CONSUMER_PROCESSING_DELAY_SECONDS",
+	},
 
 	// Retry configuration
 	"retry.max-retries": util.ConfigVarSpec{
