@@ -18,6 +18,7 @@ type Metrics struct {
 // GeneralMetrics tracks general system state and errors
 type GeneralMetrics struct {
 	BatchesProcessed        *prometheus.CounterVec // labels: status (success/failed_permanent/failed_transient)
+	RecordsDelivered        prometheus.Counter
 	RecordsPermanentErrors  prometheus.Counter
 	BatchProcessingDuration prometheus.Histogram
 	CyclesTotal             prometheus.Counter
@@ -86,6 +87,12 @@ func newGeneralMetrics(factory promauto.Factory) GeneralMetrics {
 				Help: "Total number of log batches processed",
 			},
 			[]string{"status"}, // status: success, failed_permanent, failed_transient
+		),
+		RecordsDelivered: factory.NewCounter(
+			prometheus.CounterOpts{
+				Name: "log_courier_records_delivered_total",
+				Help: "Total number of log records successfully delivered to S3",
+			},
 		),
 		RecordsPermanentErrors: factory.NewCounter(
 			prometheus.CounterOpts{
