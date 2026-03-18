@@ -23,6 +23,7 @@ consumer:
   num-workers: 5
   max-buckets-per-discovery: 5
   max-logs-per-bucket: 100000
+  processing-delay-seconds: 0
 
 # Retry logic
 retry:
