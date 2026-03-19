@@ -35,6 +35,7 @@ func buildProcessorConfig(logger *slog.Logger, metrics *logcourier.Metrics) logc
 		NumWorkers:                    logcourier.ConfigSpec.GetInt("consumer.num-workers"),
 		MaxBucketsPerDiscovery:        logcourier.ConfigSpec.GetInt("consumer.max-buckets-per-discovery"),
 		MaxLogsPerBucket:              logcourier.ConfigSpec.GetInt("consumer.max-logs-per-bucket"),
+		ProcessingDelaySec:            logcourier.ConfigSpec.GetInt("consumer.processing-delay-seconds"),
 		MaxRetries:                    logcourier.ConfigSpec.GetInt("retry.max-retries"),
 		InitialBackoff:                time.Duration(logcourier.ConfigSpec.GetInt("retry.initial-backoff-seconds")) * time.Second,
 		MaxBackoff:                    time.Duration(logcourier.ConfigSpec.GetInt("retry.max-backoff-seconds")) * time.Second,
