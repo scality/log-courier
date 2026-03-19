@@ -17,17 +17,19 @@ func toDateTime64String(t time.Time) string {
 
 // LogFetcher fetches logs from ClickHouse
 type LogFetcher struct {
-	client          *clickhouse.Client
-	database        string
-	maxLogsPerBatch int
+	client             *clickhouse.Client
+	database           string
+	maxLogsPerBatch    int
+	processingDelaySec int
 }
 
 // NewLogFetcher creates a new log fetcher
-func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch int) *LogFetcher {
+func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch, processingDelaySec int) *LogFetcher {
 	return &LogFetcher{
-		client:          client,
-		database:        database,
-		maxLogsPerBatch: maxLogsPerBatch,
+		client:             client,
+		database:           database,
+		maxLogsPerBatch:    maxLogsPerBatch,
+		processingDelaySec: processingDelaySec,
 	}
 }
 
@@ -36,6 +38,11 @@ func NewLogFetcher(client *clickhouse.Client, database string, maxLogsPerBatch i
 // LogBuilder will re-sort by startTime, req_id.
 // Uses composite filter to fetch only logs after LastProcessedOffset.
 func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecord, error) {
+	delayClause := ""
+	if lf.processingDelaySec > 0 {
+		delayClause = "AND insertedAt < now() - INTERVAL ? SECOND"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			bucketOwner,
@@ -74,19 +81,25 @@ func (lf *LogFetcher) FetchLogs(ctx context.Context, batch LogBatch) ([]LogRecor
 		      OR (insertedAt = ? AND startTime > ?)
 		      OR (insertedAt = ? AND startTime = ? AND req_id > ?)
 		  )
+		  %s
 		ORDER BY insertedAt ASC, startTime ASC, req_id ASC
 		LIMIT ?
-	`, lf.database, clickhouse.TableAccessLogsFederated)
+	`, lf.database, clickhouse.TableAccessLogsFederated, delayClause)
 
 	startTimeStr := toDateTime64String(batch.LastProcessedOffset.StartTime)
-	rows, err := lf.client.Query(ctx, query,
+	args := []any{
 		batch.Bucket,
 		batch.RaftSessionID,
 		batch.LastProcessedOffset.InsertedAt,
 		batch.LastProcessedOffset.InsertedAt, startTimeStr,
 		batch.LastProcessedOffset.InsertedAt, startTimeStr, batch.LastProcessedOffset.ReqID,
-		lf.maxLogsPerBatch,
-	)
+	}
+	if lf.processingDelaySec > 0 {
+		args = append(args, lf.processingDelaySec)
+	}
+	args = append(args, lf.maxLogsPerBatch)
+
+	rows, err := lf.client.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch logs: %w", err)
 	}

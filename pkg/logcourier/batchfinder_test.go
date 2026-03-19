@@ -30,7 +30,7 @@ var _ = Describe("BatchFinder", func() {
 		err = helper.SetupSchema(ctx)
 		Expect(err).NotTo(HaveOccurred())
 
-		finder = logcourier.NewBatchFinder(helper.Client(), helper.DatabaseName, 5, 60, 3)
+		finder = logcourier.NewBatchFinder(helper.Client(), helper.DatabaseName, 5, 60, 3, 0)
 	})
 
 	AfterEach(func() {
@@ -509,7 +509,7 @@ var _ = Describe("BatchFinder", func() {
 			Expect(batches[0].LogCount).To(BeNumerically(">=", 2))
 
 			// Cycle 1: Fetch logs and simulate processing
-			fetcher := logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 10000)
+			fetcher := logcourier.NewLogFetcher(helper.Client(), helper.DatabaseName, 10000, 0)
 			records, err := fetcher.FetchLogs(ctx, batches[0])
 			Expect(err).NotTo(HaveOccurred())
 			Expect(records).To(HaveLen(2))
@@ -530,6 +530,54 @@ var _ = Describe("BatchFinder", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(batches).To(BeEmpty(), "Expected no batches after processing all logs, but found %d batch(es)", len(batches))
+		})
+
+		Describe("Processing Delay", func() {
+			It("should not discover batches within the processing delay window", func() {
+				finder60s := logcourier.NewBatchFinder(helper.Client(), helper.DatabaseName, 5, 60, 3, 60)
+
+				// Insert 6 logs with insertedAt = now() (within the 60s delay window)
+				for i := 0; i < 6; i++ {
+					err := helper.InsertTestLog(ctx, testutil.TestLogRecord{
+						LoggingEnabled: true,
+						BucketName:     "test-bucket",
+						StartTime:      time.Now(),
+						ReqID:          fmt.Sprintf("req-%d", i),
+						Action:         "GetObject",
+					})
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder60s.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(BeEmpty(), "Batches within the processing delay window should not be discovered")
+			})
+
+			It("should discover batches outside the processing delay window", func() {
+				finder60s := logcourier.NewBatchFinder(helper.Client(), helper.DatabaseName, 5, 60, 3, 60)
+
+				oldTime := time.Now().Add(-2 * time.Hour)
+
+				query := fmt.Sprintf(`
+					INSERT INTO %s.%s
+					(insertedAt, bucketName, startTime, req_id, operation, loggingEnabled, raftSessionID, requestURI)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				`, helper.DatabaseName, clickhouse.TableAccessLogsFederated)
+
+				for i := 0; i < 6; i++ {
+					err := helper.Client().Exec(ctx, query,
+						oldTime,
+						"test-bucket",
+						oldTime,
+						fmt.Sprintf("req-%d", i),
+						"GetObject", true, uint16(0), "/test-bucket/key")
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				batches, err := finder60s.FindBatches(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(batches).To(HaveLen(1), "Batches outside the processing delay window should be discovered")
+			})
 		})
 
 		It("should sort batches by oldest min_ts first", func() {

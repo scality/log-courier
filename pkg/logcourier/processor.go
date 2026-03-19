@@ -101,6 +101,8 @@ type Config struct {
 	MaxBucketsPerDiscovery int
 	// MaxLogsPerBucket is the maximum number of logs per bucket per batch
 	MaxLogsPerBucket int
+	// ProcessingDelaySec is the delay in seconds before records become eligible for processing
+	ProcessingDelaySec int
 
 	// MaxRetries is the maximum number of retry attempts for failed operations
 	MaxRetries int
@@ -225,8 +227,9 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 			cfg.CountThreshold,
 			cfg.TimeThresholdSec,
 			cfg.MaxBucketsPerDiscovery,
+			cfg.ProcessingDelaySec,
 		),
-		logFetcher:                    NewLogFetcher(chClient, database, cfg.MaxLogsPerBucket),
+		logFetcher:                    NewLogFetcher(chClient, database, cfg.MaxLogsPerBucket, cfg.ProcessingDelaySec),
 		logBuilder:                    NewLogObjectBuilder(),
 		offsetManager:                 offsetManager,
 		offsetBuffer:                  offsetBuffer,
@@ -676,6 +679,7 @@ func (p *Processor) uploadLogBatch(ctx context.Context, batch LogBatch) (*Proces
 
 	p.metrics.Upload.ObjectsTotal.WithLabelValues("success").Inc()
 	p.metrics.Upload.Duration.WithLabelValues("success").Observe(uploadDuration.Seconds())
+	p.metrics.General.RecordsDelivered.Add(float64(len(records)))
 
 	// Observe lag metric: time from log generation to S3 upload
 	// Note: Build() sorts records by timestamp, so records[0] has the oldest timestamp
