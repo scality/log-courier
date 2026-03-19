@@ -152,6 +152,11 @@ var ConfigSpec = util.ConfigSpec{
 		DefaultValue: 20,
 		EnvVar:       "S3_MAX_BACKOFF_DELAY_SECONDS",
 	},
+	"s3.tls-skip-verify": util.ConfigVarSpec{
+		Help:         "Skip TLS certificate verification for the S3 endpoint",
+		DefaultValue: false,
+		EnvVar:       "S3_TLS_SKIP_VERIFY",
+	},
 
 	// Metrics server
 	"metrics-server.enabled": util.ConfigVarSpec{

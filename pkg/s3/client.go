@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -37,6 +38,7 @@ type Config struct {
 	SecretAccessKey  string
 	MaxRetryAttempts int
 	MaxBackoffDelay  time.Duration
+	TLSSkipVerify    bool
 }
 
 // NewClient creates a new S3 client
@@ -48,16 +50,22 @@ func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	var optFns []func(*config.LoadOptions) error
 
 	// Create HTTP client with timeouts to prevent indefinite hangs
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: defaultDialTimeout,
+		}).DialContext,
+		ResponseHeaderTimeout: defaultResponseHeaderTimeout,
+		IdleConnTimeout:       defaultIdleConnTimeout,
+		TLSHandshakeTimeout:   defaultTLSHandshakeTimeout,
+		ExpectContinueTimeout: defaultExpectContinueTimeout,
+	}
+	if cfg.TLSSkipVerify {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec // internal S3 endpoints with self-signed certs
+		}
+	}
 	httpClient := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: defaultDialTimeout,
-			}).DialContext,
-			ResponseHeaderTimeout: defaultResponseHeaderTimeout,
-			IdleConnTimeout:       defaultIdleConnTimeout,
-			TLSHandshakeTimeout:   defaultTLSHandshakeTimeout,
-			ExpectContinueTimeout: defaultExpectContinueTimeout,
-		},
+		Transport: transport,
 	}
 
 	// Set HTTP client, region, and credentials
