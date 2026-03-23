@@ -47,6 +47,7 @@ func buildProcessorConfig(logger *slog.Logger, metrics *logcourier.Metrics) logc
 		S3Endpoint:                    logcourier.ConfigSpec.GetString("s3.endpoint"),
 		S3AccessKeyID:                 logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		S3SecretAccessKey:             logcourier.ConfigSpec.GetString("s3.secret-access-key"),
+		S3TLSSkipVerify:               logcourier.ConfigSpec.GetBool("s3.tls-skip-verify"),
 		Logger:                        logger,
 		Metrics:                       metrics,
 	}

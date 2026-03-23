@@ -131,6 +131,7 @@ type Config struct {
 	S3Endpoint         string
 	S3AccessKeyID      string
 	S3SecretAccessKey  string
+	S3TLSSkipVerify    bool
 
 	// S3Uploader is an optional S3 uploader for testing (if nil, one will be created)
 	S3Uploader s3.UploaderInterface
@@ -173,6 +174,7 @@ func NewProcessor(ctx context.Context, cfg Config) (*Processor, error) {
 			Endpoint:        cfg.S3Endpoint,
 			AccessKeyID:     cfg.S3AccessKeyID,
 			SecretAccessKey: cfg.S3SecretAccessKey,
+			TLSSkipVerify:   cfg.S3TLSSkipVerify,
 		})
 		if err != nil {
 			_ = chClient.Close()

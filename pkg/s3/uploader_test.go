@@ -160,6 +160,7 @@ var _ = Describe("S3 Uploader", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("access key ID and secret access key are required"))
 		})
+
 	})
 
 	Describe("Upload", func() {
@@ -318,5 +319,58 @@ var _ = Describe("S3 Uploader", func() {
 				err.Error() == "context deadline exceeded" ||
 				err.Error() == "context canceled").To(BeTrue())
 		})
+	})
+})
+
+var _ = Describe("TLSSkipVerify", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	It("should connect to a self-signed TLS server when enabled", func() {
+		tlsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<PutObjectOutput></PutObjectOutput>`))
+		}))
+		defer tlsServer.Close()
+
+		cfg := s3.Config{
+			Endpoint:        tlsServer.URL,
+			AccessKeyID:     "test-access-key",
+			SecretAccessKey: "test-secret-key",
+			TLSSkipVerify:   true,
+		}
+
+		tlsClient, err := s3.NewClient(ctx, cfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		tlsUploader := s3.NewUploader(tlsClient)
+		err = tlsUploader.Upload(ctx, testBucket, testKey, []byte("test"))
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should reject a self-signed TLS server when disabled", func() {
+		tlsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer tlsServer.Close()
+
+		cfg := s3.Config{
+			Endpoint:        tlsServer.URL,
+			AccessKeyID:     "test-access-key",
+			SecretAccessKey: "test-secret-key",
+			TLSSkipVerify:   false,
+		}
+
+		tlsClient, err := s3.NewClient(ctx, cfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		tlsUploader := s3.NewUploader(tlsClient)
+		err = tlsUploader.Upload(ctx, testBucket, testKey, []byte("test"))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("certificate"))
 	})
 })

@@ -192,6 +192,7 @@ func GetS3Config() s3.Config {
 		Endpoint:        logcourier.ConfigSpec.GetString("s3.endpoint"),
 		AccessKeyID:     logcourier.ConfigSpec.GetString("s3.access-key-id"),
 		SecretAccessKey: logcourier.ConfigSpec.GetString("s3.secret-access-key"),
+		TLSSkipVerify:   logcourier.ConfigSpec.GetBool("s3.tls-skip-verify"),
 	}
 }
 
