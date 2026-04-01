@@ -39,7 +39,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Start Workbench
-        uses: scality/workbench@v0.12.0
+        uses: scality/workbench@v0.13.0
 
       - name: Wait for all services
         run: |
@@ -111,6 +111,22 @@ jobs:
             exit 1
           fi
           echo "✓ S3 endpoint available"
+
+          echo "Waiting for S3 frontend (nginx) to be ready..."
+          s3_frontend_ready=false
+          for i in {1..30}; do
+            if curl -sk https://localhost:443 >/dev/null 2>&1; then
+              s3_frontend_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$s3_frontend_ready" = false ]; then
+            echo "ERROR: S3 frontend (localhost:443) did not become available in time"
+            docker logs workbench-s3-frontend || true
+            exit 1
+          fi
+          echo "✓ S3 frontend available"
 
       - name: Start log-courier
         env:
