@@ -23,4 +23,4 @@ fluentbit:
   image: fluent/fluent-bit:3.0.2
 
 nginx:
-  image: nginx:1.27-alpine
+  image: nginx:1.29-alpine
