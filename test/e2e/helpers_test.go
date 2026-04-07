@@ -64,7 +64,7 @@ type ParsedLogRecord struct {
 	HostHeader         string
 	TLSVersion         string
 	AccessPointARN     string // Field 25 - always "-" (not supported)
-	ACLRequired        string // Field 26 - always "-" (not supported)
+	ACLRequired        string
 	BytesSent          int64
 	ObjectSize         int64
 	HTTPStatus         int
@@ -74,13 +74,14 @@ type ParsedLogRecord struct {
 
 // ExpectedLog defines expected log record fields for verification
 type ExpectedLog struct {
-	Operation  string
-	Bucket     string
-	Key        string // Optional, use "" to skip check
-	ErrorCode  string // Optional, use "" to skip check
-	HTTPStatus int
-	BytesSent  int64 // Optional, use -1 to skip check
-	ObjectSize int64 // Optional, use -1 to skip check
+	Operation   string
+	Bucket      string
+	Key         string // Optional, use "" to skip check
+	ErrorCode   string // Optional, use "" to skip check
+	ACLRequired string // Optional, use "" to skip check
+	BytesSent   int64  // Optional, use -1 to skip check
+	ObjectSize  int64  // Optional, use -1 to skip check
+	HTTPStatus  int
 }
 
 // ExpectedLogBuilder allows fluent construction of ExpectedLog
@@ -103,6 +104,12 @@ func (b ExpectedLogBuilder) WithObjectSize(size int64) ExpectedLogBuilder {
 // WithErrorCode sets the expected ErrorCode value
 func (b ExpectedLogBuilder) WithErrorCode(code string) ExpectedLogBuilder {
 	b.log.ErrorCode = code
+	return b
+}
+
+// WithACLRequired sets the expected ACLRequired value
+func (b ExpectedLogBuilder) WithACLRequired(value string) ExpectedLogBuilder {
+	b.log.ACLRequired = value
 	return b
 }
 
@@ -510,8 +517,8 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 		"HostID should always be '-' (not supported)")
 	Expect(actual.AccessPointARN).To(Equal("-"),
 		"AccessPointARN should always be '-' (not supported)")
-	Expect(actual.ACLRequired).To(Equal("-"),
-		"ACLRequired should always be '-' (not supported)")
+	Expect(actual.ACLRequired).To(BeElementOf("-", "Yes"),
+		"ACLRequired should be '-' or 'Yes'")
 
 	// Verify timing fields relationship
 	Expect(actual.TotalTime).To(BeNumerically(">=", 0),
@@ -529,6 +536,10 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 	if exp.ObjectSize >= 0 {
 		Expect(actual.ObjectSize).To(Equal(exp.ObjectSize),
 			"ObjectSize mismatch")
+	}
+	if exp.ACLRequired != "" {
+		Expect(actual.ACLRequired).To(Equal(exp.ACLRequired),
+			"ACLRequired mismatch")
 	}
 }
 
