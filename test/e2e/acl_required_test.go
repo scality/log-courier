@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -66,43 +64,7 @@ var _ = Describe("aclRequired field in access logs", func() {
 		Expect(err).NotTo(HaveOccurred(), "PUT should succeed")
 
 		// Create IAM user with s3:GetObject permission
-		iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
-		if iamEndpoint == "" {
-			iamEndpoint = testIAMEndpoint
-		}
-		accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
-		if accessKey == "" {
-			accessKey = testAccessKeyID
-		}
-		secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
-		if secretKey == "" {
-			secretKey = testSecretAccessKey
-		}
-
-		iamClient := iam.NewFromConfig(aws.Config{
-			Region: testRegion,
-			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-				return aws.Credentials{
-					AccessKeyID:     accessKey,
-					SecretAccessKey: secretKey,
-				}, nil
-			}),
-		}, func(o *iam.Options) {
-			o.BaseEndpoint = aws.String(iamEndpoint)
-		})
-
 		userName := fmt.Sprintf("e2e-acl-test-%d", time.Now().UnixNano())
-		_, err = iamClient.CreateUser(ctx, &iam.CreateUserInput{
-			UserName: aws.String(userName),
-		})
-		Expect(err).NotTo(HaveOccurred(), "CreateUser should succeed")
-
-		createKeyResp, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
-			UserName: aws.String(userName),
-		})
-		Expect(err).NotTo(HaveOccurred(), "CreateAccessKey should succeed")
-
-		// Attach inline policy allowing s3:GetObject on the source bucket
 		policy := fmt.Sprintf(`{
 			"Version": "2012-10-17",
 			"Statement": [{
@@ -111,32 +73,11 @@ var _ = Describe("aclRequired field in access logs", func() {
 				"Resource": "arn:aws:s3:::%s/*"
 			}]
 		}`, testCtx.SourceBucket)
-		_, err = iamClient.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
-			UserName:       aws.String(userName),
-			PolicyName:     aws.String("allow-get-object"),
-			PolicyDocument: aws.String(policy),
-		})
-		Expect(err).NotTo(HaveOccurred(), "PutUserPolicy should succeed")
-
-		defer func() {
-			_, _ = iamClient.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
-				UserName:   aws.String(userName),
-				PolicyName: aws.String("allow-get-object"),
-			})
-			_, _ = iamClient.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
-				UserName:    aws.String(userName),
-				AccessKeyId: createKeyResp.AccessKey.AccessKeyId,
-			})
-			_, _ = iamClient.DeleteUser(ctx, &iam.DeleteUserInput{
-				UserName: aws.String(userName),
-			})
-		}()
+		iamUser := createIAMUser(ctx, userName, "allow-get-object", policy)
+		defer iamUser.Cleanup()
 
 		// GET object as the IAM user — authorized via ACL (same account)
-		iamS3Client := newS3ClientWithCredentials(
-			*createKeyResp.AccessKey.AccessKeyId,
-			*createKeyResp.AccessKey.SecretAccessKey,
-		)
+		iamS3Client := iamUser.S3Client
 
 		_, err = iamS3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
@@ -173,42 +114,7 @@ var _ = Describe("aclRequired field in access logs", func() {
 		Expect(err).NotTo(HaveOccurred(), "PUT should succeed")
 
 		// Create IAM user with GetObject + PutObject permissions for the copy
-		iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
-		if iamEndpoint == "" {
-			iamEndpoint = testIAMEndpoint
-		}
-		accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
-		if accessKey == "" {
-			accessKey = testAccessKeyID
-		}
-		secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
-		if secretKey == "" {
-			secretKey = testSecretAccessKey
-		}
-
-		iamClient := iam.NewFromConfig(aws.Config{
-			Region: testRegion,
-			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-				return aws.Credentials{
-					AccessKeyID:     accessKey,
-					SecretAccessKey: secretKey,
-				}, nil
-			}),
-		}, func(o *iam.Options) {
-			o.BaseEndpoint = aws.String(iamEndpoint)
-		})
-
 		userName := fmt.Sprintf("e2e-acl-copy-%d", time.Now().UnixNano())
-		_, err = iamClient.CreateUser(ctx, &iam.CreateUserInput{
-			UserName: aws.String(userName),
-		})
-		Expect(err).NotTo(HaveOccurred(), "CreateUser should succeed")
-
-		createKeyResp, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
-			UserName: aws.String(userName),
-		})
-		Expect(err).NotTo(HaveOccurred(), "CreateAccessKey should succeed")
-
 		policy := fmt.Sprintf(`{
 			"Version": "2012-10-17",
 			"Statement": [{
@@ -217,32 +123,11 @@ var _ = Describe("aclRequired field in access logs", func() {
 				"Resource": "arn:aws:s3:::%s/*"
 			}]
 		}`, testCtx.SourceBucket)
-		_, err = iamClient.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
-			UserName:       aws.String(userName),
-			PolicyName:     aws.String("allow-copy"),
-			PolicyDocument: aws.String(policy),
-		})
-		Expect(err).NotTo(HaveOccurred(), "PutUserPolicy should succeed")
-
-		defer func() {
-			_, _ = iamClient.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
-				UserName:   aws.String(userName),
-				PolicyName: aws.String("allow-copy"),
-			})
-			_, _ = iamClient.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
-				UserName:    aws.String(userName),
-				AccessKeyId: createKeyResp.AccessKey.AccessKeyId,
-			})
-			_, _ = iamClient.DeleteUser(ctx, &iam.DeleteUserInput{
-				UserName: aws.String(userName),
-			})
-		}()
+		iamUser := createIAMUser(ctx, userName, "allow-copy", policy)
+		defer iamUser.Cleanup()
 
 		// Copy as IAM user — both source GET and destination PUT go through ACL path
-		iamS3Client := newS3ClientWithCredentials(
-			*createKeyResp.AccessKey.AccessKeyId,
-			*createKeyResp.AccessKey.SecretAccessKey,
-		)
+		iamS3Client := iamUser.S3Client
 
 		_, err = iamS3Client.CopyObject(ctx, &s3.CopyObjectInput{
 			Bucket:     aws.String(testCtx.SourceBucket),
