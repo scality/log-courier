@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -645,6 +646,84 @@ func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client 
 		o.BaseEndpoint = aws.String(endpoint)
 		o.UsePathStyle = true
 	})
+}
+
+type IAMUserResult struct {
+	S3Client *s3.Client
+	Cleanup  func()
+}
+
+// createIAMUser creates an IAM user with an optional inline policy.
+// If policyName and policyDocument are non-empty, the policy is attached.
+func createIAMUser(ctx context.Context, userName, policyName, policyDocument string) IAMUserResult {
+	GinkgoHelper()
+
+	iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
+	if iamEndpoint == "" {
+		iamEndpoint = testIAMEndpoint
+	}
+	accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
+	if accessKey == "" {
+		accessKey = testAccessKeyID
+	}
+	secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
+	if secretKey == "" {
+		secretKey = testSecretAccessKey
+	}
+
+	iamClient := iam.NewFromConfig(aws.Config{
+		Region: testRegion,
+		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     accessKey,
+				SecretAccessKey: secretKey,
+			}, nil
+		}),
+	}, func(o *iam.Options) {
+		o.BaseEndpoint = aws.String(iamEndpoint)
+	})
+
+	_, err := iamClient.CreateUser(ctx, &iam.CreateUserInput{
+		UserName: aws.String(userName),
+	})
+	Expect(err).NotTo(HaveOccurred(), "CreateUser should succeed")
+
+	createKeyResp, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
+		UserName: aws.String(userName),
+	})
+	Expect(err).NotTo(HaveOccurred(), "CreateAccessKey should succeed")
+
+	if policyName != "" && policyDocument != "" {
+		_, err = iamClient.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
+			UserName:       aws.String(userName),
+			PolicyName:     aws.String(policyName),
+			PolicyDocument: aws.String(policyDocument),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PutUserPolicy should succeed")
+	}
+
+	cleanup := func() {
+		if policyName != "" {
+			_, _ = iamClient.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
+				UserName:   aws.String(userName),
+				PolicyName: aws.String(policyName),
+			})
+		}
+		_, _ = iamClient.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+			UserName:    aws.String(userName),
+			AccessKeyId: createKeyResp.AccessKey.AccessKeyId,
+		})
+		_, _ = iamClient.DeleteUser(ctx, &iam.DeleteUserInput{
+			UserName: aws.String(userName),
+		})
+	}
+
+	s3Client := newS3ClientWithCredentials(
+		*createKeyResp.AccessKey.AccessKeyId,
+		*createKeyResp.AccessKey.SecretAccessKey,
+	)
+
+	return IAMUserResult{S3Client: s3Client, Cleanup: cleanup}
 }
 
 // setupE2ETest creates and initializes an E2E test context
