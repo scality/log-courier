@@ -84,11 +84,12 @@ var _ = Describe("TLS fields in access logs", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT through S3 frontend should succeed")
 
-		_, err = tlsClient.GetObject(ctx, &s3.GetObjectInput{
+		getResp, err := tlsClient.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET through S3 frontend should succeed")
+		_ = getResp.Body.Close()
 
 		logs := testCtx.VerifyLogs(
 			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).WithObjectSize(int64(len(testContent))),

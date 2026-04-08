@@ -34,11 +34,12 @@ var _ = Describe("aclRequired field in access logs", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT should succeed")
 
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		resp, err := testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET should succeed")
+		_ = resp.Body.Close()
 
 		testCtx.VerifyLogs(
 			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).
@@ -79,11 +80,12 @@ var _ = Describe("aclRequired field in access logs", func() {
 		// GET object as the IAM user — authorized via ACL (same account)
 		iamS3Client := iamUser.S3Client
 
-		_, err = iamS3Client.GetObject(ctx, &s3.GetObjectInput{
+		resp, err := iamS3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET as IAM user should succeed")
+		_ = resp.Body.Close()
 
 		logs := testCtx.VerifyLogs(
 			testCtx.ObjectOp("REST.PUT.OBJECT", testKey, 200).
