@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -64,7 +65,7 @@ type ParsedLogRecord struct {
 	HostHeader         string
 	TLSVersion         string
 	AccessPointARN     string // Field 25 - always "-" (not supported)
-	ACLRequired        string // Field 26 - always "-" (not supported)
+	ACLRequired        string
 	BytesSent          int64
 	ObjectSize         int64
 	HTTPStatus         int
@@ -74,13 +75,14 @@ type ParsedLogRecord struct {
 
 // ExpectedLog defines expected log record fields for verification
 type ExpectedLog struct {
-	Operation  string
-	Bucket     string
-	Key        string // Optional, use "" to skip check
-	ErrorCode  string // Optional, use "" to skip check
-	HTTPStatus int
-	BytesSent  int64 // Optional, use -1 to skip check
-	ObjectSize int64 // Optional, use -1 to skip check
+	Operation   string
+	Bucket      string
+	Key         string // Optional, use "" to skip check
+	ErrorCode   string // Optional, use "" to skip check
+	ACLRequired string // Optional, use "" to skip check
+	BytesSent   int64  // Optional, use -1 to skip check
+	ObjectSize  int64  // Optional, use -1 to skip check
+	HTTPStatus  int
 }
 
 // ExpectedLogBuilder allows fluent construction of ExpectedLog
@@ -103,6 +105,12 @@ func (b ExpectedLogBuilder) WithObjectSize(size int64) ExpectedLogBuilder {
 // WithErrorCode sets the expected ErrorCode value
 func (b ExpectedLogBuilder) WithErrorCode(code string) ExpectedLogBuilder {
 	b.log.ErrorCode = code
+	return b
+}
+
+// WithACLRequired sets the expected ACLRequired value
+func (b ExpectedLogBuilder) WithACLRequired(value string) ExpectedLogBuilder {
+	b.log.ACLRequired = value
 	return b
 }
 
@@ -510,8 +518,8 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 		"HostID should always be '-' (not supported)")
 	Expect(actual.AccessPointARN).To(Equal("-"),
 		"AccessPointARN should always be '-' (not supported)")
-	Expect(actual.ACLRequired).To(Equal("-"),
-		"ACLRequired should always be '-' (not supported)")
+	Expect(actual.ACLRequired).To(BeElementOf("-", "Yes"),
+		"ACLRequired should be '-' or 'Yes'")
 
 	// Verify timing fields relationship
 	Expect(actual.TotalTime).To(BeNumerically(">=", 0),
@@ -529,6 +537,10 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 	if exp.ObjectSize >= 0 {
 		Expect(actual.ObjectSize).To(Equal(exp.ObjectSize),
 			"ObjectSize mismatch")
+	}
+	if exp.ACLRequired != "" {
+		Expect(actual.ACLRequired).To(Equal(exp.ACLRequired),
+			"ACLRequired mismatch")
 	}
 }
 
@@ -645,6 +657,84 @@ func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client 
 		o.BaseEndpoint = aws.String(endpoint)
 		o.UsePathStyle = true
 	})
+}
+
+type IAMUserResult struct {
+	S3Client *s3.Client
+	Cleanup  func()
+}
+
+// createIAMUser creates an IAM user with an optional inline policy.
+// If policyName and policyDocument are non-empty, the policy is attached.
+func createIAMUser(ctx context.Context, userName, policyName, policyDocument string) IAMUserResult {
+	GinkgoHelper()
+
+	iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
+	if iamEndpoint == "" {
+		iamEndpoint = testIAMEndpoint
+	}
+	accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
+	if accessKey == "" {
+		accessKey = testAccessKeyID
+	}
+	secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
+	if secretKey == "" {
+		secretKey = testSecretAccessKey
+	}
+
+	iamClient := iam.NewFromConfig(aws.Config{
+		Region: testRegion,
+		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     accessKey,
+				SecretAccessKey: secretKey,
+			}, nil
+		}),
+	}, func(o *iam.Options) {
+		o.BaseEndpoint = aws.String(iamEndpoint)
+	})
+
+	_, err := iamClient.CreateUser(ctx, &iam.CreateUserInput{
+		UserName: aws.String(userName),
+	})
+	Expect(err).NotTo(HaveOccurred(), "CreateUser should succeed")
+
+	createKeyResp, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
+		UserName: aws.String(userName),
+	})
+	Expect(err).NotTo(HaveOccurred(), "CreateAccessKey should succeed")
+
+	if policyName != "" && policyDocument != "" {
+		_, err = iamClient.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
+			UserName:       aws.String(userName),
+			PolicyName:     aws.String(policyName),
+			PolicyDocument: aws.String(policyDocument),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PutUserPolicy should succeed")
+	}
+
+	cleanup := func() {
+		if policyName != "" {
+			_, _ = iamClient.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
+				UserName:   aws.String(userName),
+				PolicyName: aws.String(policyName),
+			})
+		}
+		_, _ = iamClient.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+			UserName:    aws.String(userName),
+			AccessKeyId: createKeyResp.AccessKey.AccessKeyId,
+		})
+		_, _ = iamClient.DeleteUser(ctx, &iam.DeleteUserInput{
+			UserName: aws.String(userName),
+		})
+	}
+
+	s3Client := newS3ClientWithCredentials(
+		*createKeyResp.AccessKey.AccessKeyId,
+		*createKeyResp.AccessKey.SecretAccessKey,
+	)
+
+	return IAMUserResult{S3Client: s3Client, Cleanup: cleanup}
 }
 
 // setupE2ETest creates and initializes an E2E test context

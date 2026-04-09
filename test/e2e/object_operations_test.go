@@ -34,11 +34,12 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT operation should succeed")
 
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		getResp, err := testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET operation should succeed")
+		_ = getResp.Body.Close()
 
 		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
@@ -239,30 +240,33 @@ var _ = Describe("Object Operations", func() {
 
 		// Range GET - first 10 bytes
 		rangeHeader := "bytes=0-9"
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		rangeResp, err := testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range GET should succeed")
+		_ = rangeResp.Body.Close()
 
 		// Range GET - last 5 bytes
 		rangeHeader2 := "bytes=-5"
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		rangeResp, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader2),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range GET (suffix) should succeed")
+		_ = rangeResp.Body.Close()
 
 		// Range GET - middle portion (bytes 5-14)
 		rangeHeader3 := "bytes=5-14"
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		rangeResp, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 			Range:  aws.String(rangeHeader3),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Range GET (middle) should succeed")
+		_ = rangeResp.Body.Close()
 
 		// invalid range (beyond object size)
 		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
@@ -309,11 +313,12 @@ var _ = Describe("Object Operations", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT empty object should succeed")
 
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		getResp, err := testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
 			Key:    aws.String(testKey),
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET empty object should succeed")
+		_ = getResp.Body.Close()
 
 		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
@@ -437,12 +442,13 @@ var _ = Describe("Object Operations", func() {
 		deleteMarkerVersionID := deleteResp.VersionId
 
 		// GET object WITH ?versionId= (should log the versionId)
-		_, err = testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		getResp, err := testCtx.S3Client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket:    aws.String(testCtx.SourceBucket),
 			Key:       aws.String(testKey),
 			VersionId: versionID,
 		})
 		Expect(err).NotTo(HaveOccurred(), "GET object version should succeed")
+		_ = getResp.Body.Close()
 
 		// HEAD object WITH ?versionId= (should log the versionId)
 		_, err = testCtx.S3Client.HeadObject(ctx, &s3.HeadObjectInput{
