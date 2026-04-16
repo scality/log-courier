@@ -417,6 +417,19 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 		allRecords = append(allRecords, records...)
 	}
 
+	// With lifecycle enabled, periodic GetBucketLifecycleConfiguration
+	// requests produce REST.GET.LIFECYCLE entries in any bucket with
+	// logging enabled. Filter them out to avoid breaking test assertions.
+	filtered := allRecords[:0]
+	for _, r := range allRecords {
+		if r.Operation == "REST.GET.LIFECYCLE" &&
+			strings.Contains(r.Requester, "assumed-role") {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	allRecords = filtered
+
 	// Sort by timestamp to merge records across objects chronologically.
 	// This preserves within-object ordering.
 	sort.SliceStable(allRecords, func(i, j int) bool {
