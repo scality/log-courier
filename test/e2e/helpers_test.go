@@ -66,6 +66,7 @@ type ParsedLogRecord struct {
 	TLSVersion         string
 	AccessPointARN     string // Field 25 - always "-" (not supported)
 	ACLRequired        string // Field 26 - always "-" (not supported)
+	TurnAroundTimeRaw  string
 	BytesSent          int64
 	ObjectSize         int64
 	HTTPStatus         int
@@ -329,6 +330,7 @@ func parseLogLine(line string) (*ParsedLogRecord, error) {
 		ObjectSize:         objectSize,
 		TotalTime:          totalTime,
 		TurnAroundTime:     turnAroundTime,
+		TurnAroundTimeRaw:  fields[14],
 		Referer:            strings.Trim(fields[15], "\""),
 		UserAgent:          strings.Trim(fields[16], "\""),
 		VersionID:          fields[17],
@@ -504,6 +506,8 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 			"HostHeader should be present")
 		Expect(actual.SignatureVersion).NotTo(Equal("-"),
 			"SignatureVersion should be present")
+		Expect(actual.TurnAroundTimeRaw).NotTo(Equal("-"),
+			"TurnAroundTime should be reported for %s (got '-')", actual.Operation)
 	}
 
 	// Verify unsupported fields are always "-"
