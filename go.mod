@@ -1,6 +1,6 @@
 module github.com/scality/log-courier
 
-go 1.24.2
+go 1.25.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
-	golang.org/x/sys v0.40.0
+	golang.org/x/sys v0.43.0
 )
 
 require (
