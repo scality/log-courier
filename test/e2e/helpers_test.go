@@ -632,7 +632,8 @@ func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte
 
 // newS3ClientWithCredentials creates an S3 client with the given credentials,
 // using the same endpoint configuration as the shared test client.
-func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client {
+// sessionToken may be empty for long-lived credentials.
+func newS3ClientWithCredentials(accessKeyID, secretAccessKey, sessionToken string) *s3.Client {
 	endpoint := os.Getenv("E2E_S3_ENDPOINT")
 	if endpoint == "" {
 		endpoint = testS3Endpoint
@@ -644,6 +645,7 @@ func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client 
 			return aws.Credentials{
 				AccessKeyID:     accessKeyID,
 				SecretAccessKey: secretAccessKey,
+				SessionToken:    sessionToken,
 			}, nil
 		}),
 	}, func(o *s3.Options) {
@@ -653,8 +655,10 @@ func newS3ClientWithCredentials(accessKeyID, secretAccessKey string) *s3.Client 
 }
 
 type IAMUserResult struct {
-	S3Client *s3.Client
-	Cleanup  func()
+	S3Client        *s3.Client
+	Cleanup         func()
+	AccessKeyID     string
+	SecretAccessKey string
 }
 
 // createIAMUser creates an IAM user with an optional inline policy.
@@ -722,12 +726,16 @@ func createIAMUser(ctx context.Context, userName, policyName, policyDocument str
 		})
 	}
 
-	s3Client := newS3ClientWithCredentials(
-		*createKeyResp.AccessKey.AccessKeyId,
-		*createKeyResp.AccessKey.SecretAccessKey,
-	)
+	accessKeyID := *createKeyResp.AccessKey.AccessKeyId
+	secretAccessKey := *createKeyResp.AccessKey.SecretAccessKey
+	s3Client := newS3ClientWithCredentials(accessKeyID, secretAccessKey, "")
 
-	return IAMUserResult{S3Client: s3Client, Cleanup: cleanup}
+	return IAMUserResult{
+		S3Client:        s3Client,
+		AccessKeyID:     accessKeyID,
+		SecretAccessKey: secretAccessKey,
+		Cleanup:         cleanup,
+	}
 }
 
 // setupE2ETest creates and initializes an E2E test context
