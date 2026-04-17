@@ -126,7 +126,7 @@ var _ = Describe("Error Cases", func() {
 		if accessKey == "" {
 			accessKey = testAccessKeyID
 		}
-		wrongSecretClient := newS3ClientWithCredentials(accessKey, "wrong-secret-key-for-testing")
+		wrongSecretClient := newS3ClientWithCredentials(accessKey, "wrong-secret-key-for-testing", "")
 
 		_, err = wrongSecretClient.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
@@ -151,7 +151,7 @@ var _ = Describe("Error Cases", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT object should succeed")
 
-		invalidKeyClient := newS3ClientWithCredentials("INVALIDACCESSKEY12345", "invalid-secret-key")
+		invalidKeyClient := newS3ClientWithCredentials("INVALIDACCESSKEY12345", "invalid-secret-key", "")
 
 		_, err = invalidKeyClient.GetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(testCtx.SourceBucket),
