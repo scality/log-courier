@@ -630,14 +630,20 @@ func putObjects(ctx *E2ETestContext, keyFormat string, count int, content []byte
 	}
 }
 
+// envOrDefault returns the value of the given environment variable, or the
+// fallback if the variable is unset or empty.
+func envOrDefault(envVar, fallback string) string {
+	if v := os.Getenv(envVar); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // newS3ClientWithCredentials creates an S3 client with the given credentials,
 // using the same endpoint configuration as the shared test client.
 // sessionToken may be empty for long-lived credentials.
 func newS3ClientWithCredentials(accessKeyID, secretAccessKey, sessionToken string) *s3.Client {
-	endpoint := os.Getenv("E2E_S3_ENDPOINT")
-	if endpoint == "" {
-		endpoint = testS3Endpoint
-	}
+	endpoint := envOrDefault("E2E_S3_ENDPOINT", testS3Endpoint)
 
 	return s3.NewFromConfig(aws.Config{
 		Region: testRegion,
@@ -666,18 +672,9 @@ type IAMUserResult struct {
 func createIAMUser(ctx context.Context, userName, policyName, policyDocument string) IAMUserResult {
 	GinkgoHelper()
 
-	iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
-	if iamEndpoint == "" {
-		iamEndpoint = testIAMEndpoint
-	}
-	accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
-	if accessKey == "" {
-		accessKey = testAccessKeyID
-	}
-	secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
-	if secretKey == "" {
-		secretKey = testSecretAccessKey
-	}
+	iamEndpoint := envOrDefault("E2E_IAM_ENDPOINT", testIAMEndpoint)
+	accessKey := envOrDefault("E2E_S3_ACCESS_KEY_ID", testAccessKeyID)
+	secretKey := envOrDefault("E2E_S3_SECRET_ACCESS_KEY", testSecretAccessKey)
 
 	iamClient := iam.NewFromConfig(aws.Config{
 		Region: testRegion,
