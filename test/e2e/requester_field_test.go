@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -122,16 +121,15 @@ var _ = Describe("Requester field in access logs", func() {
 		iamUser := createIAMUser(ctx, userName, "allow-assume-role", assumeRolePolicy)
 		defer iamUser.Cleanup()
 
-		iamEndpoint := os.Getenv("E2E_IAM_ENDPOINT")
-		if iamEndpoint == "" {
-			iamEndpoint = testIAMEndpoint
-		}
+		iamEndpoint := envOrDefault("E2E_IAM_ENDPOINT", testIAMEndpoint)
+		adminAccessKey := envOrDefault("E2E_S3_ACCESS_KEY_ID", testAccessKeyID)
+		adminSecretKey := envOrDefault("E2E_S3_SECRET_ACCESS_KEY", testSecretAccessKey)
 		adminIAMClient := iam.NewFromConfig(aws.Config{
 			Region: testRegion,
 			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 				return aws.Credentials{
-					AccessKeyID:     testAccessKeyID,
-					SecretAccessKey: testSecretAccessKey,
+					AccessKeyID:     adminAccessKey,
+					SecretAccessKey: adminSecretKey,
 				}, nil
 			}),
 		}, func(o *iam.Options) {
@@ -186,10 +184,7 @@ var _ = Describe("Requester field in access logs", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "AttachRolePolicy should succeed")
 
-		stsEndpoint := os.Getenv("E2E_STS_ENDPOINT")
-		if stsEndpoint == "" {
-			stsEndpoint = testSTSEndpoint
-		}
+		stsEndpoint := envOrDefault("E2E_STS_ENDPOINT", testSTSEndpoint)
 		stsClient := sts.NewFromConfig(aws.Config{
 			Region: testRegion,
 			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
