@@ -17,6 +17,7 @@ const (
 	testRegion          = "us-east-1"
 	testS3Endpoint      = "http://127.0.0.1:8000"
 	testIAMEndpoint     = "http://127.0.0.1:8600"
+	testSTSEndpoint     = "http://127.0.0.1:8800"
 	testAccessKeyID     = "LSOVSCTL01CME9OETI5A"
 	testSecretAccessKey = "6xHQtgUX46WwfsxyhhdatdWqlZj0omlgVSLx4qNV" //nolint:gosec // Test credentials
 )
