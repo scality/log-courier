@@ -36,6 +36,11 @@ var _ = Describe("Requester field in access logs", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT should succeed")
 
+		// Ensure the PUT and GET land in different seconds so VerifyLogs
+		// sees them in the expected order (log timestamps have second
+		// granularity).
+		time.Sleep(1 * time.Second)
+
 		userName := fmt.Sprintf("e2e-requester-%d", time.Now().UnixNano())
 		policy := fmt.Sprintf(`{
 			"Version": "2012-10-17",
