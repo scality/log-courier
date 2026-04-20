@@ -75,6 +75,35 @@ jobs:
             sleep 2
           done
 
+      - name: Wait for S3 endpoint
+        run: |
+          set -e
+
+          echo "Waiting for workbench-s3 container to be running..."
+          if ! timeout 90 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-s3 2>/dev/null)" = "running" ]; do sleep 1; done'; then
+            echo "ERROR: workbench-s3 container did not start in time"
+            docker logs workbench-s3 || true
+            exit 1
+          fi
+          echo "✓ workbench-s3 container running"
+
+          echo "Waiting for S3 endpoint to be available..."
+          s3_ready=false
+          for i in {1..60}; do
+            if curl -s http://localhost:8000 >/dev/null 2>&1; then
+              s3_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$s3_ready" = false ]; then
+            echo "ERROR: S3 endpoint (localhost:8000) did not become available in time"
+            docker inspect workbench-s3 | jq '.[0].State' || true
+            docker logs workbench-s3 || true
+            exit 1
+          fi
+          echo "✓ S3 endpoint available"
+
       - name: Run unit tests
         run: make test-coverage
 
