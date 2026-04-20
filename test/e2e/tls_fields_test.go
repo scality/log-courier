@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -57,20 +56,9 @@ var _ = Describe("TLS fields in access logs", func() {
 	})
 
 	It("logs CipherSuite and TLSVersion for requests through the S3 frontend", func(ctx context.Context) {
-		endpoint := os.Getenv("E2E_S3_FRONTEND_ENDPOINT")
-		if endpoint == "" {
-			endpoint = testS3FrontendEndpoint
-		}
-
-		accessKey := os.Getenv("E2E_S3_ACCESS_KEY_ID")
-		if accessKey == "" {
-			accessKey = testAccessKeyID
-		}
-
-		secretKey := os.Getenv("E2E_S3_SECRET_ACCESS_KEY")
-		if secretKey == "" {
-			secretKey = testSecretAccessKey
-		}
+		endpoint := envOrDefault("E2E_S3_FRONTEND_ENDPOINT", testS3FrontendEndpoint)
+		accessKey := envOrDefault("E2E_S3_ACCESS_KEY_ID", testAccessKeyID)
+		secretKey := envOrDefault("E2E_S3_SECRET_ACCESS_KEY", testSecretAccessKey)
 
 		tlsClient := newTLSS3Client(accessKey, secretKey, endpoint)
 
