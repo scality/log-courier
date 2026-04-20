@@ -68,7 +68,8 @@ var _ = Describe("Requester field in access logs", func() {
 				WithObjectSize(int64(len(testContent))),
 		)
 
-		expectedARN := fmt.Sprintf("arn:aws:iam::000000000000:user/%s", userName)
+		accountID := envOrDefault("E2E_ACCOUNT_ID", testAccountID)
+		expectedARN := fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, userName)
 		Expect(logs[1].Requester).To(Equal(expectedARN),
 			"GET by IAM user should log the IAM ARN as the Requester")
 	})
@@ -141,14 +142,15 @@ var _ = Describe("Requester field in access logs", func() {
 			o.BaseEndpoint = aws.String(iamEndpoint)
 		})
 
+		accountID := envOrDefault("E2E_ACCOUNT_ID", testAccountID)
 		trustPolicy := fmt.Sprintf(`{
 			"Version": "2012-10-17",
 			"Statement": [{
 				"Effect": "Allow",
-				"Principal": {"AWS": "arn:aws:iam::000000000000:user/%s"},
+				"Principal": {"AWS": "arn:aws:iam::%s:user/%s"},
 				"Action": "sts:AssumeRole"
 			}]
-		}`, userName)
+		}`, accountID, userName)
 		_, err = adminIAMClient.CreateRole(ctx, &iam.CreateRoleInput{
 			RoleName:                 aws.String(roleName),
 			AssumeRolePolicyDocument: aws.String(trustPolicy),
@@ -202,7 +204,7 @@ var _ = Describe("Requester field in access logs", func() {
 			o.BaseEndpoint = aws.String(stsEndpoint)
 		})
 
-		roleArn := fmt.Sprintf("arn:aws:iam::000000000000:role/%s", roleName)
+		roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
 		var assumeResp *sts.AssumeRoleOutput
 		Eventually(func() error {
 			var assumeErr error
@@ -235,7 +237,7 @@ var _ = Describe("Requester field in access logs", func() {
 				WithObjectSize(int64(len(testContent))),
 		)
 
-		expectedARN := fmt.Sprintf("arn:aws:sts::000000000000:assumed-role/%s/%s", roleName, sessionName)
+		expectedARN := fmt.Sprintf("arn:aws:sts::%s:assumed-role/%s/%s", accountID, roleName, sessionName)
 		Expect(logs[1].Requester).To(Equal(expectedARN),
 			"GET as assumed role should log the STS assumed-role ARN as the Requester")
 	})
