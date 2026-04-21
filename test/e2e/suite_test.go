@@ -19,6 +19,7 @@ const (
 	testSTSEndpoint     = "http://127.0.0.1:8800"
 	testAccessKeyID     = "LSOVSCTL01CME9OETI5A"
 	testSecretAccessKey = "6xHQtgUX46WwfsxyhhdatdWqlZj0omlgVSLx4qNV" //nolint:gosec // Test credentials
+	testAccountID       = "000000000000"
 )
 
 var (
