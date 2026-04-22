@@ -169,12 +169,12 @@ func (b *LogObjectBuilder) writeStringPtr(w *bytes.Buffer, s *string) {
 }
 
 // writeQuotedStringPtr writes a nullable quoted string field to a bytes.Buffer
-// Both NULL and empty string -> "-"
+// Both NULL and empty string -> "-" (quoted, matches AWS format)
 // Non-empty -> quoted value
 // Fields that need quoting: Request-URI, Referer, User-Agent
 func (b *LogObjectBuilder) writeQuotedStringPtr(w *bytes.Buffer, s *string) {
 	if s == nil || *s == "" {
-		w.WriteByte('-')
+		w.WriteString(`"-"`)
 		return
 	}
 	w.WriteString(strconv.Quote(*s))
