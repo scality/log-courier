@@ -16,12 +16,8 @@ func ValidateConfig() error {
 	}
 
 	countThreshold := ConfigSpec.GetInt("consumer.count-threshold")
-	if countThreshold <= 0 {
-		return fmt.Errorf("consumer.count-threshold must be positive, got %d", countThreshold)
-	}
-
-	if countThreshold > MaxCountThreshold {
-		return fmt.Errorf("consumer.count-threshold (%d) exceeds maximum allowed (%d)", countThreshold, MaxCountThreshold)
+	if countThreshold <= 0 || countThreshold > MaxCountThreshold {
+		return fmt.Errorf("consumer.count-threshold must be between 1 and %d, got %d", MaxCountThreshold, countThreshold)
 	}
 
 	timeThreshold := ConfigSpec.GetInt("consumer.time-threshold-seconds")
@@ -87,6 +83,14 @@ func ValidateConfig() error {
 	numWorkers := ConfigSpec.GetInt("consumer.num-workers")
 	if numWorkers <= 0 {
 		return fmt.Errorf("consumer.num-workers must be positive, got %d", numWorkers)
+	}
+
+	if err := ValidateMaxBuckets(ConfigSpec.GetInt("consumer.max-buckets-per-discovery")); err != nil {
+		return err
+	}
+
+	if err := ValidateMaxLogsPerBucket(ConfigSpec.GetInt("consumer.max-logs-per-bucket")); err != nil {
+		return err
 	}
 
 	return nil
