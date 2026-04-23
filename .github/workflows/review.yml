@@ -18,7 +18,7 @@ jobs:
 
   review-dependency-bump:
     if: github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]'
-    uses: scality/workflows/.github/workflows/claude-code-dependency-review.yml@v2.7.0
+    uses: scality/workflows/.github/workflows/claude-code-dependency-review.yml@v2.8.3
     with:
       ACTIONS_APP_ID: ${{ vars.ACTIONS_APP_ID }}
     secrets:
