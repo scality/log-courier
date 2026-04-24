@@ -31,7 +31,7 @@ var _ = Describe("Lifecycle expiration in access logs", func() {
 		cleanupE2ETest(testCtx)
 	})
 
-	It("logs lifecycle expiration events as S3.EXPIRE.OBJECT", func(ctx context.Context) {
+	It("should log lifecycle expiration events as S3.EXPIRE.OBJECT", func(ctx context.Context) {
 		testKey := "lifecycle-expire-test.txt"
 		testContent := []byte("data to be expired by lifecycle")
 
