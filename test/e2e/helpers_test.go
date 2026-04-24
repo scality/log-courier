@@ -417,6 +417,19 @@ func fetchLogsFromPrefix(client *s3.Client, bucket, prefix string, since time.Ti
 		allRecords = append(allRecords, records...)
 	}
 
+	// With lifecycle enabled, periodic GetBucketLifecycleConfiguration
+	// requests produce REST.GET.LIFECYCLE entries in any bucket with
+	// logging enabled. Filter them out to avoid breaking test assertions.
+	filtered := allRecords[:0]
+	for _, r := range allRecords {
+		if r.Operation == "REST.GET.LIFECYCLE" &&
+			strings.Contains(r.Requester, "assumed-role") {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	allRecords = filtered
+
 	// Sort by timestamp to merge records across objects chronologically.
 	// This preserves within-object ordering.
 	sort.SliceStable(allRecords, func(i, j int) bool {
@@ -489,20 +502,28 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 			"Error code mismatch")
 	}
 
-	// Verify common metadata fields have actual values (not "-")
-	// Some operations have "-" for most fields:
-	// - Copy source operations (REST.COPY.OBJECT_GET, REST.COPY.PART_GET)
-	// - Batch delete operations (BATCH.DELETE.OBJECT)
-	skipMetadataCheck := actual.Operation == "REST.COPY.OBJECT_GET" ||
+	// Sub-operations (copy source, batch delete) are log entries generated
+	// alongside a parent request — they have no identity or request-scoped fields.
+	subOp := actual.Operation == "REST.COPY.OBJECT_GET" ||
 		actual.Operation == "REST.COPY.PART_GET" ||
 		actual.Operation == "BATCH.DELETE.OBJECT"
-	if !skipMetadataCheck {
+
+	// Identity fields (BucketOwner, Requester) — present for all operations
+	// except sub-operations derived from a parent request.
+	if !subOp {
 		Expect(actual.BucketOwner).NotTo(Equal("-"),
 			"BucketOwner should be present")
-		Expect(actual.RemoteIP).NotTo(Equal("-"),
-			"RemoteIP should be present")
 		Expect(actual.Requester).NotTo(Equal("-"),
 			"Requester should be present")
+	}
+
+	// Request-scoped fields — populated only when a client-issued request
+	// reaches the handler. Absent for sub-operations and for internal
+	// operations like lifecycle expiration (S3.EXPIRE.OBJECT).
+	noRequestFields := subOp || actual.Operation == opExpireObject
+	if !noRequestFields {
+		Expect(actual.RemoteIP).NotTo(Equal("-"),
+			"RemoteIP should be present")
 		Expect(actual.RequestURI).NotTo(Equal("-"),
 			"RequestURI should be present")
 		Expect(actual.UserAgent).NotTo(Equal("-"),
@@ -515,6 +536,24 @@ func verifyLogRecord(actual *ParsedLogRecord, expected ExpectedLogBuilder) {
 			"SignatureVersion should be present")
 		Expect(actual.TurnAroundTimeRaw).NotTo(Equal("-"),
 			"TurnAroundTime should be reported for %s (got '-')", actual.Operation)
+	} else if !subOp {
+		// Internal operations (lifecycle): positively assert request-scoped fields are absent
+		Expect(actual.RemoteIP).To(Equal("-"),
+			"RemoteIP should be absent")
+		Expect(actual.RequestURI).To(Equal("-"),
+			"RequestURI should be absent")
+		Expect(actual.UserAgent).To(Equal("-"),
+			"UserAgent should be absent")
+		Expect(actual.AuthenticationType).To(Equal("-"),
+			"AuthenticationType should be absent")
+		Expect(actual.HostHeader).To(Equal("-"),
+			"HostHeader should be absent")
+		Expect(actual.SignatureVersion).To(Equal("-"),
+			"SignatureVersion should be absent")
+		Expect(actual.CipherSuite).To(Equal("-"),
+			"CipherSuite should be absent")
+		Expect(actual.TLSVersion).To(Equal("-"),
+			"TLSVersion should be absent")
 	}
 
 	// Verify unsupported fields are always "-"

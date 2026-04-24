@@ -39,7 +39,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Start Workbench
-        uses: scality/workbench@v0.13.0
+        uses: scality/workbench@v0.14.0
 
       - name: Wait for all services
         run: |
@@ -127,6 +127,28 @@ jobs:
             exit 1
           fi
           echo "✓ S3 frontend available"
+
+          echo "Waiting for Vault setup to complete..."
+          if ! timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-setup-vault 2>/dev/null)" = "exited" ]; do sleep 1; done'; then
+            echo "ERROR: Vault setup container did not complete in time"
+            docker logs workbench-setup-vault || true
+            exit 1
+          fi
+          exit_code=$(docker inspect -f '{{.State.ExitCode}}' workbench-setup-vault)
+          if [ "$exit_code" != "0" ]; then
+            echo "ERROR: Vault setup container exited with code $exit_code"
+            docker logs workbench-setup-vault || true
+            exit 1
+          fi
+          echo "✓ Vault setup completed"
+
+          echo "Waiting for backbeat to be running..."
+          if ! timeout 90 bash -c 'until [ "$(docker inspect -f {{.State.Status}} workbench-backbeat 2>/dev/null)" = "running" ]; do sleep 1; done'; then
+            echo "ERROR: backbeat container did not start in time"
+            docker logs workbench-backbeat || true
+            exit 1
+          fi
+          echo "✓ Backbeat running"
 
       - name: Start log-courier
         env:

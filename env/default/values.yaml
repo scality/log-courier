@@ -6,12 +6,17 @@ features:
     enabled: true
   s3_frontend:
     enabled: true
+  lifecycle:
+    enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:9.2.36
+  image: ghcr.io/scality/cloudserver:9.2.37
 
 vault:
   image: ghcr.io/scality/vault:7.86.0
+
+backbeat:
+  image: ghcr.io/scality/backbeat:9.0.25-federation
 
 s3_metadata:
   image: ghcr.io/scality/metadata:9.9.0-standalone
@@ -24,3 +29,6 @@ fluentbit:
 
 nginx:
   image: nginx:1.27-alpine
+
+redis:
+  image: redis:8.4.0-alpine
