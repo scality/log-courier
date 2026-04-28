@@ -53,7 +53,7 @@ jobs:
 
       - name: Start Workbench
         id: start-workbench
-        uses: scality/workbench@v0.13.0
+        uses: scality/workbench@15800dfdfd7ffde8c0a2a2e033a8e03aefb9dc43
 
       - name: Wait for ClickHouse setup and fix permissions
         run: |
