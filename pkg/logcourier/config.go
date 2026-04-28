@@ -5,6 +5,10 @@ import "fmt"
 const (
 	// MaxCountThreshold caps consumer.count-threshold (the discovery trigger).
 	MaxCountThreshold = 100_000
+
+	// MaxInFlightRecords caps consumer.num-workers * consumer.max-logs-per-bucket,
+	// the peak number of log records held in memory across all parallel workers.
+	MaxInFlightRecords = 5_000_000
 )
 
 // ValidateConfig performs additional validation beyond required field checks
@@ -80,6 +84,12 @@ func ValidateConfig() error {
 			initialBackoff, maxBackoff)
 	}
 
+	return validateConsumerBatchConfig()
+}
+
+// validateConsumerBatchConfig validates the consumer settings that together
+// determine peak in-flight record count (parallelism x per-bucket batch size).
+func validateConsumerBatchConfig() error {
 	numWorkers := ConfigSpec.GetInt("consumer.num-workers")
 	if numWorkers <= 0 {
 		return fmt.Errorf("consumer.num-workers must be positive, got %d", numWorkers)
@@ -89,11 +99,12 @@ func ValidateConfig() error {
 		return err
 	}
 
-	if err := ValidateMaxLogsPerBucket(ConfigSpec.GetInt("consumer.max-logs-per-bucket")); err != nil {
+	maxLogsPerBucket := ConfigSpec.GetInt("consumer.max-logs-per-bucket")
+	if err := ValidateMaxLogsPerBucket(maxLogsPerBucket); err != nil {
 		return err
 	}
 
-	return nil
+	return ValidateMaxInFlightRecords(numWorkers, maxLogsPerBucket)
 }
 
 // ValidateMaxBuckets validates consumer.max-buckets-per-discovery config value
@@ -108,6 +119,20 @@ func ValidateMaxBuckets(value int) error {
 func ValidateMaxLogsPerBucket(value int) error {
 	if value <= 0 {
 		return fmt.Errorf("consumer.max-logs-per-bucket must be > 0, got %d", value)
+	}
+	return nil
+}
+
+// ValidateMaxInFlightRecords rejects configurations where the product of
+// consumer.num-workers and consumer.max-logs-per-bucket exceeds
+// MaxInFlightRecords -- the peak number of log records that may be held in
+// memory across all parallel workers.
+func ValidateMaxInFlightRecords(numWorkers, maxLogsPerBucket int) error {
+	if product := numWorkers * maxLogsPerBucket; product > MaxInFlightRecords {
+		return fmt.Errorf(
+			"consumer.num-workers (%d) * consumer.max-logs-per-bucket (%d) = %d exceeds maximum allowed (%d)",
+			numWorkers, maxLogsPerBucket, product, MaxInFlightRecords,
+		)
 	}
 	return nil
 }
