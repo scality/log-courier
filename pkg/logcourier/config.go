@@ -95,3 +95,19 @@ func ValidateConfig() error {
 
 	return nil
 }
+
+// ValidateMaxBuckets validates consumer.max-buckets-per-discovery config value
+func ValidateMaxBuckets(value int) error {
+	if value <= 0 {
+		return fmt.Errorf("consumer.max-buckets-per-discovery must be > 0, got %d", value)
+	}
+	return nil
+}
+
+// ValidateMaxLogsPerBucket validates consumer.max-logs-per-bucket config value
+func ValidateMaxLogsPerBucket(value int) error {
+	if value <= 0 {
+		return fmt.Errorf("consumer.max-logs-per-bucket must be > 0, got %d", value)
+	}
+	return nil
+}
