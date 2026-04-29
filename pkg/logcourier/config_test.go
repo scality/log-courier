@@ -238,7 +238,7 @@ var _ = Describe("Configuration", Ordered, func() {
 
 			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be positive"))
+			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be between 1 and"))
 		})
 
 		It("should reject negative count threshold", func() {
@@ -248,7 +248,7 @@ var _ = Describe("Configuration", Ordered, func() {
 
 			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be positive"))
+			Expect(err.Error()).To(ContainSubstring("consumer.count-threshold must be between 1 and"))
 		})
 
 		It("should reject zero time threshold", func() {
@@ -287,7 +287,7 @@ var _ = Describe("Configuration", Ordered, func() {
 
 			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("exceeds maximum allowed"))
+			Expect(err.Error()).To(ContainSubstring("must be between 1 and"))
 		})
 
 		It("should reject zero min discovery interval", func() {
@@ -341,28 +341,67 @@ var _ = Describe("Configuration", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should reject zero for max-buckets-per-discovery", func() {
-			err := logcourier.ValidateMaxBuckets(0)
+		It("should reject zero max-buckets-per-discovery via ValidateConfig", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_BUCKETS_PER_DISCOVERY", "0")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_BUCKETS_PER_DISCOVERY") }()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+			Expect(err.Error()).To(ContainSubstring("consumer.max-buckets-per-discovery must be > 0"))
 		})
 
-		It("should reject negative values for max-buckets-per-discovery", func() {
-			err := logcourier.ValidateMaxBuckets(-1)
+		It("should reject zero max-logs-per-bucket via ValidateConfig", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET", "0")).To(Succeed())
+			defer func() { _ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET") }()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+			Expect(err.Error()).To(ContainSubstring("consumer.max-logs-per-bucket must be > 0"))
 		})
 
-		It("should reject zero for max-logs-per-bucket", func() {
-			err := logcourier.ValidateMaxLogsPerBucket(0)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+		It("should accept defaults against MaxInFlightRecords cap", func() {
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should reject negative values for max-logs-per-bucket", func() {
-			err := logcourier.ValidateMaxLogsPerBucket(-1)
+		It("should accept num-workers * max-logs-per-bucket exactly at MaxInFlightRecords", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_NUM_WORKERS", "10")).To(Succeed())
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET", "500000")).To(Succeed())
+			defer func() {
+				_ = os.Unsetenv("LOG_COURIER_CONSUMER_NUM_WORKERS")
+				_ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET")
+			}()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should reject num-workers * max-logs-per-bucket exceeding MaxInFlightRecords", func() {
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_NUM_WORKERS", "100")).To(Succeed())
+			Expect(os.Setenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET", "100000")).To(Succeed())
+			defer func() {
+				_ = os.Unsetenv("LOG_COURIER_CONSUMER_NUM_WORKERS")
+				_ = os.Unsetenv("LOG_COURIER_CONSUMER_MAX_LOGS_PER_BUCKET")
+			}()
+
+			err := logcourier.ConfigSpec.LoadConfiguration("", "", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = logcourier.ValidateConfig()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be > 0"))
+			Expect(err.Error()).To(ContainSubstring("exceeds maximum allowed"))
 		})
 	})
 })
