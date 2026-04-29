@@ -204,6 +204,24 @@ jobs:
       - name: Run e2e tests
         run: make test-e2e
 
+      - name: Dump backbeat logs on failure
+        if: failure()
+        run: |
+          echo "=== queue-populator ==="
+          docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-populator_*.log' || true
+          echo
+          echo "=== queue-processor ==="
+          docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-processor_*.log' || true
+          echo
+          echo "=== status-processor ==="
+          docker exec workbench-backbeat sh -c 'cat /logs/crr-status-processor_*.log' || true
+          echo
+          echo "=== queue-processor stderr ==="
+          docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-processor_*-stderr.log' || true
+          echo
+          echo "=== status-processor stderr ==="
+          docker exec workbench-backbeat sh -c 'cat /logs/crr-status-processor_*-stderr.log' || true
+
       - name: Stop services
         if: always()
         run: |
