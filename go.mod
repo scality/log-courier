@@ -1,6 +1,6 @@
 module github.com/scality/log-courier
 
-go 1.24.2
+go 1.25.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
