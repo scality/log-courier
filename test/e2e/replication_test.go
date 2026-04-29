@@ -26,7 +26,7 @@ const (
 	testaccountAccessKeyID     = "WBTKACCESSI9O3YKIRQ0"
 	testaccountSecretAccessKey = "ICxmNTBbOqijy4rMq/MOP1EPlTMqfsEBLjROcAbN" //nolint:gosec // Test credentials
 
-	replicationTimeout = 60 * time.Second
+	replicationTimeout = 30 * time.Second
 	replicationPoll    = 2 * time.Second
 )
 
@@ -39,48 +39,14 @@ var _ = Describe("Cross-region replication", func() {
 
 	BeforeEach(func(ctx context.Context) {
 		testaccountClnt = newS3ClientWithCredentials(testaccountAccessKeyID, testaccountSecretAccessKey, "")
-
 		timestamp := time.Now().UnixNano()
 		sourceBucket = fmt.Sprintf("e2e-crr-src-%d", timestamp)
 		destBucket = fmt.Sprintf("e2e-crr-dst-%d", timestamp)
-
-		for _, b := range []string{sourceBucket, destBucket} {
-			Expect(createBucketWithRetry(testaccountClnt, b)).To(Succeed())
-
-			_, err := testaccountClnt.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
-				Bucket: aws.String(b),
-				VersioningConfiguration: &types.VersioningConfiguration{
-					Status: types.BucketVersioningStatusEnabled,
-				},
-			})
-			Expect(err).NotTo(HaveOccurred(), "enable versioning on %s", b)
-		}
-
-		_, err := testaccountClnt.PutBucketReplication(ctx, &s3.PutBucketReplicationInput{
-			Bucket: aws.String(sourceBucket),
-			ReplicationConfiguration: &types.ReplicationConfiguration{
-				Role: aws.String(fmt.Sprintf("%s,%s", replicationRoleARN, replicationRoleARN)),
-				Rules: []types.ReplicationRule{
-					{
-						ID:     aws.String("e2e-crr"),
-						Status: types.ReplicationRuleStatusEnabled,
-						Filter: &types.ReplicationRuleFilter{Prefix: aws.String("")},
-						Destination: &types.Destination{
-							Bucket:       aws.String("arn:aws:s3:::" + destBucket),
-							StorageClass: types.StorageClass("sf"),
-						},
-					},
-				},
-			},
-		})
-		Expect(err).NotTo(HaveOccurred(), "configure bucket replication")
+		setupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket)
 	})
 
 	AfterEach(func(ctx context.Context) {
-		emptyVersionedBucket(ctx, testaccountClnt, sourceBucket)
-		emptyVersionedBucket(ctx, testaccountClnt, destBucket)
-		_, _ = testaccountClnt.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(sourceBucket)})
-		_, _ = testaccountClnt.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(destBucket)})
+		cleanupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket)
 	})
 
 	It("replicates an object from source to destination", func(ctx context.Context) {
@@ -94,17 +60,66 @@ var _ = Describe("Cross-region replication", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "PUT to source")
 
-		Eventually(func() error {
-			_, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
-				Bucket: aws.String(destBucket),
+		Eventually(func(g Gomega) types.ReplicationStatus {
+			out, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(sourceBucket),
 				Key:    aws.String(key),
 			})
-			return headErr
+			g.Expect(headErr).NotTo(HaveOccurred())
+			return out.ReplicationStatus
 		}).WithTimeout(replicationTimeout).
 			WithPolling(replicationPoll).
-			Should(Succeed(), "replica should appear in destination bucket")
+			Should(Equal(types.ReplicationStatusCompleted),
+				"source object replication status should reach COMPLETED")
+
+		destOut, err := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(destBucket),
+			Key:    aws.String(key),
+		})
+		Expect(err).NotTo(HaveOccurred(), "HEAD on replica")
+		Expect(destOut.ReplicationStatus).To(Equal(types.ReplicationStatusReplica),
+			"destination object replication status should be REPLICA")
 	})
 })
+
+func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst string) {
+	GinkgoHelper()
+	for _, b := range []string{src, dst} {
+		Expect(createBucketWithRetry(client, b)).To(Succeed())
+		_, err := client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+			Bucket: aws.String(b),
+			VersioningConfiguration: &types.VersioningConfiguration{
+				Status: types.BucketVersioningStatusEnabled,
+			},
+		})
+		Expect(err).NotTo(HaveOccurred(), "enable versioning on %s", b)
+	}
+	_, err := client.PutBucketReplication(ctx, &s3.PutBucketReplicationInput{
+		Bucket: aws.String(src),
+		ReplicationConfiguration: &types.ReplicationConfiguration{
+			Role: aws.String(fmt.Sprintf("%s,%s", replicationRoleARN, replicationRoleARN)),
+			Rules: []types.ReplicationRule{
+				{
+					ID:     aws.String("e2e-crr"),
+					Status: types.ReplicationRuleStatusEnabled,
+					Filter: &types.ReplicationRuleFilter{Prefix: aws.String("")},
+					Destination: &types.Destination{
+						Bucket:       aws.String("arn:aws:s3:::" + dst),
+						StorageClass: types.StorageClass("sf"),
+					},
+				},
+			},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred(), "configure bucket replication on %s", src)
+}
+
+func cleanupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst string) {
+	emptyVersionedBucket(ctx, client, src)
+	emptyVersionedBucket(ctx, client, dst)
+	_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(src)})
+	_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(dst)})
+}
 
 func emptyVersionedBucket(ctx context.Context, client *s3.Client, bucket string) {
 	paginator := s3.NewListObjectVersionsPaginator(client, &s3.ListObjectVersionsInput{
