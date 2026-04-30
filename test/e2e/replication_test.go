@@ -28,13 +28,24 @@ const (
 
 	replicationTimeout = 30 * time.Second
 	replicationPoll    = 2 * time.Second
+
+	// logCourierAccountRootARN is the principal log-courier writes log
+	// objects as. log-courier authenticates with the management-account
+	// root credentials (testAccountID), which is a different account
+	// than the testaccount that owns the replication buckets, so log
+	// delivery to the log target bucket needs a cross-account grant.
+	logCourierAccountRootARN = "arn:aws:iam::" + testAccountID + ":root"
+
+	replicaLogPrefix = "dst/"
 )
 
 var _ = Describe("Cross-region replication", func() {
 	var (
 		sourceBucket    string
 		destBucket      string
+		logBucket       string
 		testaccountClnt *s3.Client
+		testStartTime   time.Time
 	)
 
 	BeforeEach(func(ctx context.Context) {
@@ -42,11 +53,13 @@ var _ = Describe("Cross-region replication", func() {
 		timestamp := time.Now().UnixNano()
 		sourceBucket = fmt.Sprintf("e2e-crr-src-%d", timestamp)
 		destBucket = fmt.Sprintf("e2e-crr-dst-%d", timestamp)
-		setupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket)
+		logBucket = fmt.Sprintf("e2e-crr-log-%d", timestamp)
+		testStartTime = time.Now()
+		setupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket, logBucket)
 	})
 
 	AfterEach(func(ctx context.Context) {
-		cleanupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket)
+		cleanupReplicationBuckets(ctx, testaccountClnt, sourceBucket, destBucket, logBucket)
 	})
 
 	It("replicates an object from source to destination", func(ctx context.Context) {
@@ -79,13 +92,35 @@ var _ = Describe("Cross-region replication", func() {
 		Expect(err).NotTo(HaveOccurred(), "HEAD on replica")
 		Expect(destOut.ReplicationStatus).To(Equal(types.ReplicationStatusReplica),
 			"destination object replication status should be REPLICA")
+
+		// Per CLDSRV-899, backbeat replication writes (the putData
+		// route) appear in destination-bucket access logs as a regular
+		// REST.PUT.OBJECT, with HTTP-layer fields blanked and the
+		// requestURI synthesized to match AWS's log shape.
+		var replica *ParsedLogRecord
+		Eventually(func() *ParsedLogRecord {
+			replica = findReplicaPutEntry(testaccountClnt, logBucket, replicaLogPrefix, destBucket, key, testStartTime)
+			return replica
+		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
+			"replica REST.PUT.OBJECT entry should be delivered under %s", replicaLogPrefix)
+
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+			"replica entry's requester should be the replication role")
+		Expect(replica.RemoteIP).To(Equal("-"), "replica entry should have blanked clientIP")
+		Expect(replica.UserAgent).To(Equal("-"), "replica entry should have blanked userAgent")
+		Expect(replica.Referer).To(Equal("-"), "replica entry should have blanked referer")
+		Expect(replica.HTTPStatus).To(Equal(200))
+		Expect(replica.RequestURI).To(Equal(fmt.Sprintf("PUT /%s/%s HTTP/1.1", destBucket, key)),
+			"replica entry's requestURI should be synthesized to a normal S3 PUT")
 	})
 })
 
-func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst string) {
+func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst, logTarget string) {
 	GinkgoHelper()
-	for _, b := range []string{src, dst} {
+	for _, b := range []string{src, dst, logTarget} {
 		Expect(createBucketWithRetry(client, b)).To(Succeed())
+	}
+	for _, b := range []string{src, dst} {
 		_, err := client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
 			Bucket: aws.String(b),
 			VersioningConfiguration: &types.VersioningConfiguration{
@@ -94,7 +129,35 @@ func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst st
 		})
 		Expect(err).NotTo(HaveOccurred(), "enable versioning on %s", b)
 	}
-	_, err := client.PutBucketReplication(ctx, &s3.PutBucketReplicationInput{
+
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Sid": "AllowLogCourierPutObject",
+			"Effect": "Allow",
+			"Principal": {"AWS": "%s"},
+			"Action": "s3:PutObject",
+			"Resource": "arn:aws:s3:::%s/*"
+		}]
+	}`, logCourierAccountRootARN, logTarget)
+	_, err := client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+		Bucket: aws.String(logTarget),
+		Policy: aws.String(policy),
+	})
+	Expect(err).NotTo(HaveOccurred(), "put bucket policy on %s", logTarget)
+
+	_, err = client.PutBucketLogging(ctx, &s3.PutBucketLoggingInput{
+		Bucket: aws.String(dst),
+		BucketLoggingStatus: &types.BucketLoggingStatus{
+			LoggingEnabled: &types.LoggingEnabled{
+				TargetBucket: aws.String(logTarget),
+				TargetPrefix: aws.String(replicaLogPrefix),
+			},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred(), "configure bucket logging on %s", dst)
+
+	_, err = client.PutBucketReplication(ctx, &s3.PutBucketReplicationInput{
 		Bucket: aws.String(src),
 		ReplicationConfiguration: &types.ReplicationConfiguration{
 			Role: aws.String(fmt.Sprintf("%s,%s", replicationRoleARN, replicationRoleARN)),
@@ -114,11 +177,27 @@ func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst st
 	Expect(err).NotTo(HaveOccurred(), "configure bucket replication on %s", src)
 }
 
-func cleanupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst string) {
-	emptyVersionedBucket(ctx, client, src)
-	emptyVersionedBucket(ctx, client, dst)
-	_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(src)})
-	_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(dst)})
+func cleanupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst, logTarget string) {
+	for _, b := range []string{src, dst, logTarget} {
+		emptyVersionedBucket(ctx, client, b)
+		_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(b)})
+	}
+}
+
+// findReplicaPutEntry returns the REST.PUT.OBJECT log entry for key
+// on bucket in logBucket under prefix, or nil if no such entry has
+// been delivered yet. Caller wraps in Eventually.
+func findReplicaPutEntry(client *s3.Client, logBucket, prefix, bucket, key string, since time.Time) *ParsedLogRecord {
+	logs, err := fetchLogsFromPrefix(client, logBucket, prefix, since)
+	if err != nil {
+		return nil
+	}
+	for _, r := range logs {
+		if r.Operation == "REST.PUT.OBJECT" && r.Bucket == bucket && r.Key == key {
+			return r
+		}
+	}
+	return nil
 }
 
 func emptyVersionedBucket(ctx context.Context, client *s3.Client, bucket string) {
