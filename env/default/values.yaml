@@ -16,7 +16,7 @@ vault:
   image: ghcr.io/scality/vault:7.86.0
 
 backbeat:
-  image: ghcr.io/scality/backbeat:9.0.25-federation
+  image: ghcr.io/scality/backbeat:9.3.3-federation
 
 s3_metadata:
   image: ghcr.io/scality/metadata:9.9.0-standalone
