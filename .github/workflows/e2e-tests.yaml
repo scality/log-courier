@@ -150,6 +150,34 @@ jobs:
           fi
           echo "✓ Backbeat running"
 
+          # The backbeat CRR pipeline has multiple cold-start gates. Until
+          # each is open, writes either skip past the queue-populator or
+          # pile up uncomsumed in kafka, leaving source ReplicationStatus
+          # stuck at PENDING. Wait for all three readiness signals.
+          echo "Waiting for backbeat CRR pipeline to be ready..."
+          crr_ready=false
+          for i in {1..120}; do
+            qp_count=$(docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-populator_*.log 2>/dev/null | grep -c "log reader is ready to populate" || true')
+            qproc_ready=$(docker exec workbench-backbeat sh -c 'grep -l "queue processor is ready to consume replication entries" /logs/crr-queue-processor_*.log 2>/dev/null | head -1')
+            sproc_ready=$(docker exec workbench-backbeat sh -c 'grep -l "replication status processor is ready to consume" /logs/crr-status-processor_*.log 2>/dev/null | head -1')
+            if [ "${qp_count:-0}" -ge 3 ] && [ -n "$qproc_ready" ] && [ -n "$sproc_ready" ]; then
+              crr_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$crr_ready" = false ]; then
+            echo "ERROR: CRR pipeline did not become ready in time"
+            echo "--- queue-populator log ---"
+            docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-populator_*.log' || true
+            echo "--- queue-processor log ---"
+            docker exec workbench-backbeat sh -c 'cat /logs/crr-queue-processor_*.log' || true
+            echo "--- status-processor log ---"
+            docker exec workbench-backbeat sh -c 'cat /logs/crr-status-processor_*.log' || true
+            exit 1
+          fi
+          echo "✓ Backbeat CRR pipeline ready"
+
       - name: Start log-courier
         env:
           LOG_COURIER_IMAGE: ghcr.io/${{ github.repository_owner }}/log-courier:${{ github.sha }}-debug
