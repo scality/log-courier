@@ -31,4 +31,4 @@ nginx:
   image: nginx:1.27-alpine
 
 redis:
-  image: redis:8.4.0-alpine
+  image: redis:8.6.2-alpine
