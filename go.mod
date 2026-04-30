@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.39.1
+	github.com/onsi/gomega v1.40.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
