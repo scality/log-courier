@@ -12,7 +12,7 @@ features:
     enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:803285cabaeb6a3248c9bfda1c4abb84951b11b3
+  image: ghcr.io/scality/cloudserver:0c52210b0ed42b14062e26214adfa91d690aa649
 
 vault:
   image: ghcr.io/scality/vault:7.86.0
