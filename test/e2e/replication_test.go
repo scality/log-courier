@@ -182,6 +182,82 @@ var _ = Describe("Cross-region replication", func() {
 			"replica delete-marker entry's requestURI should be synthesized to a DELETE on the destination")
 	})
 
+	It("logs put-tagging replication on destination as REST.PUT.OBJECT_TAGGING", func(ctx context.Context) {
+		key := "crr-tagging.txt"
+		content := []byte("data with tags to replicate")
+
+		putResp, err := testaccountClnt.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(sourceBucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(content),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT to source")
+		sourceVersionID := aws.ToString(putResp.VersionId)
+		Expect(sourceVersionID).NotTo(BeEmpty(), "source PUT should return a VersionId")
+
+		// Wait for the initial body replication before issuing the tagging
+		// change; otherwise the two replication events race.
+		Eventually(func(g Gomega) types.ReplicationStatus {
+			out, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(sourceBucket),
+				Key:    aws.String(key),
+			})
+			g.Expect(headErr).NotTo(HaveOccurred())
+			return out.ReplicationStatus
+		}).WithTimeout(replicationTimeout).
+			WithPolling(replicationPoll).
+			Should(Equal(types.ReplicationStatusCompleted),
+				"source initial replication should reach COMPLETED before tagging")
+
+		_, err = testaccountClnt.PutObjectTagging(ctx, &s3.PutObjectTaggingInput{
+			Bucket: aws.String(sourceBucket),
+			Key:    aws.String(key),
+			Tagging: &types.Tagging{
+				TagSet: []types.Tag{{Key: aws.String("env"), Value: aws.String("e2e")}},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred(), "PutObjectTagging on source")
+
+		// PutObjectTagging flips the source version's ReplicationStatus
+		// back to PENDING; wait for backbeat to replicate the metadata
+		// and the source to settle at COMPLETED again.
+		Eventually(func(g Gomega) types.ReplicationStatus {
+			out, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(sourceBucket),
+				Key:    aws.String(key),
+			})
+			g.Expect(headErr).NotTo(HaveOccurred())
+			return out.ReplicationStatus
+		}).WithTimeout(replicationTimeout).
+			WithPolling(replicationPoll).
+			Should(Equal(types.ReplicationStatusCompleted),
+				"source tagging replication should reach COMPLETED")
+
+		// Per CLDSRV-899, replicated PutObjectTagging arrives on
+		// cloudserver as a putMetadata (mdOnly=true) but is logged as
+		// REST.PUT.OBJECT_TAGGING with requestURI synthesized to
+		// PUT /<dst>/<key>?tagging&versionId=<destVid> HTTP/1.1 and
+		// the same HTTP-layer blanking as the regular replication PUT.
+		// CRR preserves version IDs, so the destination version-id
+		// equals the source PUT's VersionId.
+		var replica *ParsedLogRecord
+		Eventually(func() *ParsedLogRecord {
+			replica = findReplicaTaggingEntry(testaccountClnt, logBucket, replicaLogPrefix, destBucket, key, testStartTime)
+			return replica
+		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
+			"replica REST.PUT.OBJECT_TAGGING entry should be delivered under %s", replicaLogPrefix)
+
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+			"replica tagging entry's requester should be the replication role")
+		Expect(replica.RemoteIP).To(Equal("-"), "replica tagging entry should have blanked clientIP")
+		Expect(replica.UserAgent).To(Equal("-"), "replica tagging entry should have blanked userAgent")
+		Expect(replica.Referer).To(Equal("-"), "replica tagging entry should have blanked referer")
+		Expect(replica.HTTPStatus).To(Equal(200))
+		Expect(replica.RequestURI).To(Equal(fmt.Sprintf(
+			"PUT /%s/%s?tagging&versionId=%s HTTP/1.1", destBucket, key, sourceVersionID)),
+			"replica tagging entry's requestURI should include ?tagging&versionId")
+	})
+
 	It("logs MPU replication on destination as N REST.PUT.OBJECT entries", func(ctx context.Context) {
 		key := "crr-mpu.txt"
 		const partSize = 5 * 1024 * 1024
@@ -363,6 +439,22 @@ func findReplicaDeleteMarkerEntry(client *s3.Client, logBucket, prefix, bucket, 
 	}
 	for _, r := range logs {
 		if r.Operation == "REST.DELETE.OBJECT" && r.Bucket == bucket && r.Key == key {
+			return r
+		}
+	}
+	return nil
+}
+
+// findReplicaTaggingEntry returns the REST.PUT.OBJECT_TAGGING log entry
+// for key on bucket in logBucket under prefix, or nil if no such entry
+// has been delivered yet. Caller wraps in Eventually.
+func findReplicaTaggingEntry(client *s3.Client, logBucket, prefix, bucket, key string, since time.Time) *ParsedLogRecord {
+	logs, err := fetchLogsFromPrefix(client, logBucket, prefix, since)
+	if err != nil {
+		return nil
+	}
+	for _, r := range logs {
+		if r.Operation == "REST.PUT.OBJECT_TAGGING" && r.Bucket == bucket && r.Key == key {
 			return r
 		}
 	}
