@@ -113,6 +113,74 @@ var _ = Describe("Cross-region replication", func() {
 		Expect(replica.RequestURI).To(Equal(fmt.Sprintf("PUT /%s/%s HTTP/1.1", destBucket, key)),
 			"replica entry's requestURI should be synthesized to a normal S3 PUT")
 	})
+
+	It("logs delete-marker replication on destination as REST.DELETE.OBJECT", func(ctx context.Context) {
+		key := "crr-deletemarker.txt"
+		content := []byte("data to be deleted")
+
+		_, err := testaccountClnt.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(sourceBucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(content),
+		})
+		Expect(err).NotTo(HaveOccurred(), "PUT to source")
+
+		Eventually(func(g Gomega) types.ReplicationStatus {
+			out, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(sourceBucket),
+				Key:    aws.String(key),
+			})
+			g.Expect(headErr).NotTo(HaveOccurred())
+			return out.ReplicationStatus
+		}).WithTimeout(replicationTimeout).
+			WithPolling(replicationPoll).
+			Should(Equal(types.ReplicationStatusCompleted),
+				"source object replication status should reach COMPLETED before delete")
+
+		// Issue a versioned delete on source. On a versioned bucket this
+		// creates a delete marker, which backbeat then replicates to the
+		// destination as a metadata-only put.
+		_, err = testaccountClnt.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(sourceBucket),
+			Key:    aws.String(key),
+		})
+		Expect(err).NotTo(HaveOccurred(), "DELETE on source")
+
+		Eventually(func(g Gomega) bool {
+			out, listErr := testaccountClnt.ListObjectVersions(ctx, &s3.ListObjectVersionsInput{
+				Bucket: aws.String(destBucket),
+				Prefix: aws.String(key),
+			})
+			g.Expect(listErr).NotTo(HaveOccurred())
+			for i := range out.DeleteMarkers {
+				if aws.ToString(out.DeleteMarkers[i].Key) == key {
+					return true
+				}
+			}
+			return false
+		}).WithTimeout(replicationTimeout).
+			WithPolling(replicationPoll).
+			Should(BeTrue(), "delete marker should be replicated to destination")
+
+		// Per CLDSRV-899, replicated delete markers arrive on cloudserver
+		// as a putMetadata but are logged as REST.DELETE.OBJECT with a
+		// synthesized DELETE requestURI and the same blanking as the PUT
+		// case.
+		var replica *ParsedLogRecord
+		Eventually(func() *ParsedLogRecord {
+			replica = findReplicaDeleteMarkerEntry(testaccountClnt, logBucket, replicaLogPrefix, destBucket, key, testStartTime)
+			return replica
+		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
+			"replica REST.DELETE.OBJECT entry should be delivered under %s", replicaLogPrefix)
+
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+			"replica delete-marker entry's requester should be the replication role")
+		Expect(replica.RemoteIP).To(Equal("-"), "replica delete-marker entry should have blanked clientIP")
+		Expect(replica.UserAgent).To(Equal("-"), "replica delete-marker entry should have blanked userAgent")
+		Expect(replica.Referer).To(Equal("-"), "replica delete-marker entry should have blanked referer")
+		Expect(replica.RequestURI).To(Equal(fmt.Sprintf("DELETE /%s/%s HTTP/1.1", destBucket, key)),
+			"replica delete-marker entry's requestURI should be synthesized to a DELETE on the destination")
+	})
 })
 
 func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst, logTarget string) {
@@ -194,6 +262,22 @@ func findReplicaPutEntry(client *s3.Client, logBucket, prefix, bucket, key strin
 	}
 	for _, r := range logs {
 		if r.Operation == "REST.PUT.OBJECT" && r.Bucket == bucket && r.Key == key {
+			return r
+		}
+	}
+	return nil
+}
+
+// findReplicaDeleteMarkerEntry returns the REST.DELETE.OBJECT log entry
+// for key on bucket in logBucket under prefix, or nil if no such entry
+// has been delivered yet. Caller wraps in Eventually.
+func findReplicaDeleteMarkerEntry(client *s3.Client, logBucket, prefix, bucket, key string, since time.Time) *ParsedLogRecord {
+	logs, err := fetchLogsFromPrefix(client, logBucket, prefix, since)
+	if err != nil {
+		return nil
+	}
+	for _, r := range logs {
+		if r.Operation == "REST.DELETE.OBJECT" && r.Bucket == bucket && r.Key == key {
 			return r
 		}
 	}
