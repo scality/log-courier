@@ -181,6 +181,91 @@ var _ = Describe("Cross-region replication", func() {
 		Expect(replica.RequestURI).To(Equal(fmt.Sprintf("DELETE /%s/%s HTTP/1.1", destBucket, key)),
 			"replica delete-marker entry's requestURI should be synthesized to a DELETE on the destination")
 	})
+
+	It("logs MPU replication on destination as N REST.PUT.OBJECT entries", func(ctx context.Context) {
+		key := "crr-mpu.txt"
+		const partSize = 5 * 1024 * 1024
+		const numParts = 3
+		parts := make([][]byte, numParts)
+		for i := 0; i < numParts; i++ {
+			parts[i] = bytes.Repeat([]byte{byte('a' + i)}, partSize)
+		}
+
+		createResp, err := testaccountClnt.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+			Bucket: aws.String(sourceBucket),
+			Key:    aws.String(key),
+		})
+		Expect(err).NotTo(HaveOccurred(), "CreateMultipartUpload on source")
+		uploadID := createResp.UploadId
+
+		completed := make([]types.CompletedPart, numParts)
+		for i := 0; i < numParts; i++ {
+			partResp, partErr := testaccountClnt.UploadPart(ctx, &s3.UploadPartInput{
+				Bucket:     aws.String(sourceBucket),
+				Key:        aws.String(key),
+				PartNumber: aws.Int32(int32(i + 1)),
+				UploadId:   uploadID,
+				Body:       bytes.NewReader(parts[i]),
+			})
+			Expect(partErr).NotTo(HaveOccurred(), "UploadPart %d on source", i+1)
+			completed[i] = types.CompletedPart{
+				ETag:       partResp.ETag,
+				PartNumber: aws.Int32(int32(i + 1)),
+			}
+		}
+
+		_, err = testaccountClnt.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+			Bucket:          aws.String(sourceBucket),
+			Key:             aws.String(key),
+			UploadId:        uploadID,
+			MultipartUpload: &types.CompletedMultipartUpload{Parts: completed},
+		})
+		Expect(err).NotTo(HaveOccurred(), "CompleteMultipartUpload on source")
+
+		Eventually(func(g Gomega) types.ReplicationStatus {
+			out, headErr := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(sourceBucket),
+				Key:    aws.String(key),
+			})
+			g.Expect(headErr).NotTo(HaveOccurred())
+			return out.ReplicationStatus
+		}).WithTimeout(replicationTimeout).
+			WithPolling(replicationPoll).
+			Should(Equal(types.ReplicationStatusCompleted),
+				"source MPU replication status should reach COMPLETED")
+
+		destOut, err := testaccountClnt.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(destBucket),
+			Key:    aws.String(key),
+		})
+		Expect(err).NotTo(HaveOccurred(), "HEAD on replica")
+		Expect(destOut.ReplicationStatus).To(Equal(types.ReplicationStatusReplica),
+			"destination MPU object replication status should be REPLICA")
+
+		// Per CLDSRV-899, MPU replication writes one REST.PUT.OBJECT per
+		// part on the destination. AWS would log POST.UPLOADS + N PUT.PART
+		// + POST.UPLOAD, but cloudserver has no MPU lifecycle on the
+		// destination — parts land via N PUT /_/backbeat/data calls + a
+		// single stitching putMetadata, so AWS's initiate/parts/complete
+		// events correspond to operations that don't happen here.
+		var entries []*ParsedLogRecord
+		Eventually(func() int {
+			entries = findReplicaPutEntries(testaccountClnt, logBucket, replicaLogPrefix, destBucket, key, testStartTime)
+			return len(entries)
+		}, logWaitTimeout, logPollInterval).Should(Equal(numParts),
+			"expected %d REST.PUT.OBJECT entries (one per replicated part) under %s", numParts, replicaLogPrefix)
+
+		for i, e := range entries {
+			Expect(e.Requester).To(ContainSubstring("assumed-role/replication-role"),
+				"part-%d entry's requester should be the replication role", i+1)
+			Expect(e.RemoteIP).To(Equal("-"), "part-%d entry should have blanked clientIP", i+1)
+			Expect(e.UserAgent).To(Equal("-"), "part-%d entry should have blanked userAgent", i+1)
+			Expect(e.Referer).To(Equal("-"), "part-%d entry should have blanked referer", i+1)
+			Expect(e.HTTPStatus).To(Equal(200), "part-%d entry should have HTTP 200", i+1)
+			Expect(e.RequestURI).To(Equal(fmt.Sprintf("PUT /%s/%s HTTP/1.1", destBucket, key)),
+				"part-%d entry's requestURI should be synthesized to a normal S3 PUT", i+1)
+		}
+	})
 })
 
 func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst, logTarget string) {
@@ -282,6 +367,23 @@ func findReplicaDeleteMarkerEntry(client *s3.Client, logBucket, prefix, bucket, 
 		}
 	}
 	return nil
+}
+
+// findReplicaPutEntries returns all REST.PUT.OBJECT log entries for key
+// on bucket in logBucket under prefix that have been delivered. Caller
+// wraps in Eventually to wait for the expected count.
+func findReplicaPutEntries(client *s3.Client, logBucket, prefix, bucket, key string, since time.Time) []*ParsedLogRecord {
+	logs, err := fetchLogsFromPrefix(client, logBucket, prefix, since)
+	if err != nil {
+		return nil
+	}
+	var matches []*ParsedLogRecord
+	for _, r := range logs {
+		if r.Operation == "REST.PUT.OBJECT" && r.Bucket == bucket && r.Key == key {
+			matches = append(matches, r)
+		}
+	}
+	return matches
 }
 
 func emptyVersionedBucket(ctx context.Context, client *s3.Client, bucket string) {
