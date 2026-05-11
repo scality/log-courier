@@ -31,6 +31,8 @@ const (
 	bucketOperationInitialDelay = 100 * time.Millisecond
 	// bucketOperationMaxDelay is the maximum delay between retries
 	bucketOperationMaxDelay = 2 * time.Second
+
+	opPutBucketLogging = "REST.PUT.LOGGING_STATUS"
 )
 
 // E2ETestContext holds the test context for an E2E test
@@ -891,7 +893,7 @@ func cleanupE2ETest(ctx *E2ETestContext) {
 			}
 
 			for _, log := range logs {
-				if log.Operation == "REST.PUT.LOGGING_STATUS" &&
+				if log.Operation == opPutBucketLogging &&
 					log.Bucket == ctx.SourceBucket &&
 					log.Time.After(timeBeforeDisable) {
 					return true
