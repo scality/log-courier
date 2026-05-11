@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Wait for the backbeat lifecycle pipeline to be ready.
+# Wait for the backbeat lifecycle pipeline to be ready, then verify
+# the bucket-processor and object-processor kafka consumers are
+# stable (not stuck in a rebalance loop).
 set -e
 
 # Backbeat lifecycle: wait only on the bucket-processor and
@@ -22,3 +24,93 @@ if [ "$lc_ready" = false ]; then
   exit 1
 fi
 echo "✓ Backbeat lifecycle pipeline ready"
+
+# Workaround for a BackbeatConsumer stuck in a rebalance loop:
+# a lifecycle processor's kafka consumer can enter a cycle where
+# it logs rdkafka.assign / rdkafka.revoke every 1-2s
+# and never actually consumes any conductor batches.
+# A stable consumer logs exactly one rdkafka.assign per process start;
+# a stuck one logs 5+ within 10s.
+# Detect by counting rdkafka.assign lines after the latest
+# "running!" message and if it's stuck, restart and re-check once.
+# If still stuck after one restart, fail.
+check_consumer_stable() {
+  local proc_prefix="$1"
+  local label="$2"
+  local running_marker="$3"
+  echo "Verifying ${label} consumer is stable..."
+  for attempt in 1 2; do
+    sleep 10
+    local assigns
+    assigns=$(docker exec workbench-backbeat sh -c "
+      awk '/${running_marker}/ {seen=1; a=0; next}
+           seen && /rdkafka\\.assign/ {a++}
+           END {if (seen) print a+0}' /logs/${proc_prefix}_*.log 2>/dev/null
+    ")
+    if [ -z "$assigns" ]; then
+      echo "ERROR: stability check could not find 'running!' marker in ${label} logs"
+      exit 1
+    fi
+    if [ "$assigns" -le 2 ]; then
+      echo "✓ ${label} consumer stable ($assigns assigns since last start)"
+      return 0
+    fi
+    if [ "$attempt" = "2" ]; then
+      echo "ERROR: ${label} consumer still stuck after restart ($assigns assigns)"
+      exit 1
+    fi
+    echo "WARN: ${label} consumer stuck ($assigns assigns); restarting"
+    # grep -c on a glob prints "file:count" per file; pipe via cat so
+    # we always get a single integer even after log rotation. `|| true`
+    # keeps `set -e` happy when grep -c finds 0 matches (exit 1).
+    local prev_running
+    prev_running=$(docker exec workbench-backbeat sh -c "cat /logs/${proc_prefix}_*.log 2>/dev/null | grep -c '${running_marker}' || true")
+    # The backbeat federation image uses ochinchina/supervisord (a
+    # Go port) which exposes its CLI as `supervisord ctl` -- there
+    # is no separate `supervisorctl` binary on PATH. Pass -c so
+    # ctl uses the same socket as the running daemon. ochinchina's
+    # restart expects the process name (e.g. lifecycle-bucket-processor_0
+    # for numprocs=1), not the program name, so look it up via
+    # status rather than hardcoding the suffix. ochinchina prints
+    # status with ANSI color codes (e.g. \x1b[0;32m...\x1b[0m), so
+    # strip them before matching with awk.
+    local proc
+    proc=$(docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status \
+      | sed 's/\x1b\[[0-9;]*m//g' \
+      | awk "/^${proc_prefix}_[0-9]+[[:space:]]/ {print \$1; exit}")
+    if [ -z "$proc" ]; then
+      echo "ERROR: ${proc_prefix} not found in supervisord status"
+      docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
+      exit 1
+    fi
+    # ochinchina/supervisord's `ctl restart` has been observed to return
+    # success without actually restarting the process (same PID and rdkafka
+    # client UUID persist), so do an explicit stop+start and log status
+    # before/after each step so we can verify the PID changed.
+    echo "DEBUG: ${proc} status before stop:"
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf stop "$proc" || true
+    echo "DEBUG: ${proc} status after stop:"
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf start "$proc" || true
+    echo "DEBUG: ${proc} status after start:"
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
+    # Wait for the new instance's "running!" marker to appear.
+    local new_running=${prev_running:-0}
+    for i in {1..60}; do
+      new_running=$(docker exec workbench-backbeat sh -c "cat /logs/${proc_prefix}_*.log 2>/dev/null | grep -c '${running_marker}' || true")
+      if [ "${new_running:-0}" -gt "${prev_running:-0}" ]; then
+        break
+      fi
+      sleep 1
+    done
+    if [ "${new_running:-0}" -le "${prev_running:-0}" ]; then
+      echo "ERROR: ${label} did not re-emit 'running!' within 60s after restart"
+      docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
+      exit 1
+    fi
+  done
+}
+
+check_consumer_stable lifecycle-bucket-processor bucket-processor "lifecycle bucket processor running!"
+check_consumer_stable lifecycle-object-processor object-processor "lifecycle object processor running!"
