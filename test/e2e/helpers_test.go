@@ -145,9 +145,11 @@ func (ctx *E2ETestContext) ObjectOp(operation, key string, httpStatus int) Expec
 	}
 }
 
-// emptyBucket deletes all objects in a bucket
+// emptyBucket deletes all object versions and delete markers in a bucket.
+// Safe on unversioned buckets too: ListObjectVersions returns live objects
+// with VersionId "null", which DeleteObjects accepts.
 func emptyBucket(client *s3.Client, bucket string) error {
-	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+	paginator := s3.NewListObjectVersionsPaginator(client, &s3.ListObjectVersionsInput{
 		Bucket: aws.String(bucket),
 	})
 
@@ -157,22 +159,22 @@ func emptyBucket(client *s3.Client, bucket string) error {
 			return err
 		}
 
-		if len(page.Contents) == 0 {
-			continue
+		var ids []types.ObjectIdentifier
+		for i := range page.Versions {
+			v := &page.Versions[i]
+			ids = append(ids, types.ObjectIdentifier{Key: v.Key, VersionId: v.VersionId})
 		}
-
-		var objectIds []types.ObjectIdentifier
-		for _, obj := range page.Contents {
-			objectIds = append(objectIds, types.ObjectIdentifier{
-				Key: obj.Key,
-			})
+		for i := range page.DeleteMarkers {
+			dm := &page.DeleteMarkers[i]
+			ids = append(ids, types.ObjectIdentifier{Key: dm.Key, VersionId: dm.VersionId})
+		}
+		if len(ids) == 0 {
+			continue
 		}
 
 		_, err = client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
 			Bucket: aws.String(bucket),
-			Delete: &types.Delete{
-				Objects: objectIds,
-			},
+			Delete: &types.Delete{Objects: ids},
 		})
 		if err != nil {
 			return err
