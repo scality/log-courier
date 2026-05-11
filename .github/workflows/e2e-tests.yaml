@@ -151,6 +151,7 @@ jobs:
           echo "✓ Backbeat running"
 
           ./.github/scripts/wait-for-backbeat-crr.sh
+          ./.github/scripts/wait-for-backbeat-lifecycle.sh
 
       - name: Start log-courier
         env:
