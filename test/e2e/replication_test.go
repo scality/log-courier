@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -14,28 +15,39 @@ import (
 )
 
 const (
-	// replicationRoleARN is provisioned by workbench's setup-vault via
-	// vault accountSeeds. The account ID is pinned to 123456789012 in
-	// templates/vault/create-management-account.sh.
-	replicationRoleARN = "arn:aws:iam::123456789012:role/scality-internal/replication-role"
-
-	// Test buckets must be owned by the same account as the replication role
-	// (123456789012 / testaccount).
-	testaccountAccessKeyID     = "WBTKACCESSI9O3YKIRQ0"
-	testaccountSecretAccessKey = "ICxmNTBbOqijy4rMq/MOP1EPlTMqfsEBLjROcAbN" //nolint:gosec // Test credentials
+	// Workbench defaults. In workbench's setup-vault, vault accountSeeds
+	// pre-provision an account 123456789012 / testaccount that owns a
+	// scality-internal/replication-role. Integration provisions its own
+	// role at test setup time and supplies the ARN via E2E_REPLICATION_ROLE_ARN.
+	defaultReplicationRoleARN             = "arn:aws:iam::123456789012:role/scality-internal/replication-role"
+	defaultReplicationDestinationLocation = "sf"
 
 	replicationTimeout = 30 * time.Second
 	replicationPoll    = 2 * time.Second
 
-	// logCourierAccountRootARN is the principal log-courier writes log
-	// objects as. log-courier authenticates with the management-account
-	// root credentials (testAccountID), which is a different account
-	// than the testaccount that owns the replication buckets, so log
-	// delivery to the log target bucket needs a cross-account grant.
-	logCourierAccountRootARN = "arn:aws:iam::" + testAccountID + ":root"
-
 	replicaLogPrefix = "dst/"
 	sourceLogPrefix  = "src/"
+)
+
+var (
+	// replicationRoleARN identifies the role Backbeat assumes to perform
+	// replication writes. Harnesses pre-provision it.
+	replicationRoleARN = envOrDefault("E2E_REPLICATION_ROLE_ARN", defaultReplicationRoleARN) //nolint:gochecknoglobals // Env-driven test fixture initialized at package load
+
+	// replicationRoleName is the trailing component of replicationRoleARN
+	// and is also what appears in the access-log Requester field as
+	// "assumed-role/<roleName>/<sessionName>".
+	replicationRoleName = path.Base(replicationRoleARN) //nolint:gochecknoglobals // Derived from replicationRoleARN at package load
+
+	// replicationDestinationLocation is the cloudserver replication endpoint
+	// site name; must match what is configured under env_replication_endpoints
+	// in the deployed environment.
+	replicationDestinationLocation = envOrDefault("E2E_REPLICATION_DESTINATION_LOCATION", defaultReplicationDestinationLocation) //nolint:gochecknoglobals // Env-driven test fixture initialized at package load
+
+	// Root principal of the log-courier account, granted PutObject on
+	// log target buckets so log-courier can deliver across accounts.
+	// See "Test account model" in suite_test.go.
+	logCourierAccountRootARN = "arn:aws:iam::" + logCourierAccountID + ":root" //nolint:gochecknoglobals // Derived from env-driven logCourierAccountID at package load
 )
 
 var _ = Describe("Cross-region replication", func() {
@@ -99,7 +111,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"replica REST.PUT.OBJECT entry should be delivered under %s", replicaLogPrefix)
 
-		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"replica entry's requester should be the replication role")
 		Expect(replica.RemoteIP).To(Equal("-"), "replica entry should have blanked clientIP")
 		Expect(replica.UserAgent).To(Equal("-"), "replica entry should have blanked userAgent")
@@ -115,7 +127,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"source REST.GET.OBJECT entry should be delivered under %s", sourceLogPrefix)
 
-		Expect(sourceGet.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(sourceGet.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"source GET entry's requester should be the replication role")
 		Expect(sourceGet.HTTPStatus).To(Equal(200))
 	})
@@ -174,7 +186,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"replica REST.DELETE.OBJECT entry should be delivered under %s", replicaLogPrefix)
 
-		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"replica delete-marker entry's requester should be the replication role")
 		Expect(replica.RemoteIP).To(Equal("-"), "replica delete-marker entry should have blanked clientIP")
 		Expect(replica.UserAgent).To(Equal("-"), "replica delete-marker entry should have blanked userAgent")
@@ -245,7 +257,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"replica REST.PUT.OBJECT_TAGGING entry should be delivered under %s", replicaLogPrefix)
 
-		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"replica tagging entry's requester should be the replication role")
 		Expect(replica.RemoteIP).To(Equal("-"), "replica tagging entry should have blanked clientIP")
 		Expect(replica.UserAgent).To(Equal("-"), "replica tagging entry should have blanked userAgent")
@@ -309,7 +321,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"replica REST.PUT.OBJECT_TAGGING entry should be delivered under %s", replicaLogPrefix)
 
-		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"replica delete-tagging entry's requester should be the replication role")
 		Expect(replica.RemoteIP).To(Equal("-"), "replica delete-tagging entry should have blanked clientIP")
 		Expect(replica.UserAgent).To(Equal("-"), "replica delete-tagging entry should have blanked userAgent")
@@ -379,7 +391,7 @@ var _ = Describe("Cross-region replication", func() {
 		}, logWaitTimeout, logPollInterval).ShouldNot(BeNil(),
 			"replica REST.PUT.ACL entry should be delivered under %s", replicaLogPrefix)
 
-		Expect(replica.Requester).To(ContainSubstring("assumed-role/replication-role"),
+		Expect(replica.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 			"replica ACL entry's requester should be the replication role")
 		Expect(replica.RemoteIP).To(Equal("-"), "replica ACL entry should have blanked clientIP")
 		Expect(replica.UserAgent).To(Equal("-"), "replica ACL entry should have blanked userAgent")
@@ -462,7 +474,7 @@ var _ = Describe("Cross-region replication", func() {
 			"expected %d REST.PUT.OBJECT entries (one per replicated part) under %s", numParts, replicaLogPrefix)
 
 		for i, e := range entries {
-			Expect(e.Requester).To(ContainSubstring("assumed-role/replication-role"),
+			Expect(e.Requester).To(ContainSubstring("assumed-role/"+replicationRoleName),
 				"part-%d entry's requester should be the replication role", i+1)
 			Expect(e.RemoteIP).To(Equal("-"), "part-%d entry should have blanked clientIP", i+1)
 			Expect(e.UserAgent).To(Equal("-"), "part-%d entry should have blanked userAgent", i+1)
@@ -538,7 +550,7 @@ func setupReplicationBuckets(ctx context.Context, client *s3.Client, src, dst, l
 					Filter: &types.ReplicationRuleFilter{Prefix: aws.String("")},
 					Destination: &types.Destination{
 						Bucket:       aws.String("arn:aws:s3:::" + dst),
-						StorageClass: types.StorageClass("sf"),
+						StorageClass: types.StorageClass(replicationDestinationLocation),
 					},
 				},
 			},
