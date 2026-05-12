@@ -25,6 +25,15 @@ updates:
     ignore:
       - dependency-name: "clickhouse/clickhouse-server"
       - dependency-name: "fluent/fluent-bit"
+      - dependency-name: "redis"
+      - dependency-name: "scality/backbeat"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      - dependency-name: "scality/cloudserver"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
     groups:
       workbench:
         patterns:
