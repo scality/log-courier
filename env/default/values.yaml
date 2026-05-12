@@ -19,7 +19,7 @@ backbeat:
   image: ghcr.io/scality/backbeat:9.0.25-federation
 
 s3_metadata:
-  image: ghcr.io/scality/metadata:9.9.0-standalone
+  image: ghcr.io/scality/metadata:9.10.0-standalone
 
 clickhouse:
   image: clickhouse/clickhouse-server:24.3.2.23-alpine
