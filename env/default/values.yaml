@@ -28,7 +28,7 @@ fluentbit:
   image: fluent/fluent-bit:3.0.2
 
 nginx:
-  image: nginx:1.27-alpine
+  image: nginx:1.31-alpine
 
 redis:
   image: redis:8.4.0-alpine
