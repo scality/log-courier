@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	chdriver "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/scality/log-courier/pkg/clickhouse"
 )
 
@@ -95,7 +96,16 @@ func (om *OffsetManager) CommitOffsetsBatch(ctx context.Context, commits []Offse
 		"INSERT INTO %s.%s (bucketName, raftSessionID, lastProcessedInsertedAt, lastProcessedStartTime, lastProcessedReqId)",
 		om.database, clickhouse.TableOffsetsFederated)
 
-	batch, err := om.client.PrepareBatch(ctx, query)
+	// Force synchronous Distributed insert so the row reaches the target shard's
+	// local offsets table before this call returns. BatchFinder reads the local
+	// offsets table on each shard; with the default async forwarding, the next
+	// discovery cycle can fire before the row propagates and re-discover the same
+	// batch, producing duplicate access-log objects in destination buckets.
+	insertCtx := chdriver.Context(ctx, chdriver.WithSettings(chdriver.Settings{
+		"distributed_foreground_insert": 1,
+	}))
+
+	batch, err := om.client.PrepareBatch(insertCtx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare batch for %d offsets: %w", len(commits), err)
 	}

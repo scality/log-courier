@@ -158,7 +158,7 @@ func NewClickHouseTestHelper(ctx context.Context) (*ClickHouseTestHelper, error)
 			Timeout:  time.Duration(logcourier.ConfigSpec.GetInt("clickhouse.timeout-seconds")) * time.Second,
 			Logger:   logger,
 			Settings: map[string]interface{}{
-				"insert_distributed_sync": 1, // Enable synchronous inserts for tests
+				"distributed_foreground_insert": 1, // Enable synchronous inserts for tests
 			},
 		}
 
