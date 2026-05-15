@@ -83,14 +83,24 @@ check_consumer_stable() {
       docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
       exit 1
     fi
-    # ochinchina/supervisord's `ctl restart` has been observed to return
-    # success without actually restarting the process (same PID and rdkafka
-    # client UUID persist), so do an explicit stop+start and log status
-    # before/after each step so we can verify the PID changed.
-    echo "DEBUG: ${proc} status before stop:"
+    # ochinchina/supervisord's `ctl stop` and `ctl restart` return success
+    # without actually terminating the process (same PID and rdkafka client
+    # UUID persist), likely because they don't wait for SIGTERM to take
+    # effect and the Node wrapper doesn't propagate it. Send SIGKILL via
+    # `ctl signal KILL` instead, wait for supervisord to notice the dead
+    # process, then `start` to spawn a fresh one. Log status at each step.
+    echo "DEBUG: ${proc} status before signal:"
     docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf stop "$proc" || true
-    echo "DEBUG: ${proc} status after stop:"
+    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf signal KILL "$proc" || true
+    # Poll until supervisord no longer reports the process as Running.
+    for i in {1..15}; do
+      sleep 1
+      if ! docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" \
+        | sed 's/\x1b\[[0-9;]*m//g' | grep -q '\bRunning\b'; then
+        break
+      fi
+    done
+    echo "DEBUG: ${proc} status after KILL:"
     docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
     docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf start "$proc" || true
     echo "DEBUG: ${proc} status after start:"
