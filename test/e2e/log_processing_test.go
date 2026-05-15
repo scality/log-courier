@@ -161,7 +161,7 @@ var _ = Describe("Log processing", func() {
 				count := 0
 				seenBuckets := make(map[string]bool)
 				for _, log := range logs {
-					if log.Operation == "REST.PUT.LOGGING_STATUS" &&
+					if log.Operation == opPutBucketLogging &&
 						log.Time.After(timeBeforeDisable) &&
 						!seenBuckets[log.Bucket] {
 						// Check if this is from one of our additional valid buckets

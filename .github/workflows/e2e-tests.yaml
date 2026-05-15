@@ -39,7 +39,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Start Workbench
-        uses: scality/workbench@v0.14.0
+        uses: scality/workbench@v0.16.0
 
       - name: Wait for all services
         run: |
@@ -150,6 +150,9 @@ jobs:
           fi
           echo "✓ Backbeat running"
 
+          ./.github/scripts/wait-for-backbeat-crr.sh
+          ./.github/scripts/wait-for-backbeat-lifecycle.sh
+
       - name: Start log-courier
         env:
           LOG_COURIER_IMAGE: ghcr.io/${{ github.repository_owner }}/log-courier:${{ github.sha }}-debug
@@ -184,6 +187,30 @@ jobs:
 
       - name: Run e2e tests
         run: make test-e2e
+
+      - name: Dump backbeat logs on failure
+        if: failure()
+        run: |
+          # /logs/<name>_*.log matches both stdout and -stderr files;
+          # filter -stderr out of stdout dumps so we don't print it twice.
+          dump_stdout() {
+            echo "::group::${2:-$1}"
+            docker exec workbench-backbeat sh -c "for f in /logs/${1}_*.log; do case \"\$f\" in *-stderr.log) ;; *) cat \"\$f\";; esac; done" || true
+            echo "::endgroup::"
+          }
+          dump_stderr() {
+            echo "::group::${2:-$1} stderr"
+            docker exec workbench-backbeat sh -c "cat /logs/${1}_*-stderr.log" || true
+            echo "::endgroup::"
+          }
+          dump_stdout crr-queue-populator queue-populator
+          dump_stdout crr-queue-processor queue-processor
+          dump_stdout crr-status-processor status-processor
+          dump_stderr crr-queue-processor queue-processor
+          dump_stderr crr-status-processor status-processor
+          dump_stdout lifecycle-conductor
+          dump_stdout lifecycle-bucket-processor
+          dump_stdout lifecycle-object-processor
 
       - name: Stop services
         if: always()
