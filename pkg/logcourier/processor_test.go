@@ -1374,7 +1374,7 @@ var _ = Describe("Processor", func() {
 						ClickHousePassword: logcourier.ConfigSpec.GetString("clickhouse.password"),
 						ClickHouseTimeout:  30 * time.Second,
 						ClickHouseSettings: map[string]interface{}{
-							"insert_distributed_sync": 1,
+							"distributed_foreground_insert": 1,
 						},
 						CountThreshold:         5,
 						TimeThresholdSec:       60,
