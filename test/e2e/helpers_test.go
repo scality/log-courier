@@ -693,6 +693,18 @@ func envOrDefault(envVar, fallback string) string {
 	return fallback
 }
 
+// envDurationOrDefault returns the duration parsed from the given environment
+// variable (e.g. "300s", "5m"), or the fallback if the variable is unset, empty,
+// or cannot be parsed as a Go duration.
+func envDurationOrDefault(envVar string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(envVar); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return fallback
+}
+
 // newS3ClientWithCredentials creates an S3 client with the given credentials,
 // using the same endpoint configuration as the shared test client.
 // sessionToken may be empty for long-lived credentials.

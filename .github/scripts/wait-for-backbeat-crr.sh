@@ -7,6 +7,9 @@
 # qp_count=3 matches workbench's S3Metadata.RaftSessions default.
 set -e
 
+# shellcheck source=lib/check-consumer-stable.sh
+. "$(dirname "$0")/lib/check-consumer-stable.sh"
+
 echo "Waiting for backbeat CRR pipeline to be ready..."
 crr_ready=false
 for i in {1..120}; do
@@ -32,3 +35,6 @@ if [ "$crr_ready" = false ]; then
   exit 1
 fi
 echo "✓ Backbeat CRR pipeline ready"
+
+check_consumer_stable crr-queue-processor queue-processor \
+  "queue processor is ready to consume replication entries"
