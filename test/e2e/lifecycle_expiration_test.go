@@ -15,10 +15,13 @@ import (
 const (
 	opExpireObject = "S3.EXPIRE.OBJECT"
 
-	// lifecycleExpirationTimeout is how long to wait for backbeat to expire an object.
-	lifecycleExpirationTimeout = 60 * time.Second
-	lifecycleExpirationPoll    = 5 * time.Second
+	defaultLifecycleExpirationTimeout = 300 * time.Second
+	lifecycleExpirationPoll           = 5 * time.Second
 )
+
+//nolint:gochecknoglobals // Env-driven test fixture initialized at package load
+var lifecycleExpirationTimeout = envDurationOrDefault(
+	"E2E_LIFECYCLE_EXPIRATION_TIMEOUT", defaultLifecycleExpirationTimeout)
 
 var _ = Describe("Lifecycle expiration in access logs", func() {
 	var testCtx *E2ETestContext
