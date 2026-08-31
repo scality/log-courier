@@ -12,22 +12,22 @@ features:
     enabled: true
 
 cloudserver:
-  image: ghcr.io/scality/cloudserver:9.2.41
+  image: ghcr.io/scality/cloudserver:9.3.19
 
 vault:
-  image: ghcr.io/scality/vault:7.89.0
+  image: ghcr.io/scality/vault:7.93.0
 
 backbeat:
-  image: ghcr.io/scality/backbeat:9.0.27-federation
+  image: ghcr.io/scality/backbeat:9.3.7-federation
 
 s3_metadata:
-  image: ghcr.io/scality/metadata:9.11.0-standalone
+  image: ghcr.io/scality/metadata:9.16.0-standalone
 
 clickhouse:
   image: clickhouse/clickhouse-server:24.3.2.23-alpine
 
 fluentbit:
-  image: fluent/fluent-bit:3.0.2
+  image: cr.fluentbit.io/fluent/fluent-bit:4.2.3.1
 
 nginx:
   image: nginx:1.27-alpine
