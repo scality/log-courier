@@ -9,6 +9,15 @@
 # within 10s. Detect by counting rdkafka.assign lines after the latest
 # RUNNING_MARKER, and if stuck, restart via supervisord and re-check
 # once. Fail if still stuck after one restart.
+
+# Prints the pid supervisord reports for PROC, or nothing if it is not
+# Running.
+supervised_pid() {
+  docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$1" \
+    | sed 's/\x1b\[[0-9;]*m//g' \
+    | awk '$2 == "Running" {sub(",", "", $4); print $4}'
+}
+
 check_consumer_stable() {
   local proc_prefix="$1"
   local label="$2"
@@ -58,28 +67,35 @@ check_consumer_stable() {
       docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
       exit 1
     fi
-    # ochinchina/supervisord's `ctl stop` and `ctl restart` return success
-    # without actually terminating the process (same PID and rdkafka client
-    # UUID persist), likely because they don't wait for SIGTERM to take
-    # effect and the Node wrapper doesn't propagate it. Send SIGKILL via
-    # `ctl signal KILL` instead, wait for supervisord to notice the dead
-    # process, then `start` to spawn a fresh one. Log status at each step.
-    echo "DEBUG: ${proc} status before signal:"
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf signal KILL "$proc" || true
-    # Poll until supervisord no longer reports the process as Running.
+    # The pid supervisord tracks is npm, which runs the consumer as
+    # npm -> sh -> node. `ctl stop`, `ctl restart` and `ctl signal KILL`
+    # only signal npm: node is left running with npm's stdout/stderr
+    # pipes open, so supervisord keeps reporting the old pid as Running
+    # and never respawns it. ochinchina puts each program in its own
+    # process group (pgid = npm's pid), so kill the whole group and let
+    # autorestart spawn a fresh instance.
+    local old_pid
+    old_pid=$(supervised_pid "$proc")
+    if [ -z "$old_pid" ]; then
+      echo "ERROR: ${proc} is not Running, cannot restart it"
+      docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
+      exit 1
+    fi
+    docker exec workbench-backbeat bash -c "kill -9 -- -${old_pid}"
+    local new_pid=""
     for i in {1..15}; do
       sleep 1
-      if ! docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" \
-        | sed 's/\x1b\[[0-9;]*m//g' | grep -q '\bRunning\b'; then
+      new_pid=$(supervised_pid "$proc")
+      if [ -n "$new_pid" ] && [ "$new_pid" != "$old_pid" ]; then
         break
       fi
     done
-    echo "DEBUG: ${proc} status after KILL:"
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf start "$proc" || true
-    echo "DEBUG: ${proc} status after start:"
-    docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status "$proc" || true
+    if [ -z "$new_pid" ] || [ "$new_pid" = "$old_pid" ]; then
+      echo "ERROR: ${proc} was not respawned within 15s after killing process group ${old_pid}"
+      docker exec workbench-backbeat supervisord ctl -c /conf/supervisord.conf status || true
+      exit 1
+    fi
+    echo "${proc} restarted (pid ${old_pid} -> ${new_pid})"
     # Wait for the new instance's "running!" marker to appear.
     local new_running=${prev_running:-0}
     for i in {1..60}; do
