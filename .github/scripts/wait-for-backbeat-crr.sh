@@ -38,3 +38,5 @@ echo "✓ Backbeat CRR pipeline ready"
 
 check_consumer_stable crr-queue-processor queue-processor \
   "queue processor is ready to consume replication entries"
+check_consumer_stable crr-status-processor status-processor \
+  "replication status processor is ready to consume replication status entries"
