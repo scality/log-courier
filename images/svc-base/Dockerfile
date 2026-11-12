@@ -39,7 +39,7 @@ COPY . /usr/src/app/
 RUN make all-debug
 
 # Common runtime setup (shared between production and debug)
-FROM alpine:3.23 AS runtime-common
+FROM alpine:3.24 AS runtime-common
 
 RUN apk add --no-cache \
     bash \
@@ -51,7 +51,7 @@ RUN apk add --no-cache \
     py3-pip \
     py3-setuptools
 
-RUN pip3 install --no-cache-dir --break-system-packages supervisor==4.2.5
+RUN pip3 install --no-cache-dir --break-system-packages supervisor==4.3.0
 
 ENV USER="scality"
 RUN addgroup -S ${USER} && \
